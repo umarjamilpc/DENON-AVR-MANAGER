@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<HTML>
+<HEAD>
+<META http-equiv="Pragma" content="no-cache" />
+<META http-equiv="Cache-Control" content="no-cache, must-revalidate" />
+<META http-equiv="Expires" content="-1" />
+<META http-equiv="Content-Type" CONTENT="text/html; charset=utf-8">
+<meta http-equiv="content-style-type" content="text/css">
+<link rel="stylesheet" href="/goform/formCssDefault.css" type="text/css">
+<TITLE>Setup Menu</TITLE>
+</HEAD>
+
+<script type="text/javascript" src="../surrpara.js?201112230000"></script>
+<script language="javaScript1.2">
+<!--
+	window.onload = function() {
+		if(document.surrParaForm.setPureDirectOn.value == "ON"){
+			location.href = "../../18_OTHERS/d_othersPureDirect.asp";
+		}else if(document.surrParaForm.setSetupLock.value == "ON"){
+			location.href = "../../18_OTHERS/d_othersSetupLock.asp";
+		}
+	}
+
+	function showValueGEQ63 () {
+			document.getElementById("showRangeAreaGEQ63").innerHTML = document.getElementById("RangeGEQ63").value;
+			document.surrParaForm.textGEQ63.value = document.getElementById("RangeGEQ63").value;
+	}
+
+	function showValueGEQ125 () {
+			document.getElementById("showRangeAreaGEQ125").innerHTML = document.getElementById("RangeGEQ125").value;
+			document.surrParaForm.textGEQ125.value = document.getElementById("RangeGEQ125").value;
+	}
+
+	function showValueGEQ250 () {
+			document.getElementById("showRangeAreaGEQ250").innerHTML = document.getElementById("RangeGEQ250").value;
+			document.surrParaForm.textGEQ250.value = document.getElementById("RangeGEQ250").value;
+	}
+
+	function showValueGEQ500 () {
+			document.getElementById("showRangeAreaGEQ500").innerHTML = document.getElementById("RangeGEQ500").value;
+			document.surrParaForm.textGEQ500.value = document.getElementById("RangeGEQ500").value;
+	}
+
+	function showValueGEQ1k () {
+			document.getElementById("showRangeAreaGEQ1k").innerHTML = document.getElementById("RangeGEQ1k").value;
+			document.surrParaForm.textGEQ1k.value = document.getElementById("RangeGEQ1k").value;
+	}
+
+	function showValueGEQ2k () {
+			document.getElementById("showRangeAreaGEQ2k").innerHTML = document.getElementById("RangeGEQ2k").value;
+			document.surrParaForm.textGEQ2k.value = document.getElementById("RangeGEQ2k").value;
+	}
+
+	function showValueGEQ4k () {
+			document.getElementById("showRangeAreaGEQ4k").innerHTML = document.getElementById("RangeGEQ4k").value;
+			document.surrParaForm.textGEQ4k.value = document.getElementById("RangeGEQ4k").value;
+	}
+
+	function showValueGEQ8k () {
+			document.getElementById("showRangeAreaGEQ8k").innerHTML = document.getElementById("RangeGEQ8k").value;
+			document.surrParaForm.textGEQ8k.value = document.getElementById("RangeGEQ8k").value;
+	}
+
+	function showValueGEQ16k () {
+			document.getElementById("showRangeAreaGEQ16k").innerHTML = document.getElementById("RangeGEQ16k").value;
+			document.surrParaForm.textGEQ16k.value = document.getElementById("RangeGEQ16k").value;
+	}
+
+	function AdjustEQbuttonClickSet() {
+		document.surrParaForm.setAdjustEQ.value = "Set";
+		GEQSubmit();
+	}
+
+	function GEQCurveCopybuttonClickSet() {
+		document.surrParaForm.setGEQCurveCopy.value = "Set";
+		GEQSubmit();
+	}
+
+	function GEQSetDefaultsbuttonClickSet() {
+		document.surrParaForm.setGEQSetDefaults.value = "Set";
+		GEQSubmit();
+	}
+
+	function GEQSubmit() {
+		document.surrParaForm.submit();
+	}
+
+
+// -->
+</script>
+
+<body bgcolor="#222222">
+<FORM name="surrParaForm" action="s_audio.asp" method="POST" target="audio2">
+
+
+<INPUT type='hidden' name='setPureDirectOn' value='OFF'>
+<INPUT type='hidden' name='setSetupLock' value='OFF'>
+
+<TABLE>
+<TR>
+	<TD nowrap>
+		<div class='Icon'><img src="../../../img/Setup_Audio_Blue.png"></div>
+	<div class="Title">
+		Audio/Manual EQ</div>
+	<TD>
+</TR>
+<TR>
+	<TD><div class="HelpText">
+		Adjusts the tonal quality for each speaker using a graphic equalizer
+	</div></TD>
+</TR>
+</TABLE>
+
+<HR size="2">
+
+<TABLE cellspacing="2" cellpadding="0" border="0">
+  <TR>
+    <TD Height="30" ><B>Manual EQ</B></TD>
+	<TD Height="30">
+        <INPUT type='radio' name='radioGraphicEQ' value='ON' onClick='radioBtn()'>On<INPUT type='radio' name='radioGraphicEQ' value='OFF' onClick='radioBtn()' checked>Off
+	</TD>
+  </TR>
+<TR><TD Height='30'><B>Speaker Selection</B></TD><TD Height='30'>Each</TD></TR>
+
+</TABLE>
+
+<TABLE>
+  <TR>
+	<TD Height="30">
+        <TR><TD height='30'><INPUT type='button'  disabled name='setbtnGEQCurveCopy' value='Curve Copy' onClick='GEQCurveCopybuttonClickSet()'><INPUT type='hidden' name='setGEQCurveCopy' value='off'></TD></TR>
+	</TD>
+  </TR>
+
+  <TR>
+	<TD Height="30">
+        <TR><TD height='30'><INPUT type='button' disabled name='setbtnGEQSetDefaults' value='Set Defaults' onClick='GEQSetDefaultsbuttonClickSet()'><INPUT type='hidden' name='setGEQSetDefaults' value='off'></TD></TR>
+	</TD>
+  </TR>
+</TABLE>
+</FORM>
+</BODY>
+</HTML>

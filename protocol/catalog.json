@@ -1,0 +1,790 @@
+[
+  {
+    "id": "18_others_s_otherspuredirect",
+    "section": "18_OTHERS",
+    "title": "OTHERS",
+    "submit_url": "http://192.168.20.50/SETUP/18_OTHERS/s_othersPureDirect.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/18_OTHERS/d_othersPureDirect.asp"
+    ],
+    "method": "POST",
+    "field_names": []
+  },
+  {
+    "id": "18_others_s_otherssetuplock",
+    "section": "18_OTHERS",
+    "title": "General/Setup Lock",
+    "submit_url": "http://192.168.20.50/SETUP/18_OTHERS/s_othersSetupLock.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/18_OTHERS/d_othersSetupLock.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioSetupLock"
+    ]
+  },
+  {
+    "id": "audio_audiodelay_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Audio Delay",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/AUDIODELAY/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/AUDIODELAY/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setAudioDelay",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnAudioDelay",
+      "textAudioDelay"
+    ]
+  },
+  {
+    "id": "audio_audyssey_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Audyssey",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/AUDYSSEY/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/AUDYSSEY/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listRoomEq",
+      "listRoomEqValue",
+      "radioDynamicEq",
+      "radioDynamicVol",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "audio_bilingualmode_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Bilingual Mode",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/BILINGUALMODE/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/BILINGUALMODE/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listBilingualMode",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "audio_dialoglevel_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Dialog Level Adjust",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/DIALOGLEVEL/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/DIALOGLEVEL/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listDialogLevelAdjust",
+      "radioDialogLevelAdjust",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "audio_graphiceq_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Manual EQ",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/GRAPHICEQ/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/GRAPHICEQ/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listGEQAdjustEQ",
+      "listGEQSpSelection",
+      "radioGraphicEQ",
+      "setAdjustEQ",
+      "setGEQCurveCopy",
+      "setGEQSetDefaults",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnAdjustEQ",
+      "setbtnGEQCurveCopy",
+      "setbtnGEQSetDefaults",
+      "textGEQ125",
+      "textGEQ16k",
+      "textGEQ1k",
+      "textGEQ250",
+      "textGEQ2k",
+      "textGEQ4k",
+      "textGEQ500",
+      "textGEQ63",
+      "textGEQ8k"
+    ]
+  },
+  {
+    "id": "audio_restorer_s_audio",
+    "section": "AUDIO",
+    "title": "Setup Menu",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/RESTORER/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/RESTORER/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "audio_subwooferlevel_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Subwoofer Level Adjust",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/SUBWOOFERLEVEL/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/SUBWOOFERLEVEL/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioSWLevelAdjustment",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "audio_surroundparameter_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Surround Parameter",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/SURROUNDPARAMETER/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/SURROUNDPARAMETER/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioCinemaEq",
+      "setLfeLevel",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnLfeLevel",
+      "textLfeLevel"
+    ]
+  },
+  {
+    "id": "audio_volume_s_audio",
+    "section": "AUDIO",
+    "title": "Audio/Volume",
+    "submit_url": "http://192.168.20.50/SETUP/AUDIO/VOLUME/s_audio.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/AUDIO/VOLUME/d_audio.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioMainMuteLevel",
+      "radioMainPwOnLevel",
+      "radioMainVolDisplay",
+      "radioMainVolLimit",
+      "setMainPwOnLevel",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnMainPwOnLevel",
+      "textMainPwOnLevel"
+    ]
+  },
+  {
+    "id": "general_eco_s_general",
+    "section": "GENERAL",
+    "title": "General/ECO",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/ECO/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/ECO/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioECOMode",
+      "radioECOOSD",
+      "radioECOPowerOnDef",
+      "radioMainZoneABS",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "general_firmware_r_firmware",
+    "section": "GENERAL",
+    "title": "Setup Menu",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/FIRMWARE/r_firmware.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/FIRMWARE/r_firmware.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "general_firmware_s_firmware",
+    "section": "GENERAL",
+    "title": "General/Firmware",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/FIRMWARE/s_firmware.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/FIRMWARE/d_firmware.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioUpdateNotification",
+      "radioUpgradeNotification",
+      "setAddNewFeature",
+      "setFirmwareUpdateWebUpdate",
+      "setUpdateCheck",
+      "setbtnAddNewFeature",
+      "setbtnFirmwareUpdate",
+      "setbtnUpdateCheck"
+    ]
+  },
+  {
+    "id": "general_frontdisplay_s_general",
+    "section": "GENERAL",
+    "title": "General/Front Display",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/FRONTDISPLAY/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/FRONTDISPLAY/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioDimmer",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "general_information_s_information",
+    "section": "GENERAL",
+    "title": "General/Information",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/INFORMATION/s_information.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/INFORMATION/d_information.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioAlerts",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "general_language_s_general",
+    "section": "GENERAL",
+    "title": "General/Language",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/LANGUAGE/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/LANGUAGE/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listOSD_Language",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "general_selectnames_s_general",
+    "section": "GENERAL",
+    "title": "Setup Menu",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/SELECTNAMES/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/SELECTNAMES/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setBtnQuickSelectNameDefault",
+      "setPureDirectOn",
+      "setQuickSelectName",
+      "setQuickSelectNameAll",
+      "setSetupLock",
+      "setbtnQuickSelectNameAll",
+      "textQuickSelectNameMainSelect1",
+      "textQuickSelectNameMainSelect2",
+      "textQuickSelectNameMainSelect3",
+      "textQuickSelectNameMainSelect4"
+    ]
+  },
+  {
+    "id": "general_setuplock_s_general",
+    "section": "GENERAL",
+    "title": "General/Setup Lock",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/SETUPLOCK/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/SETUPLOCK/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioSetupLock",
+      "setPureDirectOn"
+    ]
+  },
+  {
+    "id": "general_usagedata_s_general",
+    "section": "GENERAL",
+    "title": "General/Usage Data",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/USAGEDATA/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/USAGEDATA/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioUsageData",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "general_zone2setup_s_general",
+    "section": "GENERAL",
+    "title": "General/ZONE2 Setup",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/ZONE2SETUP/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/ZONE2SETUP/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioZone2PwOnLevel",
+      "radioZone2VolLevel",
+      "radioZone2VolLimit",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setZone2PwOnLevel",
+      "setZone2VolLevel",
+      "setbtnZone2PwOnLevel",
+      "setbtnZone2VolLevel",
+      "textZone2PwOnLevel",
+      "textZone2VolLevel"
+    ]
+  },
+  {
+    "id": "general_zonerename_s_general",
+    "section": "GENERAL",
+    "title": "General/Zone Rename",
+    "submit_url": "http://192.168.20.50/SETUP/GENERAL/ZONERENAME/s_general.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/GENERAL/ZONERENAME/d_general.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock",
+      "setZoneRenameAll",
+      "setZoneRenameDefault",
+      "setbtnZoneRenameAll",
+      "setbtnZoneRenameDefault",
+      "textZoneRenameMainZone"
+    ]
+  },
+  {
+    "id": "inputs_hidesources_s_delete",
+    "section": "INPUTS",
+    "title": "Inputs/Hide Sources",
+    "submit_url": "http://192.168.20.50/SETUP/INPUTS/HIDESOURCES/s_Delete.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/INPUTS/HIDESOURCES/d_Delete.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "AUX1",
+      "BT",
+      "DVD",
+      "FAVORITES",
+      "GAME",
+      "IRADIO",
+      "MPLAY",
+      "SAT/CBL",
+      "SERVER",
+      "TUNER",
+      "TV",
+      "USB/IPOD",
+      "buttonNet",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "inputs_inputassign_s_inputassign",
+    "section": "INPUTS",
+    "title": "Inputs/Input Assign",
+    "submit_url": "http://192.168.20.50/SETUP/INPUTS/INPUTASSIGN/s_InputAssign.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/INPUTS/INPUTASSIGN/d_InputAssign.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "defBtnInputAssign",
+      "listAnalogAssignBD",
+      "listAnalogAssignMPLAY",
+      "listDigitalAssignBD",
+      "listDigitalAssignMPLAY",
+      "listHdmiAssignBD",
+      "listHdmiAssignMPLAY",
+      "listVideoAssignBD",
+      "listVideoAssignMPLAY",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "inputs_inputselect_s_inputsetup",
+    "section": "INPUTS",
+    "title": "Inputs/Input Select",
+    "submit_url": "http://192.168.20.50/SETUP/INPUTS/INPUTSELECT/s_inputsetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/INPUTS/INPUTSELECT/d_inputsetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listDecodeMode",
+      "listInputMode",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "inputs_sourcelevel_s_inputsetup",
+    "section": "INPUTS",
+    "title": "Inputs/Source Level",
+    "submit_url": "http://192.168.20.50/SETUP/INPUTS/SOURCELEVEL/s_inputsetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/INPUTS/SOURCELEVEL/d_inputsetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock",
+      "setSourceLevelDigital",
+      "setbtnInFuncLev",
+      "textSourceLevelDigital"
+    ]
+  },
+  {
+    "id": "inputs_sourcerename_s_rename",
+    "section": "INPUTS",
+    "title": "Inputs/Source Rename",
+    "submit_url": "http://192.168.20.50/SETUP/INPUTS/SOURCERENAME/s_Rename.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/INPUTS/SOURCERENAME/d_Rename.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setFuncRenameAll",
+      "setFuncRenameBD",
+      "setFuncRenameDefault",
+      "setFuncRenameMPLAY",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnFuncRenameAll",
+      "setbtnFuncRenameDefault",
+      "textFuncRenameBD",
+      "textFuncRenameMPLAY"
+    ]
+  },
+  {
+    "id": "network_connection_r_network_setting_dhcp",
+    "section": "NETWORK",
+    "title": "Setup Menu",
+    "submit_url": "http://192.168.20.50/SETUP/NETWORK/CONNECTION/r_network_setting_dhcp.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/NETWORK/CONNECTION/r_network_setting_dhcp.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "network_connection_s_network_setting_dhcp",
+    "section": "NETWORK",
+    "title": "Network/Connection",
+    "submit_url": "http://192.168.20.50/SETUP/NETWORK/CONNECTION/s_network_setting_dhcp.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/NETWORK/CONNECTION/d_network_setting_dhcp.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "buttonNetworkSettingTestConnection",
+      "listWifi_WifiSetupHow",
+      "radioWifi"
+    ]
+  },
+  {
+    "id": "network_diagnostics_s_network",
+    "section": "NETWORK",
+    "title": "Diagnostics",
+    "submit_url": "http://192.168.20.50/SETUP/NETWORK/DIAGNOSTICS/s_network.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/NETWORK/DIAGNOSTICS/d_network.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "network_friendlyname_s_network",
+    "section": "NETWORK",
+    "title": "Network/Friendly Name",
+    "submit_url": "http://192.168.20.50/SETUP/NETWORK/FRIENDLYNAME/s_network.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/NETWORK/FRIENDLYNAME/d_network.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "FriendlyDef",
+      "FriendlyErrMsg",
+      "FriendlySet",
+      "Friendlyname",
+      "defBtnFriendlyName",
+      "listFriendlyNameTemplete",
+      "setBtnFriendlyName",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "network_ipcontrol_s_network",
+    "section": "NETWORK",
+    "title": "Network/Network Control",
+    "submit_url": "http://192.168.20.50/SETUP/NETWORK/IPCONTROL/s_network.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/NETWORK/IPCONTROL/d_network.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioNetworkStandby",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "network_settings_r_network_setting_dhcp",
+    "section": "NETWORK",
+    "title": "Setup Menu",
+    "submit_url": "http://192.168.20.50/SETUP/NETWORK/SETTINGS/r_network_setting_dhcp.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/NETWORK/SETTINGS/r_network_setting_dhcp.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "network_settings_s_network_setting_dhcp",
+    "section": "NETWORK",
+    "title": "Network/Settings",
+    "submit_url": "http://192.168.20.50/SETUP/NETWORK/SETTINGS/s_network_setting_dhcp.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/NETWORK/SETTINGS/d_network_setting_dhcp.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "buttonNetworkSettingProxySet",
+      "hiddenNetworkSettingProxy_OnOff",
+      "radioNetworkSettingDHCP",
+      "radioNetworkSettingDHCP_OnOff",
+      "radioNetworkSettingProxy_OnOff",
+      "setPureDirectOn",
+      "setSetupLock",
+      "textNetworkSettingGateway",
+      "textNetworkSettingIPAddress",
+      "textNetworkSettingPrimaryDNS",
+      "textNetworkSettingProxyPort",
+      "textNetworkSettingSecondaryDNS",
+      "textNetworkSettingSubnetMask"
+    ]
+  },
+  {
+    "id": "speakers_ampassign_s_speakersetup",
+    "section": "SPEAKERS",
+    "title": "Speakers/Amp Assign",
+    "submit_url": "http://192.168.20.50/SETUP/SPEAKERS/AMPASSIGN/s_speakersetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/SPEAKERS/AMPASSIGN/d_speakersetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listAmpAssignMode",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "speakers_bass_s_speakersetup",
+    "section": "SPEAKERS",
+    "title": "Speakers/Bass",
+    "submit_url": "http://192.168.20.50/SETUP/SPEAKERS/BASS/s_speakersetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/SPEAKERS/BASS/d_speakersetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "ListLpf",
+      "radioRelaySurrMode",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "speakers_crossovers_s_speakersetup",
+    "section": "SPEAKERS",
+    "title": "Speakers/Crossovers",
+    "submit_url": "http://192.168.20.50/SETUP/SPEAKERS/CROSSOVERS/s_speakersetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/SPEAKERS/CROSSOVERS/d_speakersetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "listCrossFreqAdvC",
+      "listCrossFreqAdvFr",
+      "listCrossFreqAdvSr",
+      "listCrossFreqAdvTopMiddle",
+      "radioCrossOvers",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "speakers_distances_s_speakersetup",
+    "section": "SPEAKERS",
+    "title": "Speakers/Distances",
+    "submit_url": "http://192.168.20.50/SETUP/SPEAKERS/DISTANCES/s_speakersetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/SPEAKERS/DISTANCES/d_speakersetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioDelayTimeMode",
+      "setDelayTimeAllSet",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnDelayTimeAllSet",
+      "textDelayTimeC",
+      "textDelayTimeFl",
+      "textDelayTimeFr",
+      "textDelayTimeSl",
+      "textDelayTimeSr",
+      "textDelayTimeSw",
+      "textDelayTimeTML",
+      "textDelayTimeTMR"
+    ]
+  },
+  {
+    "id": "speakers_frontspeaker_s_speakersetup",
+    "section": "SPEAKERS",
+    "title": "Speakers/Front Speaker",
+    "submit_url": "http://192.168.20.50/SETUP/SPEAKERS/FRONTSPEAKER/s_speakersetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/SPEAKERS/FRONTSPEAKER/d_speakersetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "speakers_levels_s_speakersetup",
+    "section": "SPEAKERS",
+    "title": "Speakers/Levels",
+    "submit_url": "http://192.168.20.50/SETUP/SPEAKERS/LEVELS/s_speakersetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/SPEAKERS/LEVELS/d_speakersetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "setCLA",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnCLA",
+      "textCVC",
+      "textCVFL",
+      "textCVFR",
+      "textCVSL",
+      "textCVSR",
+      "textCVSW",
+      "textCVTML",
+      "textCVTMR"
+    ]
+  },
+  {
+    "id": "speakers_speakerconfig_s_speakersetup",
+    "section": "SPEAKERS",
+    "title": "Speakers/Speaker Config.",
+    "submit_url": "http://192.168.20.50/SETUP/SPEAKERS/SPEAKERCONFIG/s_speakersetup.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/SPEAKERS/SPEAKERCONFIG/d_speakersetup.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioSpConfigC",
+      "radioSpConfigFr",
+      "radioSpConfigSr",
+      "radioSpConfigSw",
+      "radioSpConfigTopMiddle",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "video_hdmisetup_s_video",
+    "section": "VIDEO",
+    "title": "Video/HDMI Setup",
+    "submit_url": "http://192.168.20.50/SETUP/VIDEO/HDMISETUP/s_video.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/VIDEO/HDMISETUP/d_video.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioAutoLipSync",
+      "radioHdmiControl",
+      "radioHdmiPwOffControl",
+      "radioHdmiStandbySrcControl",
+      "radioPowerSaving",
+      "radioSmartMenu",
+      "radioTVAudioSwitching",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "video_onscreendisplay_s_video",
+    "section": "VIDEO",
+    "title": "Video/On Screen Display",
+    "submit_url": "http://192.168.20.50/SETUP/VIDEO/ONSCREENDISPLAY/s_video.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/VIDEO/ONSCREENDISPLAY/d_video.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioOnScreenDispFunction",
+      "radioOnScreenDispMasterVol",
+      "radioOnScreenDispPlayback",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  },
+  {
+    "id": "video_tvformat_s_video",
+    "section": "VIDEO",
+    "title": "Video/TV Format",
+    "submit_url": "http://192.168.20.50/SETUP/VIDEO/TVFORMAT/s_video.asp",
+    "read_urls": [
+      "http://192.168.20.50/SETUP/VIDEO/TVFORMAT/d_video.asp"
+    ],
+    "method": "POST",
+    "field_names": [
+      "radioGuiFormat",
+      "setPureDirectOn",
+      "setSetupLock"
+    ]
+  }
+]

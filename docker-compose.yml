@@ -1,0 +1,19 @@
+# DENON AVR MANAGER — run with Docker Compose
+# 1. Edit DENON_HOST below to your receiver's LAN IP
+# 2. docker compose up -d
+# 3. Open http://127.0.0.1:8000/
+
+services:
+  denon-avr-manager:
+    # Prefer the published multi-arch image (amd64 + arm64).
+    # For a local build instead, comment "image:" and uncomment "build:".
+    image: ghcr.io/umarjamilpc/denon-avr-manager:latest
+    # build: .
+    container_name: denon-avr-manager
+    ports:
+      - "8000:8000"
+    environment:
+      # Required — your Denon AVR IP or hostname on the LAN
+      DENON_HOST: "192.168.1.50"
+    restart: unless-stopped
+    # Container must reach the AVR on your home network (same LAN / routed).

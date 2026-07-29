@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<HTML>
+<HEAD>
+<META http-equiv="Pragma" content="no-cache" />
+<META http-equiv="Cache-Control" content="no-cache, must-revalidate" />
+<META http-equiv="Expires" content="-1" />
+<META http-equiv="Content-Type" CONTENT="text/html; charset=utf-8">
+<meta http-equiv="content-style-type" content="text/css">
+<link rel="stylesheet" href="/goform/formCssDefault.css" type="text/css">
+<TITLE>Setup Menu</TITLE>
+</HEAD>
+
+<script language="javaScript1.2">
+<!--
+    function isHanAlpha(obj){
+        var str=obj.value;
+        for(var i=0 ; i<str.length; i++){
+            var code=str.charCodeAt(i);
+            if ((33<=code && code<=126) || str.substr(i,1)==' ') {
+
+            }else{
+                alert(document.networksetup.FriendlyErrMsg.value);
+                return false;
+            }
+        }
+		document.networksetup.FriendlySet.value = "Set";
+		NetworkSubmit();
+        return true;
+    }
+
+	window.onload = function() {
+		if(document.networksetup.setPureDirectOn.value == "ON"){
+			location.href = "../../18_OTHERS/d_othersPureDirect.asp";
+		}else if(document.networksetup.setSetupLock.value == "ON"){
+			location.href = "../../18_OTHERS/d_othersSetupLock.asp";
+        }
+	}
+
+	function refreshHref() {
+		location.href = this.location.href;
+	}
+
+	function radioBtn() {
+		NetworkSubmit();
+	}
+	
+	function buttonClickDef() {
+		document.networksetup.FriendlyDef.value = "Def";
+		NetworkSubmit();
+	}
+
+	function listBox() {
+		NetworkSubmit();
+	}
+
+	function NetworkSubmit() {
+		document.networksetup.submit();
+	}
+// -->
+</script>
+
+<body bgcolor="#222222">
+<FORM name="networksetup" action="s_network.asp" method="POST" target="account2">
+
+<INPUT type='hidden' name='setPureDirectOn' value='OFF'>
+<INPUT type='hidden' name='setSetupLock' value='OFF'>
+
+
+<TABLE>
+<TR>
+	<TD nowrap>
+	<div class='Icon'><img src="../../../img/Setup_Network_Blue.png"></div><div class="Title">
+	Network/Friendly Name</div><TD>
+</TR>
+<TR>
+	<TD><div class="HelpText">Edits the name of the AVR that is displayed on the network</div><TD>
+<TR>
+</TABLE>
+
+
+<HR size="2">
+
+<TABLE>
+	<TR>
+		<TD height="30"><B>Friendly Name</B></TD>
+		<TD height="30"><SELECT size='1' name='listFriendlyNameTemplete' onchange='listBox()'><OPTION value='P01'></OPTION><OPTION value='P02' selected>Denon AVR-X1200W</OPTION><OPTION value='P03'>Home Theater</OPTION><OPTION value='P04'>Living Room</OPTION><OPTION value='P05'>Family Room</OPTION><OPTION value='P06'>Guest Room</OPTION><OPTION value='P07'>Kitchen</OPTION><OPTION value='P08'>Dining Room</OPTION><OPTION value='P09'>Master Bedroom</OPTION><OPTION value='P10'>Bedroom</OPTION><OPTION value='P11'>Den</OPTION><OPTION value='P12'>Office</OPTION></SELECT></TD>
+	</TR>
+	<TR>
+		<TD height="30"><B>Edit Name</B></TD>
+		<TD height="30"><INPUT TYPE='text' name='Friendlyname' value="Denon AVR-X1200W" Size='40' MAXLENGTH='63'><input type='button' value='Set' name='setBtnFriendlyName' onclick='isHanAlpha(this.form.Friendlyname)' ><INPUT type='hidden' name='FriendlySet' value='off'><INPUT type='hidden' name='FriendlyErrMsg' value='Invalid Input'></TD>
+	</TR>
+	<TR>
+		<TD height="30"><input type='button' value='Set Defaults' name='defBtnFriendlyName' onClick='buttonClickDef()'><INPUT type='hidden' name='FriendlyDef' value='off'></TD>
+	</TR>
+</TABLE>
+
+<HR size="2">
+<TABLE>
+	<TR>
+		<TD height="30">
+		<FONT size='2'><B>The types of characters that can be input are as shown below.</B></FONT>
+		</TD>
+	</TR>
+	<TR><TD><FONT size='2'>ABCDEFGHIJKLMNOPQRSTUVWXYZ</FONT></TD></TR>
+	<TR><TD><FONT size='2'>abcdefghijklmnopqrstuvwxyz</FONT></TD></TR>
+	<TR><TD><FONT size='2'>0123456789</FONT></TD></TR>
+	<TR><TD><FONT size='2'>!"#$%&'()*+,;&lt;=&gt;.@-_/:~?[\]^`{|}</FONT></TD></TR>
+</TABLE>
+</FORM>
+</BODY>
+</HTML>
