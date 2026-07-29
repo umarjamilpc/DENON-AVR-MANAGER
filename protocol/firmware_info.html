@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<HTML>
+<HEAD>
+<META http-equiv="Pragma" content="no-cache" />
+<META http-equiv="Cache-Control" content="no-cache, must-revalidate" />
+<META http-equiv="Expires" content="-1" />
+<META http-equiv="Content-Type" CONTENT="text/html; charset=utf-8">
+<meta http-equiv="content-style-type" content="text/css">
+<link rel="stylesheet" href="/goform/formCssDefault.css" type="text/css">
+<TITLE>Setup Menu</TITLE>
+</HEAD>
+<script language="javaScript1.2">
+<!--
+	function refreshHref() {
+		location.href = this.location.href;
+	}
+	function listBox() {
+		option3Submit();
+	}
+	function radioBtn() {
+		option3Submit();
+	}
+	function buttonDefault(btn) {
+		option3Submit();
+	}
+
+	function buttonUpdateCheckSet(btn) {
+		document.option3.setUpdateCheck.value = "Start";
+		parent.option3setup1.location.href = "./s_updatecheck.asp";
+	}
+	function buttonFirmwareUpdateSet(btn) {
+
+		if(btn == "DPMS"){
+			document.option3.setFirmwareUpdate.value = "Start";
+			parent.option3setup1.location.href = "./s_firmwareupdate.asp";
+		}else if(btn == "WebUpdate"){
+			top.location.href = "d_firmwareupdate_push.asp";
+
+		}
+
+	}
+	function buttonAddNewFeatureSet(btn) {
+		document.option3.setAddNewFeature.value = "Start";
+		parent.option3setup1.location.href = "./s_addnewfeature.asp";
+	}
+
+	function buttonClickSet() {
+		ZoneSetupSubmit();
+	}
+
+	function option3Submit() {
+		document.option3.submit();
+	}
+// -->
+</script>
+
+<body bgcolor="#222222">
+<FORM name="option3" action="s_firmware.asp" method="POST" target="option3setup2">
+
+
+
+<TABLE>
+<TR>
+	<TD nowrap>
+		<div class='Icon'><img src="../../../img/Setup_General_Blue.png"></div>
+	<div class="Title">
+		General/Firmware</div>
+	</TD>
+</TR>
+<TR>
+	<TD>
+		<div class="HelpText">Manages firmware updates</div>
+	</TD>
+</TR>
+</TABLE>
+
+
+<HR size="2">
+
+<H2>Update</H2>
+<TABLE>
+	<TR><TD height='30'><font size='3'><B>&nbsp;&nbsp;</B><INPUT type='button' name='setbtnUpdateCheck' value='Update' onClick='buttonUpdateCheckSet()'><INPUT type='hidden' name='setUpdateCheck' value='off'></TR>
+</TABLE>
+
+
+<H2>Notifications</H2>
+<TABLE>
+	<TR>
+		<TD height="30">Update</TD>
+		<TD height="30"><TD height='30'><INPUT type='radio' name='radioUpdateNotification' value='ON' onClick='radioBtn()'>On<INPUT type='radio' name='radioUpdateNotification' value='OFF' onClick='radioBtn()'>Off</TD>
+	</TR>
+</TABLE>
+
+<TABLE>
+	<TR>
+		<TD height="30">Upgrade</TD>
+		<TD height="30"><TD height='30'><INPUT type='radio' name='radioUpgradeNotification' value='ON' onClick='radioBtn()'>On<INPUT type='radio' name='radioUpgradeNotification' value='OFF' onClick='radioBtn()'>Off</TD>
+	</TR>
+</TABLE>
+
+
+<H2>Add New Feature</H2>
+<TABLE>
+	<TR><TD height='30'><font size='3'><B>&nbsp;&nbsp;</B><INPUT type='button' name='setbtnAddNewFeature' value='Add New Feature' onClick='buttonAddNewFeatureSet()'><INPUT type='hidden' name='setAddNewFeature' value='off'></TR>
+</TABLE>
+
+<H2>Web Update</H2>
+<TABLE>
+	<TR><TD height='30'><font size='3'><B>&nbsp;&nbsp;</B><INPUT type='button' name='setbtnFirmwareUpdate' value='Web Update' onClick='buttonFirmwareUpdateSet("WebUpdate")'><INPUT type='hidden' name='setFirmwareUpdateWebUpdate' value='off'></TR>
+</TABLE>
+
+</FORM>
+</BODY>
+</HTML>

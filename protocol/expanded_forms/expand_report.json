@@ -1,0 +1,102 @@
+[
+  {
+    "id": "manual_eq",
+    "prior": "OFF",
+    "restored": "OFF",
+    "restore_ok": true,
+    "fields_before": [
+      "radioGraphicEQ",
+      "setGEQCurveCopy",
+      "setGEQSetDefaults",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnGEQCurveCopy",
+      "setbtnGEQSetDefaults",
+      "surrParaForm"
+    ],
+    "fields_on": [
+      "listGEQAdjustEQ",
+      "listGEQSpSelection",
+      "radioGraphicEQ",
+      "setAdjustEQ",
+      "setGEQCurveCopy",
+      "setGEQSetDefaults",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnAdjustEQ",
+      "setbtnGEQCurveCopy",
+      "setbtnGEQSetDefaults",
+      "surrParaForm",
+      "textGEQ125",
+      "textGEQ16k",
+      "textGEQ1k",
+      "textGEQ250",
+      "textGEQ2k",
+      "textGEQ4k",
+      "textGEQ500",
+      "textGEQ63",
+      "textGEQ8k"
+    ],
+    "fields_after": [
+      "radioGraphicEQ",
+      "setGEQCurveCopy",
+      "setGEQSetDefaults",
+      "setPureDirectOn",
+      "setSetupLock",
+      "setbtnGEQCurveCopy",
+      "setbtnGEQSetDefaults",
+      "surrParaForm"
+    ]
+  },
+  {
+    "id": "dialog_level",
+    "prior": "ON",
+    "restored": "ON",
+    "restore_ok": true,
+    "fields_before": [
+      "listDialogLevelAdjust",
+      "radioDialogLevelAdjust",
+      "setPureDirectOn",
+      "setSetupLock",
+      "surrParaForm"
+    ],
+    "fields_on": [
+      "listDialogLevelAdjust",
+      "radioDialogLevelAdjust",
+      "setPureDirectOn",
+      "setSetupLock",
+      "surrParaForm"
+    ],
+    "fields_after": [
+      "listDialogLevelAdjust",
+      "radioDialogLevelAdjust",
+      "setPureDirectOn",
+      "setSetupLock",
+      "surrParaForm"
+    ]
+  },
+  {
+    "id": "subwoofer_level",
+    "prior": "OFF",
+    "restored": "OFF",
+    "restore_ok": true,
+    "fields_before": [
+      "radioSWLevelAdjustment",
+      "setPureDirectOn",
+      "setSetupLock",
+      "surrParaForm"
+    ],
+    "fields_on": [
+      "radioSWLevelAdjustment",
+      "setPureDirectOn",
+      "setSetupLock",
+      "surrParaForm"
+    ],
+    "fields_after": [
+      "radioSWLevelAdjustment",
+      "setPureDirectOn",
+      "setSetupLock",
+      "surrParaForm"
+    ]
+  }
+]

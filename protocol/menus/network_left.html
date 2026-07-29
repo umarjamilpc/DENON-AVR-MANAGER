@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>SETUP</title>
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+    <meta http-equiv="Expires" content="-1">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="content-style-type" content="text/css">
+    <link rel="stylesheet" href="/goform/formCssDefault.css" type="text/css">
+
+	<meta name="viewport" content="width=device-width, initial-scale=1"> 
+	<link rel="stylesheet" href="../../lib/jquerymobile110/jquery.mobile-1.1.0.min.css" />
+	<script type="text/javascript" src="../../lib/jquerymobile110/jquery-1.7.1.min.js"></script>
+	<script type="text/javascript" src="../../lib/jquerymobile110/jquery.mobile-1.1.0.min.js"></script>
+
+  </head>
+	<body bgcolor="#222222">
+
+<div data-role="page" data-theme="a">
+
+	<div data-role="header">
+		<a href="../../index.asp" target="_parent" data-role="button" data-icon="home" data-inline="true" class="ui-btn-left">Back</a>
+		<h1>&nbsp;</h1>
+	</div><!-- /header -->
+
+	<div data-role="content">
+		<ul data-role="listview" >
+			<li class="current"><font size="4">Setup Menu</font></li>
+			<li><img src='../../img/Setup_Audio_Blue.png' style='max-width:40px;max-height:40px;top:0;left:0;' class='ui-li-icon'><a href='../AUDIO/f_audio.asp 'target='_parent' style='padding-left:50px;'>Audio</a></li>
+			<li><img src='../../img/Setup_Video_Blue.png' style='max-width:40px;max-height:40px;top:0;left:0;' class='ui-li-icon'><a href='../VIDEO/f_video.asp 'target='_parent' style='padding-left:50px;'>Video</a></li>
+			<li><img src='../../img/Setup_Inputs_Blue.png' style='max-width:40px;max-height:40px;top:0;left:0;' class='ui-li-icon'><a href='../INPUTS/f_inputs.asp 'target='_parent' style='padding-left:50px;'>Inputs</a></li>
+			<li><img src='../../img/Setup_Speakers_Blue.png' style='max-width:40px;max-height:40px;top:0;left:0;' class='ui-li-icon'><a href='../SPEAKERS/f_speakers.asp 'target='_parent' style='padding-left:50px;'>Speakers</a></li>
+			<li class='current' ><img src='../../img/Setup_Network_Blue.png' style='max-width:40px;max-height:40px;top:0;left:0;' class='ui-li-icon'><font color='#88BBEE' size='4' style='padding-left:10px;'>Network</font></li>
+			<li><img src='../../img/Setup_General_Blue.png' style='max-width:40px;max-height:40px;top:0;left:0;' class='ui-li-icon'><a href='../GENERAL/f_general.asp 'target='_parent' style='padding-left:50px;'>General</a></li>
+		</ul>
+	</div>
+	<div>
+	
+	</div>
+	<div>
+	
+	</div>
+	<div id="DivSaveLoad">
+	<div data-role='footer' data-position='fixed'><div data-role='navbar'><ul><li><a href='../OTHERS/SAVE/f_config_save.asp' target='_top'>Save</a></li><li><a href='../OTHERS/LOAD/f_config_load.asp' target='_top'>Load</a></li></ul></div></div>
+	</div>
+	
+</div><!-- /page -->
+  	</body>
+
+<script type="text/javascript">
+<!--
+		if ((navigator.userAgent.indexOf('Android') > 0 && navigator.userAgent.indexOf('Mobile') > 0) || 
+	     navigator.userAgent.indexOf('iPod') > 0 || 
+	    (navigator.userAgent.indexOf('iPhone') > 0 && navigator.userAgent.indexOf('iPad') == -1)) {
+		//スマホ（iPhone,iPod touch,Android）の場合
+		 document.getElementById("DivSaveLoad").style.display = "none";
+	}else if(navigator.userAgent.indexOf('Android') > 0 || navigator.userAgent.indexOf('iPad') > 0){
+		//タブレット（iPad,Androidタブレット）の場合
+		document.getElementById("DivSaveLoad").style.display = "none"; 
+	}else{
+		if (/\bSilk\b/.test(navigator.userAgent)) {
+			document.getElementById("DivSaveLoad").style.display = "none"; 
+		}else{
+			//alert('PC');
+			document.getElementById('DivSaveLoad').style.display = "block"; 
+		}
+	}
+// -->
+</script>
+
+</html>

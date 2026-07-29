@@ -1,0 +1,325 @@
+{
+  "source_manual": "AVR-X1200WE2_ENG_CD-ROM_IM_v00A (menu map pp.135-137)",
+  "limits": [
+    "No Save/Load",
+    "No firmware update / web update / add feature",
+    "No Setup Lock writes",
+    "No network IP/DHCP/proxy writes",
+    "No Audyssey Setup wizard start (engage stub only later)",
+    "No Maintenance Mode",
+    "No Setup Assistant",
+    "Restore any temporary toggle used while scraping"
+  ],
+  "summary": {
+    "crawled": 39,
+    "missing": 0,
+    "blocked_or_stub": 3,
+    "catalog_endpoints": 44,
+    "protocol_pages": 144
+  },
+  "items": [
+    {
+      "section": "Audio",
+      "item": "Dialog Level",
+      "key": "audio_dialoglevel",
+      "status": "CRAWLED",
+      "note": "audio_dialoglevel_s_audio"
+    },
+    {
+      "section": "Audio",
+      "item": "Subwoofer Level",
+      "key": "audio_subwooferlevel",
+      "status": "CRAWLED",
+      "note": "audio_subwooferlevel_s_audio"
+    },
+    {
+      "section": "Audio",
+      "item": "Surr.Parameter",
+      "key": "audio_surroundparameter",
+      "status": "CRAWLED",
+      "note": "audio_surroundparameter_s_audio"
+    },
+    {
+      "section": "Audio",
+      "item": "Restorer",
+      "key": "audio_restorer",
+      "status": "CRAWLED",
+      "note": "audio_restorer_s_audio"
+    },
+    {
+      "section": "Audio",
+      "item": "Audio Delay",
+      "key": "audio_audiodelay",
+      "status": "CRAWLED",
+      "note": "audio_audiodelay_s_audio"
+    },
+    {
+      "section": "Audio",
+      "item": "Volume",
+      "key": "audio_volume",
+      "status": "CRAWLED",
+      "note": "audio_volume_s_audio"
+    },
+    {
+      "section": "Audio",
+      "item": "Audyssey (MultEQ/DynEQ/DynVol settings)",
+      "key": "audio_audyssey",
+      "status": "CRAWLED",
+      "note": "audio_audyssey_s_audio"
+    },
+    {
+      "section": "Audio",
+      "item": "Manual EQ",
+      "key": "audio_graphiceq",
+      "status": "CRAWLED",
+      "note": "audio_graphiceq_s_audio"
+    },
+    {
+      "section": "Video",
+      "item": "HDMI Setup",
+      "key": "video_hdmisetup",
+      "status": "CRAWLED",
+      "note": "video_hdmisetup_s_video"
+    },
+    {
+      "section": "Video",
+      "item": "On Screen Disp.",
+      "key": "video_onscreendisplay",
+      "status": "CRAWLED",
+      "note": "video_onscreendisplay_s_video"
+    },
+    {
+      "section": "Video",
+      "item": "TV Format",
+      "key": "video_tvformat",
+      "status": "CRAWLED",
+      "note": "video_tvformat_s_video"
+    },
+    {
+      "section": "Inputs",
+      "item": "Input Assign",
+      "key": "inputs_inputassign",
+      "status": "CRAWLED",
+      "note": "inputs_inputassign_s_inputassign"
+    },
+    {
+      "section": "Inputs",
+      "item": "Source Rename",
+      "key": "inputs_sourcerename",
+      "status": "CRAWLED",
+      "note": "inputs_sourcerename_s_rename"
+    },
+    {
+      "section": "Inputs",
+      "item": "Hide Sources",
+      "key": "inputs_hidesources",
+      "status": "CRAWLED",
+      "note": "inputs_hidesources_s_delete"
+    },
+    {
+      "section": "Inputs",
+      "item": "Source Level",
+      "key": "inputs_sourcelevel",
+      "status": "CRAWLED",
+      "note": "inputs_sourcelevel_s_inputsetup"
+    },
+    {
+      "section": "Inputs",
+      "item": "Input Select",
+      "key": "inputs_inputselect",
+      "status": "CRAWLED",
+      "note": "inputs_inputselect_s_inputsetup"
+    },
+    {
+      "section": "Speakers",
+      "item": "Audyssey Setup (wizard)",
+      "key": "speakers_audyssey_setup",
+      "status": "STUB_ONLY_NO_WIZARD",
+      "note": "Do not start. Future engage toggle only; mic wizard is OSD."
+    },
+    {
+      "section": "Speakers",
+      "item": "Manual Setup / Amp Assign",
+      "key": "speakers_ampassign",
+      "status": "CRAWLED",
+      "note": "speakers_ampassign_s_speakersetup"
+    },
+    {
+      "section": "Speakers",
+      "item": "Manual Setup / Speaker Config.",
+      "key": "speakers_speakerconfig",
+      "status": "CRAWLED",
+      "note": "speakers_speakerconfig_s_speakersetup"
+    },
+    {
+      "section": "Speakers",
+      "item": "Manual Setup / Distances",
+      "key": "speakers_distances",
+      "status": "CRAWLED",
+      "note": "speakers_distances_s_speakersetup"
+    },
+    {
+      "section": "Speakers",
+      "item": "Manual Setup / Levels",
+      "key": "speakers_levels",
+      "status": "CRAWLED",
+      "note": "speakers_levels_s_speakersetup"
+    },
+    {
+      "section": "Speakers",
+      "item": "Manual Setup / Crossovers",
+      "key": "speakers_crossovers",
+      "status": "CRAWLED",
+      "note": "speakers_crossovers_s_speakersetup"
+    },
+    {
+      "section": "Speakers",
+      "item": "Manual Setup / Bass",
+      "key": "speakers_bass",
+      "status": "CRAWLED",
+      "note": "speakers_bass_s_speakersetup"
+    },
+    {
+      "section": "Speakers",
+      "item": "Manual Setup / Front Speaker",
+      "key": "speakers_frontspeaker",
+      "status": "CRAWLED",
+      "note": "speakers_frontspeaker_s_speakersetup"
+    },
+    {
+      "section": "Network",
+      "item": "Information",
+      "key": "network_information",
+      "status": "CRAWLED",
+      "note": "via NETWORK/SETTINGS (+ /api/info/network)"
+    },
+    {
+      "section": "Network",
+      "item": "Connection",
+      "key": "network_connection",
+      "status": "CRAWLED",
+      "note": "network_connection_r_network_setting_dhcp, network_connection_s_network_setting_dhcp"
+    },
+    {
+      "section": "Network",
+      "item": "Settings",
+      "key": "network_settings",
+      "status": "CRAWLED",
+      "note": "network_settings_s_network_setting_dhcp, network_settings_r_network_setting_dhcp"
+    },
+    {
+      "section": "Network",
+      "item": "Network Control",
+      "key": "network_ipcontrol",
+      "status": "CRAWLED",
+      "note": "network_ipcontrol_s_network"
+    },
+    {
+      "section": "Network",
+      "item": "Friendly Name",
+      "key": "network_friendlyname",
+      "status": "CRAWLED",
+      "note": "network_friendlyname_s_network"
+    },
+    {
+      "section": "Network",
+      "item": "Diagnostics",
+      "key": "network_diagnostics",
+      "status": "CRAWLED",
+      "note": "network_diagnostics_s_network, NETWORK/DIAGNOSTICS"
+    },
+    {
+      "section": "Network",
+      "item": "Maintenance Mode",
+      "key": "network_maintenance",
+      "status": "BLOCKED",
+      "note": "Service technician mode \u2014 excluded"
+    },
+    {
+      "section": "General",
+      "item": "Language",
+      "key": "general_language",
+      "status": "CRAWLED",
+      "note": "general_language_s_general"
+    },
+    {
+      "section": "General",
+      "item": "ECO",
+      "key": "general_eco",
+      "status": "CRAWLED",
+      "note": "general_eco_s_general"
+    },
+    {
+      "section": "General",
+      "item": "ZONE2 Setup",
+      "key": "general_zone2setup",
+      "status": "CRAWLED",
+      "note": "general_zone2setup_s_general"
+    },
+    {
+      "section": "General",
+      "item": "Zone Rename",
+      "key": "general_zonerename",
+      "status": "CRAWLED",
+      "note": "general_zonerename_s_general"
+    },
+    {
+      "section": "General",
+      "item": "Quick Sel.Names",
+      "key": "general_selectnames",
+      "status": "CRAWLED",
+      "note": "general_selectnames_s_general"
+    },
+    {
+      "section": "General",
+      "item": "Front Display",
+      "key": "general_frontdisplay",
+      "status": "CRAWLED",
+      "note": "general_frontdisplay_s_general"
+    },
+    {
+      "section": "General",
+      "item": "Firmware (info only)",
+      "key": "general_firmware",
+      "status": "CRAWLED",
+      "note": "general_firmware_r_firmware, general_firmware_s_firmware"
+    },
+    {
+      "section": "General",
+      "item": "Information",
+      "key": "general_information",
+      "status": "CRAWLED",
+      "note": "general_information_s_information, GENERAL/INFORMATION"
+    },
+    {
+      "section": "General",
+      "item": "Usage Data",
+      "key": "general_usagedata",
+      "status": "CRAWLED",
+      "note": "general_usagedata_s_general"
+    },
+    {
+      "section": "General",
+      "item": "Setup Lock (read scrape only)",
+      "key": "general_setuplock",
+      "status": "CRAWLED",
+      "note": "general_setuplock_s_general"
+    },
+    {
+      "section": "Setup Assistant",
+      "item": "Begin Setup / wizards",
+      "key": "setup_assistant",
+      "status": "BLOCKED",
+      "note": "Setup Assistant wizards excluded"
+    }
+  ],
+  "future_api_stubs": [
+    {
+      "id": "speakers_audyssey_setup_engage",
+      "method": "POST",
+      "path": "/api/speakers/audyssey-setup/engage",
+      "behavior": "Toggle/engage only \u2014 must NEVER auto-run Start/Begin Test/Next wizard steps",
+      "status": "not_implemented_yet"
+    }
+  ]
+}
