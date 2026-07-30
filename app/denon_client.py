@@ -234,39 +234,47 @@ class DenonSetupClient:
             if name in row_labels:
                 fields[name]["ui_label"] = row_labels[name]
 
-        # Channel Levels: Denon uses unnamed range sliders + hidden textCV* fields.
+        # Channel Levels + Manual EQ: unnamed Range* sliders + hidden text* fields.
+        # Hidden fields alone are stripped from API responses, so promote them to range.
         ranges_by_key: Dict[str, Dict[str, str]] = {}
         for im in re.finditer(r"<input\b([^>]*)/?>", body, re.I):
             a = _attrs(im.group(1))
             if a.get("type", "").lower() != "range":
                 continue
             rid = a.get("id") or ""
-            m = re.match(r"^Range(CV.+)$", rid, re.I)
+            m = re.match(r"^Range((?:CV|GEQ).+)$", rid, re.I)
             if not m:
                 continue
-            ranges_by_key[m.group(1).upper()] = {
+            key = m.group(1).upper()
+            is_geq = key.startswith("GEQ")
+            ranges_by_key[key] = {
                 "value": a.get("value", ""),
-                "min": a.get("min", "-12"),
-                "max": a.get("max", "12"),
+                "min": a.get("min", "-20" if is_geq else "-12"),
+                "max": a.get("max", "6" if is_geq else "12"),
                 "step": a.get("step", "0.5"),
             }
         for name, meta in list(fields.items()):
-            if not name.startswith("textCV"):
+            if name.startswith("textCV"):
+                key = name[4:].upper()  # textCVFL → CVFL
+                default_min, default_max = "-12", "12"
+            elif name.startswith("textGEQ"):
+                key = name[4:].upper()  # textGEQ63 → GEQ63
+                default_min, default_max = "-20", "6"
+            else:
                 continue
-            key = name[4:].upper()  # textCVFL → CVFL
             rng = ranges_by_key.get(key)
             if not rng:
                 # Still expose editable number even without a paired range node
                 if meta.get("type") == "hidden":
                     meta["type"] = "number"
-                    meta["min"] = meta.get("min") or "-12"
-                    meta["max"] = meta.get("max") or "12"
+                    meta["min"] = meta.get("min") or default_min
+                    meta["max"] = meta.get("max") or default_max
                     meta["step"] = meta.get("step") or "0.5"
                     meta["unit"] = "dB"
                 continue
             meta["type"] = "range"
-            meta["min"] = rng.get("min") or "-12"
-            meta["max"] = rng.get("max") or "12"
+            meta["min"] = rng.get("min") or default_min
+            meta["max"] = rng.get("max") or default_max
             meta["step"] = rng.get("step") or "0.5"
             if rng.get("value") not in (None, ""):
                 meta["value"] = rng["value"]

@@ -1778,8 +1778,8 @@
       const sp = (fields.listGEQSpSelection || {}).value;
       if (sp && $("eq-sp")) $("eq-sp").value = sp;
 
-      // Only read band values when EQ is On — never probe On/Off.
-      if (on && fields.textGEQ63) {
+      // Band fields are textGEQ* (promoted from Denon hidden+RangeGEQ*).
+      if (on && fields.textGEQ63 && fields.textGEQ63.value != null) {
         applyBandsToUi(fields);
       } else {
         for (const [label] of BANDS) {
