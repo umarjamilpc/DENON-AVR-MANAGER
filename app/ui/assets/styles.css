@@ -603,7 +603,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 .eq-band {
   display: grid;
-  grid-template-columns: 4.5rem minmax(8rem, 1fr) 5.5rem;
+  grid-template-columns: 4.5rem minmax(8rem, 1fr) 7rem;
   align-items: center;
   gap: 0.65rem;
   padding: 0.15rem 0;
@@ -620,7 +620,15 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   cursor: not-allowed;
 }
 .eq-band .hz { font-family: var(--mono); font-size: 0.8rem; color: var(--text); }
-.eq-band .db { font-family: var(--mono); font-size: 0.85rem; font-weight: 500; text-align: right; }
+.eq-band .db {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  min-width: 7ch;
+}
 #eq-actions {
   display: flex;
   flex-direction: column;
@@ -949,7 +957,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
     grid-template-columns: 1fr;
   }
   .eq-band {
-    grid-template-columns: 3.75rem minmax(5rem, 1fr) 4.75rem;
+    grid-template-columns: 3.75rem minmax(5rem, 1fr) 6.5rem;
   }
   .nav-col, .items-col { max-height: none; }
 }

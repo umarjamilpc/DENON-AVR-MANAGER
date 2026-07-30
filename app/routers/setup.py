@@ -806,7 +806,9 @@ def set_manual_eq_bands(
     for key, form_name in band_map.items():
         if key not in payload.bands:
             raise HTTPException(400, f"Missing band '{key}' — send all 9 bands")
-        fields[form_name] = f"{float(payload.bands[key]):.1f}"
+        # Keep ASCII signed dB (e.g. -2.5); never drop the leading minus.
+        val = float(payload.bands[key])
+        fields[form_name] = f"{val:.1f}"
     body = SubmitBody(fields=fields, merge_defaults=True)
     return submit_endpoint("audio_graphiceq_s_audio", body, request)
 

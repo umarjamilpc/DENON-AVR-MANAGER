@@ -276,7 +276,9 @@ class DenonSetupClient:
             meta["min"] = rng.get("min") or default_min
             meta["max"] = rng.get("max") or default_max
             meta["step"] = rng.get("step") or "0.5"
-            if rng.get("value") not in (None, ""):
+            # Prefer the named hidden field value (what Denon POSTs). Only fill from
+            # the unpaired Range* widget when the hidden value is missing.
+            if meta.get("value") in (None, "") and rng.get("value") not in (None, ""):
                 meta["value"] = rng["value"]
             meta["unit"] = "dB"
             fields[name] = meta
