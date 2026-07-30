@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from .app_settings import ensure_settings_file
 from .denon_client import DenonSetupClient
 from .host_utils import normalize_host
 from .routers import setup as setup_router
@@ -30,6 +31,9 @@ def create_app(host: str | None = None) -> FastAPI:
         default_host = normalize_host(raw)
     except ValueError as e:
         raise RuntimeError(f"Invalid DENON_HOST={raw!r}: {e}") from e
+
+    # Create /data/app-settings.json (or local data/) with defaults if missing.
+    ensure_settings_file()
 
     app = FastAPI(
         title="DENON AVR MANAGER",

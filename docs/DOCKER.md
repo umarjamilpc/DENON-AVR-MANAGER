@@ -11,7 +11,6 @@ All runtime config is in `docker-compose.yml`:
 ```yaml
 environment:
   DENON_HOST: "192.168.1.50"
-  APP_SETTINGS_PATH: "/data/app-settings.json"
 volumes:
   - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER:/data
 ```
@@ -19,9 +18,8 @@ volumes:
 | Variable | Required | Meaning |
 |----------|----------|---------|
 | `DENON_HOST` | **Yes** | AVR IP or hostname |
-| `APP_SETTINGS_PATH` | No | JSON file for App Settings (poll rate, theme, …). Compose sets `/data/app-settings.json`. |
 
-The `/data` volume keeps App Settings across container restarts. On Unraid the host path is `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER/`.
+The `/data` volume keeps App Settings across container restarts. On first start the app creates `/data/app-settings.json` with defaults. On Unraid the host path is `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER/`.
 
 Port is fixed at **8000** inside the image. Map it on the host:
 
