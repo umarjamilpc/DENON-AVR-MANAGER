@@ -12,6 +12,7 @@ from ..app_settings import (
     save_settings,
     settings_response,
 )
+from ..manual_eq_backup import export_manual_eq, import_manual_eq
 from ..denon_client import DenonSetupClient
 from ..denon_power import (
     STANDBY_SETTINGS_BLOCKED,
@@ -99,6 +100,17 @@ class AppSettingsBody(BaseModel):
     settings: Dict[str, Any] = Field(
         ...,
         description="Partial or full app settings object to merge and persist.",
+    )
+
+
+class ManualEqImportBody(BaseModel):
+    backup: Dict[str, Any] = Field(
+        ...,
+        description="Manual EQ backup object from GET /api/manual-eq/export",
+    )
+    dry_run: bool = Field(
+        False,
+        description="If true, validate Amp Assign / channels only — no writes.",
     )
 
 
@@ -200,6 +212,36 @@ def post_app_settings_reset() -> Dict[str, Any]:
             },
         ) from e
     return settings_response()
+
+
+# ---------- Manual EQ backup (per-channel curves) ----------
+
+
+@router.get("/manual-eq/export")
+def get_manual_eq_export(request: Request) -> Dict[str, Any]:
+    """Export every live Manual EQ channel curve (Amp Assign–aware options)."""
+    client = _client(request)
+    try:
+        backup = export_manual_eq(client)
+    except RuntimeError as e:
+        raise HTTPException(403 if "Standby" in str(e) else 502, str(e)) from e
+    return scrub_host_urls({"backup": backup, "read_at": _utc_now_iso()})
+
+
+@router.post("/manual-eq/import")
+def post_manual_eq_import(request: Request, body: ManualEqImportBody) -> Dict[str, Any]:
+    """Import Manual EQ curves. Blocked if Amp Assign differs; missing speakers skipped."""
+    client = _client(request)
+    _reject_if_standby(client)
+    try:
+        result = import_manual_eq(client, body.backup, dry_run=body.dry_run)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except RuntimeError as e:
+        msg = str(e)
+        code = 409 if "Amp Assign differs" in msg else (403 if "Standby" in msg else 502)
+        raise HTTPException(code, msg) from e
+    return scrub_host_urls({"result": result, "read_at": _utc_now_iso()})
 
 
 @router.get("/connection")

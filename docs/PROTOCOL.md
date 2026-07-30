@@ -30,7 +30,7 @@ Clients do not need to send these; `safety.sanitize_write_fields` injects them.
 | Write | `POST /SETUP/AUDIO/GRAPHICEQ/s_audio.asp` |
 | Enable | `radioGraphicEQ=ON\|OFF` |
 | Bands | `textGEQ63` … `textGEQ16k` |
-| Channel view | `listGEQAdjustEQ` (`FL`, `FR`, `CEN`, `SL`, `SR`, `TML`, `TMR`, …) |
+| Channel view | `listGEQAdjustEQ` — **live options from AVR** (codes/labels change with Amp Assign) |
 | Apply bands | `setAdjustEQ=Set` |
 | Curve copy / defaults | `setGEQCurveCopy` / `setGEQSetDefaults` (button-gated) |
 

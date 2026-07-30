@@ -31,8 +31,17 @@ This UI mirrors that. Hover for the reason.
 
 ## Manual EQ
 
-Special UI for 9-band Graphic EQ (when MultEQ is Off). Uses the same  
-`/api/endpoints/audio_graphiceq_s_audio` read/write path as other Setup pages.
+Special UI for 9-band Graphic EQ (when MultEQ is Off). Channel / Speaker
+Selection lists come from the AVR (Amp Assign aware — not hard-coded).
+
+Uses `/api/endpoints/audio_graphiceq_s_audio` for live edits, plus:
+
+| API | Purpose |
+|-----|---------|
+| `GET /api/manual-eq/export` | All live channel curves + Amp Assign fingerprint |
+| `POST /api/manual-eq/import` | Restore curves; **blocked** if Amp Assign differs; missing speakers skipped with warnings |
+
+Export / Import buttons are on the Manual EQ page.
 
 ## Themes
 

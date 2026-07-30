@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=25" />
+  <link rel="stylesheet" href="/assets/styles.css?v=26" />
 </head>
 <body>
   <div class="shell">
@@ -165,8 +165,13 @@
               <h3>Manual EQ</h3>
               <p>
                 Turn Graphic EQ <strong>On</strong>, pick speaker / channel, drag bands, then press
-                <strong>Set</strong>. Remote changes from the AVR are only applied after the
-                <em>Manual EQ confirm time</em> (see Settings) so curves do not flip while you edit.
+                <strong>Set</strong>. Channel names come from the AVR (they change with Amp Assign).
+                Remote changes are only applied after the <em>Manual EQ confirm time</em> (see Settings).
+              </p>
+              <p>
+                <strong>Export all channels</strong> saves every live curve plus Amp Assign.
+                <strong>Import</strong> is blocked if Amp Assign differs; speakers in the file that are
+                not on the AVR now are skipped with a warning.
               </p>
             </section>
 
@@ -237,6 +242,6 @@ docker compose up -d</pre>
       <span id="foot-host"></span>
     </footer>
   </div>
-  <script src="/assets/app.js?v=39"></script>
+  <script src="/assets/app.js?v=40"></script>
 </body>
 </html>

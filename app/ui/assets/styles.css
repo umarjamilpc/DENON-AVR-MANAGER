@@ -724,14 +724,20 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-variant-numeric: tabular-nums;
   min-width: 9ch;
 }
-#eq-actions {
+#eq-actions,
+#eq-backup-actions {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.45rem;
 }
-#eq-actions .btn-action {
+#eq-actions .btn-action,
+#eq-backup-actions .btn-action {
   min-width: 8.5rem;
+}
+#eq-backup-msg {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
 }
 
 .foot {
