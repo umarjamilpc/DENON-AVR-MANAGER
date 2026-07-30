@@ -1580,13 +1580,14 @@
       const cached = state.lastEqBands[label] ?? 0;
       d.innerHTML = `
         <span class="hz">${label} Hz</span>
-        <input type="range" min="-20" max="6" step="0.5" value="${cached}" data-band="${label}" disabled />
-        <span class="db" data-band-db="${label}">${Number(cached).toFixed(1)} dB</span>`;
+        <input type="range" min="-20" max="6" step="0.5" value="${Number(cached).toFixed(1)}" data-band="${label}" disabled />
+        <span class="db" data-band-db="${label}">${formatDb(cached)}</span>`;
       const range = d.querySelector("input");
       const db = d.querySelector("[data-band-db]");
       range.addEventListener("input", () => {
-        db.textContent = `${Number(range.value).toFixed(1)} dB`;
-        state.lastEqBands[label] = Number(range.value);
+        const v = parseDb(range.value);
+        db.textContent = formatDb(v);
+        if (Number.isFinite(v)) state.lastEqBands[label] = v;
       });
       bands.appendChild(d);
     }
@@ -1672,17 +1673,38 @@
     }
   }
 
+  function parseDb(raw) {
+    let s = String(raw ?? "")
+      .trim()
+      .replace(/[–—−]/g, "-"); // en/em/unicode minus → ASCII
+    const m = s.match(/-?\d+(?:\.\d+)?/);
+    return m ? Number(m[0]) : NaN;
+  }
+
+  function formatDb(n) {
+    const v = parseDb(n);
+    if (!Number.isFinite(v)) return "0.0 dB";
+    return `${v.toFixed(1)} dB`;
+  }
+
   function applyBandsToUi(fields) {
     for (const [label, formName] of BANDS) {
       const meta = fields[formName] || {};
-      if (meta.value == null) continue;
-      const v = Number(meta.value);
+      if (meta.value == null && meta.value_label == null) continue;
+      // Always prefer raw value (signed). value_label can go through display cleaners.
+      const v = parseDb(meta.value != null ? meta.value : meta.value_label);
       if (!Number.isFinite(v)) continue;
       state.lastEqBands[label] = v;
       const input = document.querySelector(`input[data-band="${label}"]`);
       const db = document.querySelector(`[data-band-db="${label}"]`);
-      if (input) input.value = String(v);
-      if (db) db.textContent = `${v.toFixed(1)} dB`;
+      if (input) {
+        const asText = v.toFixed(1);
+        input.disabled = false; // ensure IDL value sticks on some WebViews
+        input.value = asText;
+        input.setAttribute("value", asText);
+        if (!state.eqEnabled) input.disabled = true;
+      }
+      if (db) db.textContent = formatDb(v);
     }
   }
 
@@ -1785,9 +1807,13 @@
         for (const [label] of BANDS) {
           const input = document.querySelector(`input[data-band="${label}"]`);
           const db = document.querySelector(`[data-band-db="${label}"]`);
-          const v = state.lastEqBands[label] ?? 0;
-          if (input) input.value = String(v);
-          if (db) db.textContent = `${Number(v).toFixed(1)} dB`;
+          const v = parseDb(state.lastEqBands[label] ?? 0);
+          if (input) {
+            const asText = Number.isFinite(v) ? v.toFixed(1) : "0.0";
+            input.value = asText;
+            input.setAttribute("value", asText);
+          }
+          if (db) db.textContent = formatDb(v);
         }
       }
       setEqControlsEnabled(on);
@@ -1807,14 +1833,23 @@
     state.eqBusy = true;
     const bands = {};
     for (const [label] of BANDS) {
-      const v = Number(
-        document.querySelector(`input[data-band="${label}"]`)?.value || 0
-      );
+      const input = document.querySelector(`input[data-band="${label}"]`);
+      // Prefer lastEqBands (kept in sync on drag + load). DOM can lag on some WebViews.
+      let v = parseDb(state.lastEqBands[label]);
+      if (!Number.isFinite(v)) v = parseDb(input?.value);
+      if (!Number.isFinite(v)) v = 0;
       bands[label] = v;
       state.lastEqBands[label] = v;
+      if (input) {
+        const asText = v.toFixed(1);
+        input.value = asText;
+        input.setAttribute("value", asText);
+      }
+      const db = document.querySelector(`[data-band-db="${label}"]`);
+      if (db) db.textContent = formatDb(v);
     }
     try {
-      await api("/api/audio/manual-eq/bands", {
+      const result = await api("/api/audio/manual-eq/bands", {
         method: "POST",
         body: JSON.stringify({
           channel: $("eq-channel").value,
@@ -1825,10 +1860,15 @@
       });
       setStatus("EQ Set", "ok");
       if (!opts.skipReload) {
-        const data = await api("/api/audio/manual-eq");
-        const fields = data.state?.fields || {};
-        if ((fields.radioGraphicEQ || {}).value === "ON") {
-          applyBandsToUi(fields);
+        const after = result?.after?.fields;
+        if (after && (after.radioGraphicEQ || {}).value === "ON") {
+          applyBandsToUi(after);
+        } else {
+          const data = await api("/api/audio/manual-eq");
+          const fields = data.state?.fields || {};
+          if ((fields.radioGraphicEQ || {}).value === "ON") {
+            applyBandsToUi(fields);
+          }
         }
       }
     } catch (err) {
