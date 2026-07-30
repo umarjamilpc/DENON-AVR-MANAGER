@@ -710,7 +710,9 @@ def info_dashboard(
         raise HTTPException(502, str(e)) from e
 
 
-# ---------- Convenience: Manual EQ ----------
+# ---------- Convenience: Manual EQ (thin aliases over audio_graphiceq_s_audio) ----------
+# The UI writes via POST /api/endpoints/audio_graphiceq_s_audio only (same as Levels).
+# These /audio/manual-eq* routes remain for external API clients; they share submit_endpoint.
 
 
 class ManualEqBands(BaseModel):
@@ -740,6 +742,7 @@ class ManualEqSelect(BaseModel):
 def get_manual_eq(
     request: Request,
 ) -> Dict[str, Any]:
+    """Alias of GET /api/endpoints/audio_graphiceq_s_audio/state."""
     return read_state("audio_graphiceq_s_audio", request)
 
 
@@ -748,7 +751,7 @@ def select_manual_eq(
     payload: ManualEqSelect,
     request: Request,
 ) -> Dict[str, Any]:
-    """Apply channel / speaker selection without writing band levels (listBox)."""
+    """Alias: channel/speaker select without writing bands (listBox)."""
     fields: Dict[str, str] = {
         "radioGraphicEQ": "ON",
         "listGEQSpSelection": payload.speaker_selection,
@@ -766,7 +769,7 @@ def set_manual_eq_enable(
     request: Request,
     enabled: bool = Query(...),
 ) -> Dict[str, Any]:
-    """Toggle Manual EQ. Caller should restore prior On/Off if probing."""
+    """Alias: toggle radioGraphicEQ."""
     client = _client(request)
     before = client.read_page("/SETUP/AUDIO/GRAPHICEQ/d_audio.asp")
     prior = (before["fields"].get("radioGraphicEQ") or {}).get("value")
@@ -784,6 +787,7 @@ def set_manual_eq_bands(
     payload: ManualEqBands,
     request: Request,
 ) -> Dict[str, Any]:
+    """Alias: Set bands (prefer POST /endpoints/audio_graphiceq_s_audio from the UI)."""
     band_map = {
         "63": "textGEQ63",
         "125": "textGEQ125",
@@ -806,7 +810,6 @@ def set_manual_eq_bands(
     for key, form_name in band_map.items():
         if key not in payload.bands:
             raise HTTPException(400, f"Missing band '{key}' — send all 9 bands")
-        # Keep ASCII signed dB (e.g. -2.5); never drop the leading minus.
         val = float(payload.bands[key])
         fields[form_name] = f"{val:.1f}"
     body = SubmitBody(fields=fields, merge_defaults=True)
@@ -818,7 +821,7 @@ def manual_eq_action(
     payload: ManualEqAction,
     request: Request,
 ) -> Dict[str, Any]:
-    """Curve Copy or Set Defaults (Manual EQ must already be On)."""
+    """Alias: Curve Copy or Set Defaults."""
     action = (payload.action or "").strip().lower()
     if action not in ("curve_copy", "set_defaults"):
         raise HTTPException(400, "action must be curve_copy or set_defaults")
