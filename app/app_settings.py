@@ -110,10 +110,9 @@ SETTING_META: List[Dict[str, Any]] = [
 
 
 def settings_path() -> Path:
-    raw = os.environ.get("APP_SETTINGS_PATH")
-    if raw:
-        return Path(raw)
-    # Local / non-Docker fallback (Compose sets APP_SETTINGS_PATH=/data/...)
+    """Prefer mounted Docker volume `/data`; else local project `data/`."""
+    if Path("/data").is_dir():
+        return Path("/data/app-settings.json")
     return Path(__file__).resolve().parents[1] / "data" / "app-settings.json"
 
 
@@ -170,15 +169,10 @@ def load_settings() -> Dict[str, Any]:
     return normalize_settings(data if isinstance(data, dict) else {})
 
 
-def save_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge partial updates, write atomically, return normalized settings."""
-    current = load_settings()
-    if not isinstance(partial, dict):
-        raise ValueError("settings must be an object")
-    merged = normalize_settings({**current, **partial})
+def _write_settings_file(settings: Dict[str, Any]) -> None:
     path = settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(merged, indent=2, sort_keys=True) + "\n"
+    payload = json.dumps(settings, indent=2, sort_keys=True) + "\n"
     fd, tmp_name = tempfile.mkstemp(
         prefix=".app-settings-",
         suffix=".json",
@@ -196,11 +190,36 @@ def save_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
         except OSError:
             pass
         raise
+
+
+def ensure_settings_file() -> Dict[str, Any]:
+    """Create app-settings.json with defaults on first start if missing."""
+    path = settings_path()
+    if path.is_file():
+        return load_settings()
+    settings = dict(DEFAULTS)
+    try:
+        _write_settings_file(settings)
+    except OSError:
+        # Volume not writable yet — keep in-memory defaults; UI Save can retry.
+        return settings
+    return settings
+
+
+def save_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge partial updates, write atomically, return normalized settings."""
+    current = load_settings()
+    if not isinstance(partial, dict):
+        raise ValueError("settings must be an object")
+    merged = normalize_settings({**current, **partial})
+    _write_settings_file(merged)
     return merged
 
 
 def reset_settings() -> Dict[str, Any]:
-    return save_settings(dict(DEFAULTS))
+    merged = normalize_settings(dict(DEFAULTS))
+    _write_settings_file(merged)
+    return merged
 
 
 def settings_response() -> Dict[str, Any]:
@@ -212,7 +231,8 @@ def settings_response() -> Dict[str, Any]:
         "path": str(path),
         "exists": path.is_file(),
         "hint": (
-            "Stored on the Docker host under the mounted /data volume "
-            "(survives container restarts). Not stored in the browser."
+            "Stored as /data/app-settings.json on the Docker volume "
+            "(survives container restarts). Created automatically on first start. "
+            "Not stored in the browser."
         ),
     }

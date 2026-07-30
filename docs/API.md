@@ -32,13 +32,9 @@ Clients cannot change the host at runtime (by design).
 
 ## App settings (persistent)
 
-Manager options (poll interval, EQ confirm time, theme, standby lock, confirmations, …) are stored in a JSON file on a Docker volume — **not** in the browser.
+Manager options (poll interval, EQ confirm time, theme, standby lock, confirmations, …) are stored in **`/data/app-settings.json`** on the Docker volume — **not** in the browser.
 
-| Variable | Default (Compose) | Meaning |
-|----------|-------------------|---------|
-| `APP_SETTINGS_PATH` | `/data/app-settings.json` | Path inside the container |
-
-Compose mounts host  
+The file is **created automatically on container start** if missing (defaults). Compose mounts host  
 `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER` → `/data`  
 so settings survive `docker compose pull` / recreate.
 
