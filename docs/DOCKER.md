@@ -21,6 +21,14 @@ volumes:
 
 The `/data` volume keeps App Settings across container restarts. On first start the app creates `/data/app-settings.json` with defaults. On Unraid the host path is `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER/`.
 
+The image entrypoint briefly runs as root to `chown` `/data` to UID **10001** (`appuser`), then drops privileges — so Save works even when the bind mount starts as root/nobody. Do not set `user:` in Compose (it would block that fix).
+
+If you still see Permission denied before updating the image, on the Unraid host:
+
+```bash
+chown -R 10001:10001 /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER
+```
+
 Port is fixed at **8000** inside the image. Map it on the host:
 
 ```yaml

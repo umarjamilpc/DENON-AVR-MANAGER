@@ -16,7 +16,9 @@ services:
       # Required — your Denon AVR IP or hostname on the LAN
       DENON_HOST: "192.168.1.50"
     volumes:
-      # App settings JSON auto-created here on first start (survives recreate)
+      # App settings JSON auto-created here on first start (survives recreate).
+      # Container entrypoint chowns this to UID 10001 so Save works on Unraid.
       - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER:/data
     restart: unless-stopped
     # Container must reach the AVR on your home network (same LAN / routed).
+    # Do not set user: here — entrypoint needs root briefly to fix /data permissions.
