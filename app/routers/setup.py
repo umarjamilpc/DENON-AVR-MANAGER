@@ -118,12 +118,29 @@ def get_connection(request: Request) -> Dict[str, Any]:
     base = _default_base(request)
     client = DenonSetupClient(base)
     probe = _probe(client)
+    power: Dict[str, Any] = {}
+    try:
+        power = read_main_zone_power(client)
+    except RuntimeError as e:
+        power = {"error": str(e)}
+    # Reachable if SETUP or goform power status works (standby still has network).
+    reachable = bool(probe.get("reachable")) or power.get("power") in {
+        "on",
+        "standby",
+    }
     return {
         "configured": True,
-        "reachable": probe.get("reachable"),
+        "reachable": reachable,
         "probe": {
             "reachable": probe.get("reachable"),
             "error": probe.get("error"),
+        },
+        "power": {
+            "power": power.get("power"),
+            "power_on": power.get("power_on"),
+            "zone": power.get("zone"),
+            "input": power.get("input"),
+            "error": power.get("error"),
         },
         "hint": "Set DENON_HOST in docker-compose.yml (environment) or the process environment.",
     }
