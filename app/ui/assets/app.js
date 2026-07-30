@@ -84,6 +84,8 @@
     eqBusy: false,
     eqLoading: false,
     lastEqBands: Object.fromEntries(BANDS.map(([k]) => [k, 0])),
+    eqRemoteFingerprint: null,
+    eqPendingFingerprint: null,
     reloadAction: null,
     menuRefreshTimer: null,
     pollTimer: null,
@@ -238,10 +240,12 @@
   function markLocalWrite() {
     state.lastLocalWriteAt = Date.now();
     state.pageDirty = false;
+    state.eqPendingFingerprint = null;
   }
 
   function markPageDirty() {
     state.pageDirty = true;
+    state.eqPendingFingerprint = null;
   }
 
   function stopRemotePolling() {
@@ -261,8 +265,7 @@
   async function softRefreshCurrentPage() {
     if (!state.endpointId || state.pageDirty) return;
     if (state.endpointId === "audio_graphiceq_s_audio") {
-      // AVR Manual EQ reads are racy under concurrent access; never idle-poll
-      // this page (bands or meta). Use Reload / channel change / Set instead.
+      await softRefreshManualEq();
       return;
     }
     if (state.endpointId === "inputs_inputassign_s_inputassign") {
@@ -285,18 +288,22 @@
   async function pollRemoteChanges() {
     if (!state.connected) return;
     if (document.visibilityState === "hidden") return;
-    if (state.pollInFlight || state.realtimeBusy || state.eqBusy) return;
-    if (Date.now() - state.lastLocalWriteAt < 2500) return;
+    if (state.pollInFlight || state.realtimeBusy || state.eqBusy || state.eqLoading)
+      return;
+    const onEq = state.endpointId === "audio_graphiceq_s_audio";
+    // Longer quiet window after local EQ writes so Set / channel never fights poll.
+    const quietMs = onEq ? 8000 : 2500;
+    if (Date.now() - state.lastLocalWriteAt < quietMs) return;
     if (state.route?.view === "info") return;
 
     state.pollInFlight = true;
     state.pollTick = (state.pollTick || 0) + 1;
     try {
-      // Current page every tick; menu greys every 3rd tick (heavier scrape).
       if (!state.pageDirty) {
         await softRefreshCurrentPage();
       }
-      if (state.pollTick % 3 === 0) {
+      // Skip heavy menu scrape while on Manual EQ — fewer concurrent AVR hits.
+      if (!onEq && state.pollTick % 3 === 0) {
         await refreshMenuAvailability({ immediate: true });
       }
     } catch {
@@ -1965,6 +1972,7 @@
       if (Object.keys(fields).length) {
         applyBandsToUi(fields, { force: true });
         syncEqSelectsFromFields(fields);
+        rememberEqFingerprint(fields);
       } else {
         await fetchEqBandsForCurrentChannel();
       }
@@ -1986,21 +1994,91 @@
     if (sp && $("eq-sp")) $("eq-sp").value = sp;
   }
 
-  async function refreshManualEqMetaOnly() {
+  function eqFingerprintFromFields(fields) {
+    const on = String((fields.radioGraphicEQ || {}).value ?? "");
+    const ch = String((fields.listGEQAdjustEQ || {}).value ?? "");
+    const sp = String((fields.listGEQSpSelection || {}).value ?? "");
+    const bands = BANDS.map(([, formName]) => {
+      const meta = fields[formName];
+      if (meta && typeof meta === "object" && meta.value != null) {
+        return String(meta.value);
+      }
+      return "";
+    });
+    if (!bands.some((b) => b !== "")) return null;
+    return [on, ch, sp, ...bands].join("|");
+  }
+
+  function eqFingerprintFromUi() {
+    const on = state.eqEnabled ? "ON" : "OFF";
+    const ch = $("eq-channel")?.value || "";
+    const sp = $("eq-sp")?.value || "";
+    const bands = BANDS.map(([label, formName]) => {
+      const hidden = document.querySelector(`input[name="${formName}"]`);
+      let v = parseDb(hidden?.value);
+      if (!Number.isFinite(v)) v = parseDb(state.lastEqBands[label]);
+      return Number.isFinite(v) ? v.toFixed(1) : "";
+    });
+    return [on, ch, sp, ...bands].join("|");
+  }
+
+  function rememberEqFingerprint(fields) {
+    const fp = fields
+      ? eqFingerprintFromFields(fields)
+      : eqFingerprintFromUi();
+    if (fp) {
+      state.eqRemoteFingerprint = fp;
+      state.eqPendingFingerprint = null;
+    }
+  }
+
+  function applyManualEqFields(fields, { forceBands = true } = {}) {
+    const on = (fields.radioGraphicEQ || {}).value === "ON";
+    state.eqEnabled = on;
+    for (const inp of document.querySelectorAll('input[name="radioGraphicEQ"]')) {
+      inp.checked = inp.value === (on ? "ON" : "OFF");
+    }
+    syncEqSelectsFromFields(fields);
+    if (on && fields.textGEQ63 && fields.textGEQ63.value != null) {
+      applyBandsToUi(fields, { force: forceBands });
+    }
+    setEqControlsEnabled(on);
+    rememberEqFingerprint(fields);
+  }
+
+  /**
+   * Safe remote/OSD sync for Manual EQ.
+   * Server already double-reads; we also require the same new fingerprint on
+   * two consecutive polls before touching the UI (blocks one-off raced curves).
+   */
+  async function softRefreshManualEq() {
+    if (state.pageDirty || state.eqBusy || state.eqLoading) return;
+    if (Date.now() - state.lastLocalWriteAt < 8000) return;
+
     const data = await api(
       `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}/state`
     );
+    if (state.pageDirty || state.eqBusy || state.eqLoading) return;
+
     const fields = data.state?.fields || {};
-    const on = (fields.radioGraphicEQ || {}).value === "ON";
-    if (state.eqEnabled !== on) {
-      state.eqEnabled = on;
-      for (const inp of document.querySelectorAll('input[name="radioGraphicEQ"]')) {
-        inp.checked = inp.value === (on ? "ON" : "OFF");
-      }
-      setEqControlsEnabled(on);
+    const fp = eqFingerprintFromFields(fields);
+    if (!fp) return;
+
+    if (fp === state.eqRemoteFingerprint || fp === eqFingerprintFromUi()) {
+      state.eqPendingFingerprint = null;
+      state.eqRemoteFingerprint = fp;
+      return;
     }
-    syncEqSelectsFromFields(fields);
-    return fields;
+
+    // First sighting of a new remote snapshot — confirm on the next poll.
+    if (fp !== state.eqPendingFingerprint) {
+      state.eqPendingFingerprint = fp;
+      return;
+    }
+
+    state.eqPendingFingerprint = null;
+    applyManualEqFields(fields, { forceBands: true });
+    setStatus("Manual EQ synced from AVR", "ok");
   }
 
   async function fetchEqBandsForCurrentChannel() {
@@ -2010,11 +2088,13 @@
     const fields = data.state?.fields || {};
     applyBandsToUi(fields, { force: true });
     syncEqSelectsFromFields(fields);
+    rememberEqFingerprint(fields);
     return fields;
   }
 
   async function loadManualEq() {
     state.eqLoading = true;
+    state.eqPendingFingerprint = null;
     try {
       const data = await api(
         `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}/state`
@@ -2040,6 +2120,7 @@
         }
       }
       setEqControlsEnabled(on);
+      rememberEqFingerprint(on ? fields : null);
       setStatus(on ? "Manual EQ On" : "Manual EQ Off", "ok");
     } catch (err) {
       $("editor-banner").hidden = false;
@@ -2082,6 +2163,8 @@
 
       const result = await postGraphicEq(fields);
       setStatus("EQ Set", "ok");
+      // Fingerprint what we sent so the next poll does not treat it as remote drift.
+      rememberEqFingerprint(null);
 
       if (!opts.skipReload) {
         const after = result?.after?.fields;
@@ -2097,6 +2180,7 @@
           setEqControlsEnabled(on);
         }
         // Keep band sliders at what we sent — immediate read-back can drop minus signs.
+        rememberEqFingerprint(null);
       }
     } catch (err) {
       $("editor-banner").hidden = false;
