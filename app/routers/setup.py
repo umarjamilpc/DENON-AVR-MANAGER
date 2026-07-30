@@ -170,9 +170,10 @@ def put_app_settings(body: AppSettingsBody) -> Dict[str, Any]:
                 "error": "settings_write_failed",
                 "message": f"Could not write settings file: {e}",
                 "hint": (
-                    "The /data volume must be writable. Recreate the container with the "
-                    "latest image (entrypoint fixes ownership), or on the host run: "
-                    "chown -R 10001:10001 /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER"
+                    "The /data volume must be writable. Pull the latest image "
+                    "(entrypoint sets /data a+rwX and optional PUID/PGID), recreate "
+                    "the container, and do not set Compose user:. "
+                    "Example Unraid: PUID=99 PGID=100."
                 ),
             },
         ) from e
@@ -191,9 +192,10 @@ def post_app_settings_reset() -> Dict[str, Any]:
                 "error": "settings_write_failed",
                 "message": f"Could not write settings file: {e}",
                 "hint": (
-                    "The /data volume must be writable. Recreate the container with the "
-                    "latest image (entrypoint fixes ownership), or on the host run: "
-                    "chown -R 10001:10001 /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER"
+                    "The /data volume must be writable. Pull the latest image "
+                    "(entrypoint sets /data a+rwX and optional PUID/PGID), recreate "
+                    "the container, and do not set Compose user:. "
+                    "Example Unraid: PUID=99 PGID=100."
                 ),
             },
         ) from e

@@ -15,9 +15,14 @@ services:
     environment:
       # Required — your Denon AVR IP or hostname on the LAN
       DENON_HOST: "192.168.1.50"
+      # Optional — match your host user so /data files look familiar on disk.
+      # Unraid: 99:100 (nobody:users). Linux desktop: run `id -u` / `id -g`.
+      # Defaults inside the image are 10001:10001. /data is always chmod a+rwX
+      # so the host can edit app-settings.json even if PUID differs.
+      PUID: "99"
+      PGID: "100"
     volumes:
-      # App settings JSON auto-created here on first start (survives recreate).
-      # Container entrypoint chowns this to UID 10001 so Save works on Unraid.
+      # Persistent app settings (created automatically; RW for container + host)
       - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER:/data
     restart: unless-stopped
     # Container must reach the AVR on your home network (same LAN / routed).

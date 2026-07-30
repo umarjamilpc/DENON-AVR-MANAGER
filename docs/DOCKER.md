@@ -11,6 +11,9 @@ All runtime config is in `docker-compose.yml`:
 ```yaml
 environment:
   DENON_HOST: "192.168.1.50"
+  # Optional — match host user (Unraid nobody:users shown)
+  PUID: "99"
+  PGID: "100"
 volumes:
   - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER:/data
 ```
@@ -18,16 +21,18 @@ volumes:
 | Variable | Required | Meaning |
 |----------|----------|---------|
 | `DENON_HOST` | **Yes** | AVR IP or hostname |
+| `PUID` / `PGID` | No | Numeric user/group for the app process (default `10001`). Unraid: `99`/`100`. |
 
-The `/data` volume keeps App Settings across container restarts. On first start the app creates `/data/app-settings.json` with defaults. On Unraid the host path is `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER/`.
+The `/data` volume keeps App Settings across container restarts. On first start the app creates `/data/app-settings.json` with defaults.
 
-The image entrypoint briefly runs as root to `chown` `/data` to UID **10001** (`appuser`), then drops privileges — so Save works even when the bind mount starts as root/nobody. Do not set `user:` in Compose (it would block that fix).
+On every start the entrypoint:
 
-If you still see Permission denied before updating the image, on the Unraid host:
+1. `chown`s `/data` to `PUID:PGID` (best effort)
+2. `chmod a+rwX` on `/data` so **container and host** can both read/write (edit `app-settings.json` from Unraid/SMB/SSH)
 
-```bash
-chown -R 10001:10001 /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER
-```
+Do **not** set Compose `user:` — the entrypoint needs root briefly for that fix.
+
+On Unraid the host path is `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER/`.
 
 Port is fixed at **8000** inside the image. Map it on the host:
 

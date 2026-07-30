@@ -38,6 +38,8 @@ The file is **created automatically on container start** if missing (defaults). 
 `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER` → `/data`  
 so settings survive `docker compose pull` / recreate.
 
+The entrypoint keeps `/data` **world read/write** (`chmod a+rwX`) and optional `PUID`/`PGID` so both the container and host users can edit `app-settings.json`.
+
 ## Response cleanup
 
 `state.fields` omits AVR bookkeeping such as `setPureDirectOn` / `setSetupLock` / raw `setbtn*` / hidden inputs.  
