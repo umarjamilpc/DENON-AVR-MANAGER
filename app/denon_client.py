@@ -450,6 +450,56 @@ class DenonSetupClient:
             "reachable": True,
         }
 
+    @staticmethod
+    def _geq_band_fingerprint(fields: Mapping[str, Any]) -> Tuple[str, ...]:
+        """Stable identity for Manual EQ band rows (channel + textGEQ*)."""
+        ch = ""
+        sp = ""
+        meta_ch = fields.get("listGEQAdjustEQ") if isinstance(fields, dict) else None
+        meta_sp = fields.get("listGEQSpSelection") if isinstance(fields, dict) else None
+        if isinstance(meta_ch, dict):
+            ch = str(meta_ch.get("value") or "")
+        if isinstance(meta_sp, dict):
+            sp = str(meta_sp.get("value") or "")
+        bands: List[str] = []
+        for name in (
+            "textGEQ63",
+            "textGEQ125",
+            "textGEQ250",
+            "textGEQ500",
+            "textGEQ1k",
+            "textGEQ2k",
+            "textGEQ4k",
+            "textGEQ8k",
+            "textGEQ16k",
+        ):
+            meta = fields.get(name) if isinstance(fields, dict) else None
+            if isinstance(meta, dict):
+                bands.append(str(meta.get("value") or ""))
+            else:
+                bands.append("")
+        return (ch, sp, *bands)
+
+    def read_page_stable(
+        self, read_url: str, *, retries: int = 2, pause: float = 0.35
+    ) -> Dict[str, Any]:
+        """Re-read Manual EQ until two consecutive snapshots match.
+
+        Denon's SETUP page can briefly return another channel's curve (or a
+        mid-write form) under concurrent access; that looked like +/- flipping.
+        """
+        first = self.read_page(read_url)
+        fp = self._geq_band_fingerprint(first.get("fields") or {})
+        for _ in range(max(0, retries)):
+            if pause:
+                time.sleep(pause)
+            nxt = self.read_page(read_url)
+            fp2 = self._geq_band_fingerprint(nxt.get("fields") or {})
+            if fp2 == fp and any(fp2[2:]):  # bands present and stable
+                return nxt
+            first, fp = nxt, fp2
+        return first
+
     def submit(
         self,
         submit_url: str,
@@ -495,6 +545,20 @@ class DenonSetupClient:
                     payload[flag] = "off"
 
         payload.update({k: str(v) for k, v in fields.items()})
+        # Manual EQ: Denon listBox()/radioBtn() submit the whole form, but band values
+        # must only apply when Set / Curve Copy / Set Defaults is pressed. Echoing
+        # textGEQ* from a raced read-back (merge_defaults) flips curves between
+        # speakers / transient pages.
+        if (endpoint_id or "").lower() == "audio_graphiceq_s_audio":
+            applying_bands = (
+                str(payload.get("setAdjustEQ", "off")).lower() == "set"
+                or str(payload.get("setGEQCurveCopy", "off")).lower() == "set"
+                or str(payload.get("setGEQSetDefaults", "off")).lower() == "set"
+            )
+            if not applying_bands:
+                for key in list(payload):
+                    if key.startswith("textGEQ"):
+                        payload.pop(key, None)
         payload = sanitize_write_fields(dict(payload), endpoint_id=endpoint_id)
         # Keep forced safe flags on unrelated forms; unlocked Setup Lock keeps radioSetupLock.
         payload.update(SAFE_FORCED_FIELDS)
@@ -527,7 +591,10 @@ class DenonSetupClient:
         self.post(submit_url, payload)
         result: Dict[str, Any] = {"submitted": dict(payload), "submit_url": submit_url}
         if read_url:
-            result["after"] = self.read_page(read_url)
+            if (endpoint_id or "").lower() == "audio_graphiceq_s_audio":
+                result["after"] = self.read_page_stable(read_url)
+            else:
+                result["after"] = self.read_page(read_url)
         return result
 
 
