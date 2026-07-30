@@ -93,8 +93,12 @@
     pollTick: 0,
     pageDirty: false,
     lastLocalWriteAt: 0,
+    lastAvrCheckAt: null,
+    lastAvrUpdateAt: null,
     route: { view: "setup" },
   };
+
+  const REMOTE_POLL_MS = 30000;
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $("connect-status");
@@ -127,6 +131,44 @@
     statusEl.textContent = text;
     statusEl.classList.remove("ok", "err", "warn");
     if (kind) statusEl.classList.add(kind);
+  }
+
+  function formatSyncClock(isoOrDate) {
+    const d =
+      isoOrDate instanceof Date
+        ? isoOrDate
+        : isoOrDate
+          ? new Date(isoOrDate)
+          : new Date();
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+
+  /** Show when we last talked to the AVR / when UI values changed from a remote read. */
+  function markAvrSyncTime(opts = {}) {
+    const iso = opts.at || new Date().toISOString();
+    const changed = Boolean(opts.changed);
+    state.lastAvrCheckAt = iso;
+    if (changed) state.lastAvrUpdateAt = iso;
+
+    const clock = formatSyncClock(iso);
+    const eqEl = $("eq-sync");
+    if (eqEl) {
+      eqEl.textContent = changed
+        ? `Last update from AVR: ${clock}`
+        : `Last AVR check: ${clock}`;
+    }
+    const foot = $("foot-sync");
+    if (foot) {
+      const upd = state.lastAvrUpdateAt
+        ? formatSyncClock(state.lastAvrUpdateAt)
+        : "—";
+      foot.textContent = `Checked ${clock} · Updated ${upd}`;
+    }
   }
 
   function escapeHtml(s) {
@@ -256,10 +298,10 @@
 
   function startRemotePolling() {
     stopRemotePolling();
-    // Pick up remote/OSD changes without requiring Reload.
+    // Remote/OSD sync — 30s keeps AVR load low and reduces raced EQ reads.
     state.pollTimer = setInterval(() => {
       pollRemoteChanges().catch(() => {});
-    }, 5000);
+    }, REMOTE_POLL_MS);
   }
 
   async function softRefreshCurrentPage() {
@@ -283,6 +325,10 @@
       `/api/endpoints/${encodeURIComponent(state.endpointId)}/state`
     );
     if (data.state?.fields) renderFields(data.state.fields);
+    markAvrSyncTime({
+      at: data.read_at || data.state?.read_at,
+      changed: true,
+    });
   }
 
   async function pollRemoteChanges() {
@@ -302,7 +348,7 @@
       if (!state.pageDirty) {
         await softRefreshCurrentPage();
       }
-      // Skip heavy menu scrape while on Manual EQ — fewer concurrent AVR hits.
+      // Menu greys ~ every 90s (every 3rd 30s tick).
       if (!onEq && state.pollTick % 3 === 0) {
         await refreshMenuAvailability({ immediate: true });
       }
@@ -1738,6 +1784,7 @@
         <button type="button" class="btn-action" id="eq-defaults" disabled>Set Defaults</button>
       </div>
       <p id="eq-hint" class="status">Turn Manual EQ On to activate the band sliders.</p>
+      <p id="eq-sync" class="meta sync-stamp">Last AVR check: —</p>
     `;
     const bands = $("eq-bands");
     for (const [label, formName] of BANDS) {
@@ -2060,24 +2107,35 @@
     );
     if (state.pageDirty || state.eqBusy || state.eqLoading) return;
 
+    const readAt = data.read_at || data.state?.read_at;
     const fields = data.state?.fields || {};
     const fp = eqFingerprintFromFields(fields);
-    if (!fp) return;
+    if (!fp) {
+      markAvrSyncTime({ at: readAt, changed: false });
+      return;
+    }
 
     if (fp === state.eqRemoteFingerprint || fp === eqFingerprintFromUi()) {
       state.eqPendingFingerprint = null;
       state.eqRemoteFingerprint = fp;
+      markAvrSyncTime({ at: readAt, changed: false });
       return;
     }
 
-    // First sighting of a new remote snapshot — confirm on the next poll.
+    // First sighting of a new remote snapshot — confirm on the next poll (~30s).
     if (fp !== state.eqPendingFingerprint) {
       state.eqPendingFingerprint = fp;
+      markAvrSyncTime({ at: readAt, changed: false });
+      const pending = $("eq-sync");
+      if (pending) {
+        pending.textContent = `Last AVR check: ${formatSyncClock(readAt)} · confirming change…`;
+      }
       return;
     }
 
     state.eqPendingFingerprint = null;
     applyManualEqFields(fields, { forceBands: true });
+    markAvrSyncTime({ at: readAt, changed: true });
     setStatus("Manual EQ synced from AVR", "ok");
   }
 
@@ -2089,6 +2147,10 @@
     applyBandsToUi(fields, { force: true });
     syncEqSelectsFromFields(fields);
     rememberEqFingerprint(fields);
+    markAvrSyncTime({
+      at: data.read_at || data.state?.read_at,
+      changed: true,
+    });
     return fields;
   }
 
@@ -2121,6 +2183,10 @@
       }
       setEqControlsEnabled(on);
       rememberEqFingerprint(on ? fields : null);
+      markAvrSyncTime({
+        at: data.read_at || data.state?.read_at,
+        changed: true,
+      });
       setStatus(on ? "Manual EQ On" : "Manual EQ Off", "ok");
     } catch (err) {
       $("editor-banner").hidden = false;
@@ -2165,6 +2231,10 @@
       setStatus("EQ Set", "ok");
       // Fingerprint what we sent so the next poll does not treat it as remote drift.
       rememberEqFingerprint(null);
+      markAvrSyncTime({
+        at: result.read_at || result.after?.read_at,
+        changed: true,
+      });
 
       if (!opts.skipReload) {
         const after = result?.after?.fields;

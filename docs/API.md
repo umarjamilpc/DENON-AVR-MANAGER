@@ -12,8 +12,8 @@ Routes are limited to what the DENON AVR MANAGER UI uses (no unused aliases).
 |--------|------|---------|
 | GET | `/api/connection` | Connection status for `DENON_HOST` |
 | GET | `/api/menu` | Setup tree + inactive/grey flags + `setup_lock` |
-| GET | `/api/endpoints/{id}/state` | Read page fields |
-| POST | `/api/endpoints/{id}` | Write fields (`{"fields":{...},"merge_defaults":true}`) |
+| GET | `/api/endpoints/{id}/state` | Read page fields (`read_at` UTC ISO timestamp) |
+| POST | `/api/endpoints/{id}` | Write fields (`{"fields":{...},"merge_defaults":true}`); includes `read_at` |
 | GET | `/api/info/dashboard` | Read-only info cards |
 | POST | `/api/speakers/audyssey-setup/engage?confirm=true` | Engage **stub only** (never starts wizard) |
 | POST | `/api/firmware/actions/{action}?confirm=true` | Firmware Update / Add Feature / Web Update |
