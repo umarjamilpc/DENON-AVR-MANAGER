@@ -147,8 +147,19 @@ def _post_eq(client: DenonSetupClient, fields: Mapping[str, str]) -> Dict[str, A
     )
 
 
+def _pick_each_mode(sp_options: List[Dict[str, str]]) -> Optional[str]:
+    """Resolve Speaker Selection 'Each' from live AVR options (not hard-coded)."""
+    for opt in sp_options:
+        if opt["value"].upper() == "EAC":
+            return opt["value"]
+    for opt in sp_options:
+        if "each" in opt["label"].lower():
+            return opt["value"]
+    return None
+
+
 def _select_channel(
-    client: DenonSetupClient, *, channel: str, speaker_selection: str = "EAC"
+    client: DenonSetupClient, *, channel: str, speaker_selection: str
 ) -> Dict[str, Any]:
     """Denon listBox: change channel without Set so AVR loads that curve."""
     _post_eq(
@@ -167,56 +178,63 @@ def _select_channel(
     return client.read_page_stable(read)
 
 
-def _ensure_eq_on_each(client: DenonSetupClient) -> Dict[str, Any]:
-    """Turn Manual EQ On and Speaker Selection Each; return stable page."""
-    page = _post_eq(
+def _ensure_eq_on_each(client: DenonSetupClient) -> Tuple[Dict[str, Any], str]:
+    """Turn Manual EQ On and Speaker Selection Each; return (stable page, each_code)."""
+    _, read = _eq_urls()
+    page = client.read_page_stable(read)
+    fields = page.get("fields") or {}
+    each = _pick_each_mode(_option_list(fields, "listGEQSpSelection"))
+    if not each:
+        raise RuntimeError(
+            "Speaker Selection has no Each mode on this AVR — cannot address per-channel curves"
+        )
+    posted = _post_eq(
         client,
         {
             "radioGraphicEQ": "ON",
-            "listGEQSpSelection": "EAC",
+            "listGEQSpSelection": each,
             "setAdjustEQ": "off",
             "setGEQCurveCopy": "off",
             "setGEQSetDefaults": "off",
         },
     )
     time.sleep(0.35)
-    after = page.get("after") if isinstance(page.get("after"), dict) else None
+    after = posted.get("after") if isinstance(posted.get("after"), dict) else None
     if after and after.get("fields"):
-        return after
-    _, read = _eq_urls()
-    return client.read_page_stable(read)
+        return after, each
+    return client.read_page_stable(read), each
 
 
-def live_channel_options(client: DenonSetupClient) -> List[Dict[str, str]]:
+def live_channel_options(client: DenonSetupClient) -> Tuple[List[Dict[str, str]], str]:
     """Channel list from AVR after forcing Each mode (Amp Assign aware)."""
-    page = _ensure_eq_on_each(client)
+    page, each = _ensure_eq_on_each(client)
     fields = page.get("fields") or {}
     opts = _option_list(fields, "listGEQAdjustEQ")
     if not opts:
         raise RuntimeError(
             "AVR returned no Manual EQ channels. Check Amp Assign / MultEQ Off / not Direct."
         )
-    return opts
+    return opts, each
 
 
 def export_manual_eq(client: DenonSetupClient) -> Dict[str, Any]:
     """Read every live EQ channel curve into a portable backup object."""
     _require_main_on(client)
     amp = read_amp_assign(client)
-    channels_meta = live_channel_options(client)
+    channels_meta, each = live_channel_options(client)
     channels: Dict[str, Any] = {}
     errors: List[Dict[str, str]] = []
 
     for opt in channels_meta:
         code = opt["value"]
         try:
-            page = _select_channel(client, channel=code, speaker_selection="EAC")
+            page = _select_channel(client, channel=code, speaker_selection=each)
             fields = page.get("fields") or {}
             got_ch = _field_value(fields, "listGEQAdjustEQ")
             if got_ch and got_ch != code:
                 # One retry if AVR lagged.
                 time.sleep(0.5)
-                page = _select_channel(client, channel=code, speaker_selection="EAC")
+                page = _select_channel(client, channel=code, speaker_selection=each)
                 fields = page.get("fields") or {}
             channels[code] = {
                 "label": opt["label"],
@@ -231,7 +249,7 @@ def export_manual_eq(client: DenonSetupClient) -> Dict[str, Any]:
         "exported_at": _utc_now(),
         "amp_assign": amp,
         "graphic_eq": "ON",
-        "speaker_selection": "EAC",
+        "speaker_selection": each,
         "channels": channels,
         "channel_order": [o["value"] for o in channels_meta],
         "warnings": errors,
@@ -277,7 +295,7 @@ def import_manual_eq(
             "Match Amp Assign first, then import again."
         )
 
-    live_opts = live_channel_options(client)
+    live_opts, each = live_channel_options(client)
     live_codes = {o["value"] for o in live_opts}
     live_labels = {o["value"]: o["label"] for o in live_opts}
     file_channels: Dict[str, Any] = dict(data.get("channels") or {})
@@ -298,6 +316,7 @@ def import_manual_eq(
     report: Dict[str, Any] = {
         "dry_run": dry_run,
         "amp_assign": current_amp,
+        "speaker_selection": each,
         "will_import": will_import,
         "skipped_missing": missing,
         "warnings": warnings,
@@ -326,7 +345,7 @@ def import_manual_eq(
         try:
             payload = {
                 "radioGraphicEQ": "ON",
-                "listGEQSpSelection": "EAC",
+                "listGEQSpSelection": each,
                 "listGEQAdjustEQ": code,
                 "setAdjustEQ": "Set",
                 "setGEQCurveCopy": "off",
@@ -335,7 +354,7 @@ def import_manual_eq(
             }
             _post_eq(client, payload)
             time.sleep(0.55)
-            page = _select_channel(client, channel=code, speaker_selection="EAC")
+            page = _select_channel(client, channel=code, speaker_selection=each)
             got = _bands_from_fields(page.get("fields") or {})
             report["imported"].append(
                 {
