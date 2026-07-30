@@ -4,19 +4,21 @@ Interactive docs: **`/docs`** (Swagger) and **`/redoc`**.
 
 Base URL example: `http://127.0.0.1:8000`
 
-## Essentials
+Routes are limited to what the DENON AVR MANAGER UI uses (no unused aliases).
+
+## Endpoints
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/health` | Reachability + safety policy summary |
 | GET | `/api/connection` | Connection status for `DENON_HOST` |
-| GET | `/api/menu` | Setup tree (manual order) + inactive flags + `setup_lock` |
-| GET | `/api/catalog` | Flat list of endpoints |
-| GET | `/api/endpoints/{id}/state` | Read page fields (labels, gates, Set buttons) |
+| GET | `/api/menu` | Setup tree + inactive/grey flags + `setup_lock` |
+| GET | `/api/endpoints/{id}/state` | Read page fields |
 | POST | `/api/endpoints/{id}` | Write fields (`{"fields":{...},"merge_defaults":true}`) |
 | GET | `/api/info/dashboard` | Read-only info cards |
-| GET/POST | `/api/audio/manual-eq*` | Manual EQ helpers |
-| GET/POST | `/api/speakers/audyssey-setup*` | Engage **stub only** (never starts wizard) |
+| POST | `/api/speakers/audyssey-setup/engage?confirm=true` | Engage **stub only** (never starts wizard) |
+| POST | `/api/firmware/actions/{action}?confirm=true` | Firmware Update / Add Feature / Web Update |
+| GET | `/api/firmware/local-upload/status` | Bootloader upload availability |
+| POST | `/api/firmware/local-upload` | Local firmware package upload |
 
 ## Host configuration
 

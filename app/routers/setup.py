@@ -20,25 +20,14 @@ from ..field_labels import attach_field_labels
 from ..field_layout import layout_fields, menu_inactive_flags
 from ..information_page import build_information_editor_fields
 from ..host_utils import rewrite_url, scrub_host_urls
-from ..info import (
-    fetch_firmware_info,
-    fetch_info_dashboard,
-    fetch_network_info,
-)
-from ..protocol_loader import (
-    catalog_for_host,
-    get_endpoint,
-    load_catalog,
-    prefer_read_url,
-)
-from ..menu_tree import build_menu, cleaned_catalog
-from ..safety import (
-    annotate_catalog_item,
-    catalog_filter_writable_only,
-    is_write_blocked,
-)
+from ..info import fetch_info_dashboard
+from ..protocol_loader import get_endpoint, prefer_read_url
+from ..menu_tree import build_menu
+from ..safety import annotate_catalog_item, is_write_blocked
 
 router = APIRouter(tags=["setup"])
+
+# Routes in this module are limited to what the DENON AVR MANAGER UI calls.
 
 # Denon Input Assign posts each column to a dedicated ASP (not s_InputAssign.asp).
 INPUT_ASSIGN_SUBMIT_PATHS = {
@@ -122,43 +111,6 @@ def get_connection(request: Request) -> Dict[str, Any]:
             "error": probe.get("error"),
         },
         "hint": "Set DENON_HOST in docker-compose.yml (environment) or the process environment.",
-    }
-
-
-@router.post("/connection")
-def set_connection_disabled() -> None:
-    raise HTTPException(
-        403,
-        {
-            "error": "host_locked",
-            "message": "AVR host is managed via DENON_HOST (docker-compose / environment) — runtime IP changes are disabled.",
-        },
-    )
-
-
-@router.get("/health")
-def health(
-    request: Request,
-) -> Dict[str, Any]:
-    client = _client(request)
-    probe = _probe(client)
-    return {
-        "ok": True,
-        "reachable": probe.get("reachable"),
-        "host_source": "DENON_HOST",
-        "policy": {
-            "blocked_writes": [
-                "firmware update / web update / add new feature",
-                "save / load configuration",
-                "setup lock",
-                "network IP / DHCP / proxy changes",
-                "Audyssey Setup mic wizard steps",
-                "Maintenance Mode / Setup Assistant",
-            ],
-            "allowed_info_reads": ["firmware version", "network settings"],
-            "audyssey_setup": "engage stub only — never starts wizard",
-            "restore_policy": "Any probe that temporarily changes a setting must restore the prior value.",
-        },
     }
 
 
@@ -267,72 +219,6 @@ def menu(
     return data
 
 
-@router.get("/catalog")
-def catalog(
-    request: Request,
-    section: Optional[str] = Query(
-        None,
-        description="Filter by menu section label (Audio, Video, …) or raw folder",
-    ),
-    writable_only: bool = Query(
-        False, description="If true, hide endpoints that are write-blocked"
-    ),
-    ordered: bool = Query(
-        True,
-        description="If true (default), return manual menu order with clean titles",
-    ),
-) -> Dict[str, Any]:
-    client = _client(request)
-    if ordered:
-        items = cleaned_catalog(client.base)
-        sections = [
-            "Audio",
-            "Video",
-            "Inputs",
-            "Speakers",
-            "Network",
-            "General",
-        ]
-        if section:
-            key = section.strip().lower()
-            items = [
-                i
-                for i in items
-                if (i.get("menu_section") or i.get("section") or "").lower() == key
-                or (i.get("section") or "").lower() == key
-            ]
-    else:
-        items = catalog_for_host(client.base)
-        if section:
-            items = [i for i in items if i["section"].upper() == section.upper()]
-        sections = sorted({i["section"] for i in load_catalog()})
-    items = catalog_filter_writable_only(items, writable_only=writable_only)
-    # Recreate titles after annotate when using cleaned list (annotate already done)
-    return {
-        "count": len(items),
-        "sections": sections,
-        "items": items,
-        "menu": "/api/menu",
-        "safety_note": (
-            "Critical writes (firmware update, save/load, setup lock, network IP, "
-            "Audyssey Setup wizard) are blocked. Catalog follows the English manual menu."
-        ),
-    }
-
-
-@router.get("/endpoints/{endpoint_id}")
-def endpoint_detail(
-    endpoint_id: str,
-    request: Request,
-) -> Dict[str, Any]:
-    client = _client(request)
-    try:
-        item = annotate_catalog_item(get_endpoint(endpoint_id, client.base))
-    except KeyError as e:
-        raise HTTPException(404, f"Unknown endpoint_id: {endpoint_id}") from e
-    return item
-
-
 @router.get("/endpoints/{endpoint_id}/state")
 def read_state(
     endpoint_id: str,
@@ -404,7 +290,7 @@ def submit_endpoint(
                 "error": "critical_write_blocked",
                 "message": blocked,
                 "endpoint_id": endpoint_id,
-                "hint": "Use /api/info/firmware or /api/info/network for read-only info.",
+                "hint": "Writes blocked by safety policy.",
             },
         )
 
@@ -501,22 +387,6 @@ def submit_endpoint(
 # ---------- Audyssey Setup engage stub (never starts wizard) ----------
 
 
-@router.get("/speakers/audyssey-setup")
-def audyssey_setup_status() -> Dict[str, Any]:
-    return {
-        "id": "speakers_audyssey_setup_engage",
-        "status": "stub",
-        "engage_armed": False,
-        "wizard_started": False,
-        "note": (
-            "Audyssey Setup is the mic calibration wizard (usually on-TV when the "
-            "calibration mic is connected). This API never starts Begin Test / Next."
-        ),
-        "engage_path": "POST /api/speakers/audyssey-setup/engage",
-        "write_allowed": False,
-    }
-
-
 @router.post("/speakers/audyssey-setup/engage")
 def audyssey_setup_engage(
     confirm: bool = Query(
@@ -544,17 +414,7 @@ def audyssey_setup_engage(
     }
 
 
-# ---------- Read-only info ----------
-
-
-@router.get("/firmware/actions", tags=["firmware"])
-def list_firmware_actions() -> Dict[str, Any]:
-    return {
-        "actions": [
-            {"id": k, "label": v["label"], "note": v["note"]}
-            for k, v in FIRMWARE_ACTIONS.items()
-        ]
-    }
+# ---------- Firmware (UI buttons) ----------
 
 
 @router.post("/firmware/actions/{action}", tags=["firmware"])
@@ -677,28 +537,6 @@ async def firmware_local_upload(
     return scrub_host_urls(result)
 
 
-@router.get("/info/firmware", tags=["info"])
-def info_firmware(
-    request: Request,
-) -> Dict[str, Any]:
-    """Firmware version + notification state."""
-    try:
-        return fetch_firmware_info(_client(request))
-    except RuntimeError as e:
-        raise HTTPException(502, str(e)) from e
-
-
-@router.get("/info/network", tags=["info"])
-def info_network(
-    request: Request,
-) -> Dict[str, Any]:
-    """Network DHCP/IP/DNS/proxy + friendly name + network standby (read-only)."""
-    try:
-        return fetch_network_info(_client(request))
-    except RuntimeError as e:
-        raise HTTPException(502, str(e)) from e
-
-
 @router.get("/info/dashboard", tags=["info"])
 def info_dashboard(
     request: Request,
@@ -708,171 +546,3 @@ def info_dashboard(
         return fetch_info_dashboard(_client(request))
     except RuntimeError as e:
         raise HTTPException(502, str(e)) from e
-
-
-# ---------- Convenience: Manual EQ (thin aliases over audio_graphiceq_s_audio) ----------
-# The UI writes via POST /api/endpoints/audio_graphiceq_s_audio only (same as Levels).
-# These /audio/manual-eq* routes remain for external API clients; they share submit_endpoint.
-
-
-class ManualEqBands(BaseModel):
-    channel: str = Field("FL", description="FL/FR/CEN/SL/SR/TML/TMR")
-    speaker_selection: str = Field("EAC", description="ALL / LRS / EAC")
-    bands: Dict[str, float] = Field(
-        ...,
-        description="Keys: 63,125,250,500,1k,2k,4k,8k,16k — dB -20..+6 step 0.5",
-    )
-    enable: bool = True
-
-
-class ManualEqAction(BaseModel):
-    action: str = Field(..., description="curve_copy | set_defaults")
-    channel: str = "FL"
-    speaker_selection: str = "EAC"
-
-
-class ManualEqSelect(BaseModel):
-    """Switch Adjust EQ channel / Speaker Selection (Denon listBox submit)."""
-
-    channel: str = "FL"
-    speaker_selection: str = "EAC"
-
-
-@router.get("/audio/manual-eq")
-def get_manual_eq(
-    request: Request,
-) -> Dict[str, Any]:
-    """Alias of GET /api/endpoints/audio_graphiceq_s_audio/state."""
-    return read_state("audio_graphiceq_s_audio", request)
-
-
-@router.post("/audio/manual-eq/select")
-def select_manual_eq(
-    payload: ManualEqSelect,
-    request: Request,
-) -> Dict[str, Any]:
-    """Alias: channel/speaker select without writing bands (listBox)."""
-    fields: Dict[str, str] = {
-        "radioGraphicEQ": "ON",
-        "listGEQSpSelection": payload.speaker_selection,
-        "listGEQAdjustEQ": payload.channel.upper(),
-        "setAdjustEQ": "off",
-        "setGEQCurveCopy": "off",
-        "setGEQSetDefaults": "off",
-    }
-    body = SubmitBody(fields=fields, merge_defaults=True)
-    return submit_endpoint("audio_graphiceq_s_audio", body, request)
-
-
-@router.post("/audio/manual-eq/enable")
-def set_manual_eq_enable(
-    request: Request,
-    enabled: bool = Query(...),
-) -> Dict[str, Any]:
-    """Alias: toggle radioGraphicEQ."""
-    client = _client(request)
-    before = client.read_page("/SETUP/AUDIO/GRAPHICEQ/d_audio.asp")
-    prior = (before["fields"].get("radioGraphicEQ") or {}).get("value")
-    body = SubmitBody(fields={"radioGraphicEQ": "ON" if enabled else "OFF"})
-    result = submit_endpoint("audio_graphiceq_s_audio", body, request)
-    result["prior_enabled"] = prior
-    result["restore_hint"] = (
-        f"POST /api/audio/manual-eq/enable?enabled={'true' if prior == 'ON' else 'false'}"
-    )
-    return result
-
-
-@router.post("/audio/manual-eq/bands")
-def set_manual_eq_bands(
-    payload: ManualEqBands,
-    request: Request,
-) -> Dict[str, Any]:
-    """Alias: Set bands (prefer POST /endpoints/audio_graphiceq_s_audio from the UI)."""
-    band_map = {
-        "63": "textGEQ63",
-        "125": "textGEQ125",
-        "250": "textGEQ250",
-        "500": "textGEQ500",
-        "1k": "textGEQ1k",
-        "2k": "textGEQ2k",
-        "4k": "textGEQ4k",
-        "8k": "textGEQ8k",
-        "16k": "textGEQ16k",
-    }
-    fields: Dict[str, str] = {
-        "radioGraphicEQ": "ON" if payload.enable else "OFF",
-        "listGEQSpSelection": payload.speaker_selection,
-        "listGEQAdjustEQ": payload.channel.upper(),
-        "setAdjustEQ": "Set",
-        "setGEQCurveCopy": "off",
-        "setGEQSetDefaults": "off",
-    }
-    for key, form_name in band_map.items():
-        if key not in payload.bands:
-            raise HTTPException(400, f"Missing band '{key}' — send all 9 bands")
-        val = float(payload.bands[key])
-        fields[form_name] = f"{val:.1f}"
-    body = SubmitBody(fields=fields, merge_defaults=True)
-    return submit_endpoint("audio_graphiceq_s_audio", body, request)
-
-
-@router.post("/audio/manual-eq/action")
-def manual_eq_action(
-    payload: ManualEqAction,
-    request: Request,
-) -> Dict[str, Any]:
-    """Alias: Curve Copy or Set Defaults."""
-    action = (payload.action or "").strip().lower()
-    if action not in ("curve_copy", "set_defaults"):
-        raise HTTPException(400, "action must be curve_copy or set_defaults")
-    fields: Dict[str, str] = {
-        "radioGraphicEQ": "ON",
-        "listGEQSpSelection": payload.speaker_selection,
-        "listGEQAdjustEQ": payload.channel.upper(),
-        "setAdjustEQ": "off",
-        "setGEQCurveCopy": "Set" if action == "curve_copy" else "off",
-        "setGEQSetDefaults": "Set" if action == "set_defaults" else "off",
-    }
-    body = SubmitBody(fields=fields, merge_defaults=True)
-    return submit_endpoint("audio_graphiceq_s_audio", body, request)
-
-
-@router.get("/resolve")
-def resolve_url(
-    request: Request,
-    url: str = Query(..., description="Absolute or /SETUP/... path"),
-) -> Dict[str, Any]:
-    from urllib.parse import urlparse
-
-    from ..denon_client import endpoint_id
-
-    client = _client(request)
-    catalog = catalog_for_host(client.base)
-    matches = []
-    path = urlparse(url).path if "://" in url else url
-    needle_id = endpoint_id(url if "://" in url else f"http://x{path}")
-    for item in catalog:
-        annotated = annotate_catalog_item(item)
-        candidates = [item["submit_url"], *item.get("read_urls", [])]
-        for candidate in candidates:
-            if url == candidate or urlparse(candidate).path == path:
-                matches.append(
-                    {
-                        "id": annotated["id"],
-                        "write_allowed": annotated["write_allowed"],
-                        "write_block_reason": annotated["write_block_reason"],
-                    }
-                )
-                break
-            if endpoint_id(candidate) == needle_id:
-                matches.append(
-                    {
-                        "id": annotated["id"],
-                        "write_allowed": annotated["write_allowed"],
-                        "write_block_reason": annotated["write_block_reason"],
-                    }
-                )
-                break
-    return {"url": url, "endpoint_ids": matches}
-
-
