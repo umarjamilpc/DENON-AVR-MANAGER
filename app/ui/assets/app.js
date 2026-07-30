@@ -103,7 +103,7 @@
     route: { view: "setup" },
     appSettings: {
       poll_enabled: true,
-      poll_interval_ms: 5000,
+      poll_interval_sec: 5,
       eq_confirm_ms: 30000,
       lock_settings_in_standby: true,
       show_sync_timestamps: true,
@@ -120,8 +120,9 @@
   const DEFAULT_APP_SETTINGS = { ...state.appSettings };
 
   function pollIntervalMs() {
-    const n = Number(state.appSettings.poll_interval_ms);
-    return Number.isFinite(n) ? Math.max(2000, Math.min(120000, n)) : 5000;
+    const n = Number(state.appSettings.poll_interval_sec);
+    const sec = Number.isFinite(n) ? Math.max(2, Math.min(120, n)) : 5;
+    return Math.round(sec * 1000);
   }
 
   function eqConfirmMs() {

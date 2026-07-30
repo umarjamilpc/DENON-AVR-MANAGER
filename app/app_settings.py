@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 # Defaults used when the file is missing or a key is absent.
 DEFAULTS: Dict[str, Any] = {
     "poll_enabled": True,
-    "poll_interval_ms": 5000,
+    "poll_interval_sec": 5,
     "eq_confirm_ms": 30000,
     "lock_settings_in_standby": True,
     "show_sync_timestamps": True,
@@ -33,16 +33,15 @@ SETTING_META: List[Dict[str, Any]] = [
         ),
     },
     {
-        "key": "poll_interval_ms",
-        "label": "Poll interval (ms)",
+        "key": "poll_interval_sec",
+        "label": "Poll interval (seconds)",
         "type": "number",
-        "min": 2000,
-        "max": 120000,
-        "step": 500,
+        "min": 2,
+        "max": 120,
+        "step": 1,
         "description": (
-            "How often (in milliseconds) the app talks to the AVR while polling is on. "
-            "Default 5000 (5 seconds). Lower = fresher UI, more load on the AVR; "
-            "higher = quieter network."
+            "How often (in seconds) the app talks to the AVR while polling is on. "
+            "Default 5. Lower = fresher UI, more load on the AVR; higher = quieter network."
         ),
     },
     {
@@ -140,11 +139,21 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if "confirm_firmware_actions" in src:
         out["confirm_firmware_actions"] = bool(src["confirm_firmware_actions"])
 
-    out["poll_interval_ms"] = _clamp_int(
-        src.get("poll_interval_ms", out["poll_interval_ms"]),
-        2000,
-        120000,
-        int(DEFAULTS["poll_interval_ms"]),
+    # Prefer seconds; migrate older poll_interval_ms if present.
+    if "poll_interval_sec" in src:
+        poll_sec = src.get("poll_interval_sec")
+    elif "poll_interval_ms" in src:
+        try:
+            poll_sec = int(round(int(src["poll_interval_ms"]) / 1000))
+        except (TypeError, ValueError):
+            poll_sec = DEFAULTS["poll_interval_sec"]
+    else:
+        poll_sec = out["poll_interval_sec"]
+    out["poll_interval_sec"] = _clamp_int(
+        poll_sec,
+        2,
+        120,
+        int(DEFAULTS["poll_interval_sec"]),
     )
     out["eq_confirm_ms"] = _clamp_int(
         src.get("eq_confirm_ms", out["eq_confirm_ms"]),
@@ -166,7 +175,15 @@ def load_settings() -> Dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return dict(DEFAULTS)
-    return normalize_settings(data if isinstance(data, dict) else {})
+    raw = data if isinstance(data, dict) else {}
+    normalized = normalize_settings(raw)
+    # Rewrite once if an older milliseconds key is still on disk.
+    if "poll_interval_ms" in raw and "poll_interval_sec" not in raw:
+        try:
+            _write_settings_file(normalized)
+        except OSError:
+            pass
+    return normalized
 
 
 def _write_settings_file(settings: Dict[str, Any]) -> None:
