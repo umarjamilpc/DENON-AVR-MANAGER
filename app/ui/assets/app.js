@@ -1519,7 +1519,7 @@
     }
   }
 
-  /* ---------- Manual EQ (no On↔Off probing) ---------- */
+  /* ---------- Manual EQ (Denon-faithful: hidden textGEQ* + Set) ---------- */
 
   async function openManualEq(node) {
     state.endpointId = "audio_graphiceq_s_audio";
@@ -1534,6 +1534,25 @@
     await loadManualEq();
   }
 
+  function syncEqHiddenFromValue(label, formName, v) {
+    const n = Number.isFinite(v) ? v : 0;
+    const asText = n.toFixed(1);
+    state.lastEqBands[label] = n;
+    const range = document.querySelector(`input[data-band="${label}"]`);
+    const hidden = document.querySelector(`input[name="${formName}"]`);
+    const db = document.querySelector(`[data-band-db="${label}"]`);
+    if (range) {
+      const wasDisabled = range.disabled;
+      range.disabled = false;
+      range.value = asText;
+      range.setAttribute("value", asText);
+      range.disabled = wasDisabled;
+    }
+    if (hidden) hidden.value = asText;
+    if (db) db.textContent = formatDb(asText);
+    return asText;
+  }
+
   function buildManualEqForm() {
     const form = $("field-form");
     form.classList.add("eq-form");
@@ -1541,13 +1560,13 @@
       <div class="field">
         <label>Manual EQ</label>
         <div class="radios">
-          <label><input type="radio" name="eq_enable" value="ON" /><span>On</span></label>
-          <label><input type="radio" name="eq_enable" value="OFF" checked /><span>Off</span></label>
+          <label><input type="radio" name="radioGraphicEQ" value="ON" /><span>On</span></label>
+          <label><input type="radio" name="radioGraphicEQ" value="OFF" checked /><span>Off</span></label>
         </div>
       </div>
       <div class="field" id="eq-sp-field">
         <label>Speaker Selection</label>
-        <select id="eq-sp">
+        <select id="eq-sp" name="listGEQSpSelection">
           <option value="ALL">All</option>
           <option value="LRS">Left/Right</option>
           <option value="EAC" selected>Each</option>
@@ -1555,7 +1574,7 @@
       </div>
       <div class="field" id="eq-ch-field">
         <label>Adjust EQ</label>
-        <select id="eq-channel">
+        <select id="eq-channel" name="listGEQAdjustEQ">
           <option value="FL">Front L</option>
           <option value="FR">Front R</option>
           <option value="CEN">Center</option>
@@ -1574,24 +1593,30 @@
       <p id="eq-hint" class="status">Turn Manual EQ On to activate the band sliders.</p>
     `;
     const bands = $("eq-bands");
-    for (const [label] of BANDS) {
+    for (const [label, formName] of BANDS) {
       const d = document.createElement("div");
       d.className = "eq-band";
-      const cached = state.lastEqBands[label] ?? 0;
+      const cached = Number(state.lastEqBands[label] ?? 0);
+      const asText = cached.toFixed(1);
       d.innerHTML = `
         <span class="hz">${label} Hz</span>
-        <input type="range" min="-20" max="6" step="0.5" value="${Number(cached).toFixed(1)}" data-band="${label}" disabled />
-        <span class="db" data-band-db="${label}">${formatDb(cached)}</span>`;
-      const range = d.querySelector("input");
+        <input type="range" min="-20" max="6" step="0.5" value="${asText}" data-band="${label}" disabled />
+        <input type="hidden" name="${formName}" value="${asText}" />
+        <span class="db" data-band-db="${label}">${formatDb(asText)}</span>`;
+      const range = d.querySelector("input[type='range']");
+      const hidden = d.querySelector(`input[name="${formName}"]`);
       const db = d.querySelector("[data-band-db]");
       range.addEventListener("input", () => {
+        // Mirror Denon showValueGEQ*: range → hidden textGEQ* (signed string).
         const v = parseDb(range.value);
-        db.textContent = formatDb(v);
-        if (Number.isFinite(v)) state.lastEqBands[label] = v;
+        const text = Number.isFinite(v) ? v.toFixed(1) : "0.0";
+        hidden.value = text;
+        state.lastEqBands[label] = Number(text);
+        db.textContent = formatDb(text);
       });
       bands.appendChild(d);
     }
-    for (const inp of form.querySelectorAll('input[name="eq_enable"]')) {
+    for (const inp of form.querySelectorAll('input[name="radioGraphicEQ"]')) {
       inp.addEventListener("change", async () => {
         if (!inp.checked || state.eqLoading) return;
         const wantOn = inp.value === "ON";
@@ -1647,12 +1672,22 @@
     state.eqTimer = setTimeout(() => saveManualEq(), 400);
   }
 
+  async function postGraphicEq(fields) {
+    return api(`/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}`, {
+      method: "POST",
+      body: JSON.stringify({ fields, merge_defaults: true }),
+    });
+  }
+
   async function applyEqEnable(enabled) {
     if (state.eqBusy) return;
     state.eqBusy = true;
     try {
-      await api(`/api/audio/manual-eq/enable?enabled=${enabled ? "true" : "false"}`, {
-        method: "POST",
+      await postGraphicEq({
+        radioGraphicEQ: enabled ? "ON" : "OFF",
+        setAdjustEQ: "off",
+        setGEQCurveCopy: "off",
+        setGEQSetDefaults: "off",
       });
       state.eqEnabled = enabled;
       setEqControlsEnabled(enabled);
@@ -1664,7 +1699,7 @@
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
       setStatus(err.message, "err");
-      for (const inp of document.querySelectorAll('input[name="eq_enable"]')) {
+      for (const inp of document.querySelectorAll('input[name="radioGraphicEQ"]')) {
         inp.checked = inp.value === (state.eqEnabled ? "ON" : "OFF");
       }
       setEqControlsEnabled(state.eqEnabled);
@@ -1676,7 +1711,7 @@
   function parseDb(raw) {
     let s = String(raw ?? "")
       .trim()
-      .replace(/[–—−]/g, "-"); // en/em/unicode minus → ASCII
+      .replace(/[\u2013\u2014\u2212]/g, "-"); // en/em/unicode minus → ASCII
     const m = s.match(/-?\d+(?:\.\d+)?/);
     return m ? Number(m[0]) : NaN;
   }
@@ -1690,21 +1725,14 @@
   function applyBandsToUi(fields) {
     for (const [label, formName] of BANDS) {
       const meta = fields[formName] || {};
-      if (meta.value == null && meta.value_label == null) continue;
-      // Always prefer raw value (signed). value_label can go through display cleaners.
-      const v = parseDb(meta.value != null ? meta.value : meta.value_label);
+      if (meta.value == null && typeof fields[formName] !== "string") continue;
+      const raw =
+        meta && typeof meta === "object" && meta.value != null
+          ? meta.value
+          : fields[formName];
+      const v = parseDb(raw);
       if (!Number.isFinite(v)) continue;
-      state.lastEqBands[label] = v;
-      const input = document.querySelector(`input[data-band="${label}"]`);
-      const db = document.querySelector(`[data-band-db="${label}"]`);
-      if (input) {
-        const asText = v.toFixed(1);
-        input.disabled = false; // ensure IDL value sticks on some WebViews
-        input.value = asText;
-        input.setAttribute("value", asText);
-        if (!state.eqEnabled) input.disabled = true;
-      }
-      if (db) db.textContent = formatDb(v);
+      syncEqHiddenFromValue(label, formName, v);
     }
   }
 
@@ -1712,13 +1740,13 @@
     if (!state.eqEnabled || state.eqBusy) return;
     state.eqBusy = true;
     try {
-      await api("/api/audio/manual-eq/action", {
-        method: "POST",
-        body: JSON.stringify({
-          action,
-          channel: $("eq-channel").value,
-          speaker_selection: $("eq-sp").value,
-        }),
+      await postGraphicEq({
+        radioGraphicEQ: "ON",
+        listGEQSpSelection: $("eq-sp").value,
+        listGEQAdjustEQ: $("eq-channel").value,
+        setAdjustEQ: "off",
+        setGEQCurveCopy: action === "curve_copy" ? "Set" : "off",
+        setGEQSetDefaults: action === "set_defaults" ? "Set" : "off",
       });
       setStatus(
         action === "curve_copy"
@@ -1742,13 +1770,14 @@
     if (!state.eqEnabled || state.eqBusy) return;
     state.eqBusy = true;
     try {
-      // Denon listBox(): POST selection first so AVR loads that channel's bands.
-      const result = await api("/api/audio/manual-eq/select", {
-        method: "POST",
-        body: JSON.stringify({
-          channel: $("eq-channel").value,
-          speaker_selection: $("eq-sp").value,
-        }),
+      // Denon listBox(): POST selection without Set so AVR loads that channel's bands.
+      const result = await postGraphicEq({
+        radioGraphicEQ: "ON",
+        listGEQSpSelection: $("eq-sp").value,
+        listGEQAdjustEQ: $("eq-channel").value,
+        setAdjustEQ: "off",
+        setGEQCurveCopy: "off",
+        setGEQSetDefaults: "off",
       });
       const fields = result?.after?.fields || {};
       if (Object.keys(fields).length) {
@@ -1776,7 +1805,9 @@
   }
 
   async function fetchEqBandsForCurrentChannel() {
-    const data = await api("/api/audio/manual-eq");
+    const data = await api(
+      `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}/state`
+    );
     const fields = data.state?.fields || {};
     applyBandsToUi(fields);
     syncEqSelectsFromFields(fields);
@@ -1786,12 +1817,14 @@
   async function loadManualEq() {
     state.eqLoading = true;
     try {
-      const data = await api("/api/audio/manual-eq");
+      const data = await api(
+        `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}/state`
+      );
       const fields = data.state?.fields || {};
       const on = (fields.radioGraphicEQ || {}).value === "ON";
       state.eqEnabled = on;
 
-      for (const inp of document.querySelectorAll('input[name="eq_enable"]')) {
+      for (const inp of document.querySelectorAll('input[name="radioGraphicEQ"]')) {
         inp.checked = inp.value === (on ? "ON" : "OFF");
       }
 
@@ -1800,20 +1833,11 @@
       const sp = (fields.listGEQSpSelection || {}).value;
       if (sp && $("eq-sp")) $("eq-sp").value = sp;
 
-      // Band fields are textGEQ* (promoted from Denon hidden+RangeGEQ*).
       if (on && fields.textGEQ63 && fields.textGEQ63.value != null) {
         applyBandsToUi(fields);
       } else {
-        for (const [label] of BANDS) {
-          const input = document.querySelector(`input[data-band="${label}"]`);
-          const db = document.querySelector(`[data-band-db="${label}"]`);
-          const v = parseDb(state.lastEqBands[label] ?? 0);
-          if (input) {
-            const asText = Number.isFinite(v) ? v.toFixed(1) : "0.0";
-            input.value = asText;
-            input.setAttribute("value", asText);
-          }
-          if (db) db.textContent = formatDb(v);
+        for (const [label, formName] of BANDS) {
+          syncEqHiddenFromValue(label, formName, state.lastEqBands[label] ?? 0);
         }
       }
       setEqControlsEnabled(on);
@@ -1831,44 +1855,51 @@
     if (state.eqBusy || state.eqLoading) return;
     if (!state.eqEnabled) return;
     state.eqBusy = true;
-    const bands = {};
-    for (const [label] of BANDS) {
-      const input = document.querySelector(`input[data-band="${label}"]`);
-      // Prefer lastEqBands (kept in sync on drag + load). DOM can lag on some WebViews.
-      let v = parseDb(state.lastEqBands[label]);
-      if (!Number.isFinite(v)) v = parseDb(input?.value);
-      if (!Number.isFinite(v)) v = 0;
-      bands[label] = v;
-      state.lastEqBands[label] = v;
-      if (input) {
-        const asText = v.toFixed(1);
-        input.value = asText;
-        input.setAttribute("value", asText);
-      }
-      const db = document.querySelector(`[data-band-db="${label}"]`);
-      if (db) db.textContent = formatDb(v);
-    }
     try {
-      const result = await api("/api/audio/manual-eq/bands", {
-        method: "POST",
-        body: JSON.stringify({
-          channel: $("eq-channel").value,
-          speaker_selection: $("eq-sp").value,
-          enable: true,
-          bands,
-        }),
-      });
+      // Keep hidden textGEQ* (signed strings) in sync — same pattern as Denon + Levels.
+      for (const [label, formName] of BANDS) {
+        const hidden = document.querySelector(`input[name="${formName}"]`);
+        const range = document.querySelector(`input[data-band="${label}"]`);
+        let v = parseDb(hidden?.value);
+        if (!Number.isFinite(v)) v = parseDb(state.lastEqBands[label]);
+        if (!Number.isFinite(v)) v = parseDb(range?.value);
+        if (!Number.isFinite(v)) v = 0;
+        syncEqHiddenFromValue(label, formName, v);
+      }
+
+      const fields = collectFields();
+      fields.radioGraphicEQ = "ON";
+      fields.setAdjustEQ = "Set";
+      fields.setGEQCurveCopy = "off";
+      fields.setGEQSetDefaults = "off";
+
+      const result = await postGraphicEq(fields);
       setStatus("EQ Set", "ok");
+
       if (!opts.skipReload) {
         const after = result?.after?.fields;
         if (after && (after.radioGraphicEQ || {}).value === "ON") {
           applyBandsToUi(after);
-        } else {
-          const data = await api("/api/audio/manual-eq");
-          const fields = data.state?.fields || {};
-          if ((fields.radioGraphicEQ || {}).value === "ON") {
-            applyBandsToUi(fields);
+          // If a read-back ever drops signs, keep the values we just sent.
+          for (const [label, formName] of BANDS) {
+            const sent = parseDb(fields[formName]);
+            const shown = state.lastEqBands[label];
+            if (
+              Number.isFinite(sent) &&
+              sent < 0 &&
+              Number.isFinite(shown) &&
+              shown === Math.abs(sent)
+            ) {
+              applyBandsToUi(
+                Object.fromEntries(
+                  BANDS.map(([l, f]) => [f, { value: fields[f] }])
+                )
+              );
+              break;
+            }
           }
+        } else {
+          await fetchEqBandsForCurrentChannel();
         }
       }
     } catch (err) {
