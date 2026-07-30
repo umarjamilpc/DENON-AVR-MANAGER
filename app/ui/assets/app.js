@@ -96,6 +96,10 @@
     lastLocalWriteAt: 0,
     lastAvrCheckAt: null,
     lastAvrUpdateAt: null,
+    powerOn: null,
+    powerBusy: false,
+    powerZone: "MAIN ZONE",
+    powerInput: "—",
     route: { view: "setup" },
   };
 
@@ -254,6 +258,82 @@
 
   /* ---------- Boot ---------- */
 
+  function applyPowerUi(data) {
+    const on = data?.power === "on" || data?.power_on === true;
+    state.powerOn = data?.power == null ? null : on;
+    state.powerZone = data?.zone || "MAIN ZONE";
+    state.powerInput = data?.input || "—";
+    const btn = $("power-btn");
+    const zone = $("power-zone");
+    const input = $("power-input");
+    const st = $("power-state");
+    if (zone) zone.textContent = state.powerZone;
+    if (input) input.textContent = state.powerInput;
+    if (st) {
+      st.textContent =
+        state.powerOn == null ? "…" : state.powerOn ? "On" : "Standby";
+    }
+    if (btn) {
+      btn.disabled = !state.connected || state.powerBusy;
+      btn.classList.toggle("is-on", Boolean(state.powerOn));
+      btn.classList.toggle("is-busy", state.powerBusy);
+      btn.setAttribute("aria-pressed", state.powerOn ? "true" : "false");
+      btn.title = state.powerOn
+        ? "Turn Main Zone to Standby"
+        : "Turn Main Zone On";
+    }
+  }
+
+  async function refreshPower() {
+    try {
+      const data = await api("/api/power");
+      applyPowerUi(data);
+      return data;
+    } catch (err) {
+      applyPowerUi({ power: "unknown", zone: "MAIN ZONE", input: "—" });
+      throw err;
+    }
+  }
+
+  async function togglePower() {
+    if (!state.connected || state.powerBusy) return;
+    state.powerBusy = true;
+    applyPowerUi({
+      power: state.powerOn ? "on" : "standby",
+      zone: state.powerZone,
+      input: state.powerInput,
+      power_on: state.powerOn,
+    });
+    setStatus("Sending power command…");
+    try {
+      const data = await api("/api/power", {
+        method: "POST",
+        body: JSON.stringify({ toggle: true }),
+      });
+      applyPowerUi(data);
+      markLocalWrite();
+      setStatus(
+        data.power === "on" ? "Main Zone On" : "Main Zone Standby",
+        "ok"
+      );
+    } catch (err) {
+      setStatus(err.message, "err");
+      try {
+        await refreshPower();
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      state.powerBusy = false;
+      applyPowerUi({
+        power: state.powerOn ? "on" : "standby",
+        zone: state.powerZone,
+        input: state.powerInput,
+        power_on: state.powerOn,
+      });
+    }
+  }
+
   async function boot() {
     setStatus("Connecting to configured AVR…");
     try {
@@ -265,6 +345,7 @@
         );
         state.connected = false;
         footHost.textContent = "Host from DENON_HOST";
+        applyPowerUi({ power: "unknown", zone: "MAIN ZONE", input: "—" });
         return;
       }
       setStatus("Connected · live updates", "ok");
@@ -272,6 +353,7 @@
       footHost.textContent = "Host from DENON_HOST";
       $("tabs").hidden = false;
       $("main").hidden = false;
+      await refreshPower().catch(() => {});
       await loadMenu();
       await showView("setup", { loadInfo: false });
       startRemotePolling();
@@ -350,6 +432,10 @@
     state.pollInFlight = true;
     state.pollTick = (state.pollTick || 0) + 1;
     try {
+      // Power is lightweight goform XML — refresh every poll tick.
+      if (!state.powerBusy) {
+        await refreshPower().catch(() => {});
+      }
       if (!state.pageDirty) {
         await softRefreshCurrentPage();
       }
@@ -2390,6 +2476,7 @@
       });
   });
   $("info-refresh").addEventListener("click", () => loadInfoDashboard(true));
+  $("power-btn")?.addEventListener("click", () => togglePower());
 
   boot();
 })();
