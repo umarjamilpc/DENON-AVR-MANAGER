@@ -261,7 +261,9 @@
   async function softRefreshCurrentPage() {
     if (!state.endpointId || state.pageDirty) return;
     if (state.endpointId === "audio_graphiceq_s_audio") {
-      await loadManualEq();
+      // Never auto-refresh band sliders — background reads can flip minus signs.
+      // On/Off + channel selects only; use Reload for band values.
+      await refreshManualEqMetaOnly();
       return;
     }
     if (state.endpointId === "inputs_inputassign_s_inputassign") {
@@ -1675,19 +1677,21 @@
     const n = Number.isFinite(v) ? v : 0;
     const asText = n.toFixed(1);
     state.lastEqBands[label] = n;
-    const range = document.querySelector(`input[data-band="${label}"]`);
     const hidden = document.querySelector(`input[name="${formName}"]`);
+    const range = document.querySelector(`input[data-band="${label}"]`);
     const db = document.querySelector(`[data-band-db="${label}"]`);
+    // Hidden textGEQ* is what Denon POSTs — treat it as the signed source of truth.
+    if (hidden) hidden.value = asText;
+    const signed = hidden?.value ?? asText;
     if (range) {
       const wasDisabled = range.disabled;
       range.disabled = false;
-      range.value = asText;
-      range.setAttribute("value", asText);
+      range.value = signed;
+      range.setAttribute("value", signed);
       range.disabled = wasDisabled;
     }
-    if (hidden) hidden.value = asText;
-    if (db) db.textContent = formatDb(asText);
-    return asText;
+    if (db) db.textContent = formatDb(signed);
+    return signed;
   }
 
   function buildManualEqForm() {
@@ -1745,7 +1749,7 @@
       const db = d.querySelector("[data-band-db]");
       range.addEventListener("input", () => {
         // Mirror Denon showValueGEQ*: range → hidden textGEQ* (signed string).
-        const v = parseDb(range.value);
+        const v = Number(range.value);
         const text = Number.isFinite(v) ? v.toFixed(1) : "0.0";
         hidden.value = text;
         state.lastEqBands[label] = Number(text);
@@ -1861,13 +1865,34 @@
     return m ? Number(m[0]) : NaN;
   }
 
+  function parseDbSigned(raw, prev) {
+    const s = String(raw ?? "")
+      .trim()
+      .replace(/[\u2013\u2014\u2212]/g, "-");
+    const explicitNeg = /^-\s*\d/.test(s);
+    const v = parseDb(s);
+    if (!Number.isFinite(v)) return Number.isFinite(prev) ? prev : NaN;
+    // AVR read-back sometimes drops the minus while magnitude stays the same.
+    if (
+      Number.isFinite(prev) &&
+      prev < 0 &&
+      v > 0 &&
+      Math.abs(v - Math.abs(prev)) < 0.001 &&
+      !explicitNeg
+    ) {
+      return prev;
+    }
+    return v;
+  }
+
   function formatDb(n) {
     const v = parseDb(n);
     if (!Number.isFinite(v)) return "0.0 dB";
     return `${v.toFixed(1)} dB`;
   }
 
-  function applyBandsToUi(fields) {
+  function applyBandsToUi(fields, opts = {}) {
+    const force = opts.force === true;
     for (const [label, formName] of BANDS) {
       const meta = fields[formName] || {};
       if (meta.value == null && typeof fields[formName] !== "string") continue;
@@ -1875,8 +1900,21 @@
         meta && typeof meta === "object" && meta.value != null
           ? meta.value
           : fields[formName];
-      const v = parseDb(raw);
+      const hidden = document.querySelector(`input[name="${formName}"]`);
+      const domVal = parseDb(hidden?.value);
+      const prev = Number.isFinite(domVal) ? domVal : state.lastEqBands[label];
+      const v = force ? parseDb(raw) : parseDbSigned(raw, prev);
       if (!Number.isFinite(v)) continue;
+      // Don't let a background read flip sign on an already-synced negative band.
+      if (
+        !force &&
+        Number.isFinite(domVal) &&
+        domVal < 0 &&
+        v > 0 &&
+        Math.abs(v - Math.abs(domVal)) < 0.001
+      ) {
+        continue;
+      }
       syncEqHiddenFromValue(label, formName, v);
     }
   }
@@ -1926,7 +1964,7 @@
       });
       const fields = result?.after?.fields || {};
       if (Object.keys(fields).length) {
-        applyBandsToUi(fields);
+        applyBandsToUi(fields, { force: true });
         syncEqSelectsFromFields(fields);
       } else {
         await fetchEqBandsForCurrentChannel();
@@ -1949,12 +1987,29 @@
     if (sp && $("eq-sp")) $("eq-sp").value = sp;
   }
 
+  async function refreshManualEqMetaOnly() {
+    const data = await api(
+      `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}/state`
+    );
+    const fields = data.state?.fields || {};
+    const on = (fields.radioGraphicEQ || {}).value === "ON";
+    if (state.eqEnabled !== on) {
+      state.eqEnabled = on;
+      for (const inp of document.querySelectorAll('input[name="radioGraphicEQ"]')) {
+        inp.checked = inp.value === (on ? "ON" : "OFF");
+      }
+      setEqControlsEnabled(on);
+    }
+    syncEqSelectsFromFields(fields);
+    return fields;
+  }
+
   async function fetchEqBandsForCurrentChannel() {
     const data = await api(
       `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}/state`
     );
     const fields = data.state?.fields || {};
-    applyBandsToUi(fields);
+    applyBandsToUi(fields, { force: true });
     syncEqSelectsFromFields(fields);
     return fields;
   }
@@ -1979,7 +2034,7 @@
       if (sp && $("eq-sp")) $("eq-sp").value = sp;
 
       if (on && fields.textGEQ63 && fields.textGEQ63.value != null) {
-        applyBandsToUi(fields);
+        applyBandsToUi(fields, { force: true });
       } else {
         for (const [label, formName] of BANDS) {
           syncEqHiddenFromValue(label, formName, state.lastEqBands[label] ?? 0);
@@ -2004,10 +2059,8 @@
       // Keep hidden textGEQ* (signed strings) in sync — same pattern as Denon + Levels.
       for (const [label, formName] of BANDS) {
         const hidden = document.querySelector(`input[name="${formName}"]`);
-        const range = document.querySelector(`input[data-band="${label}"]`);
         let v = parseDb(hidden?.value);
         if (!Number.isFinite(v)) v = parseDb(state.lastEqBands[label]);
-        if (!Number.isFinite(v)) v = parseDb(range?.value);
         if (!Number.isFinite(v)) v = 0;
         syncEqHiddenFromValue(label, formName, v);
       }
@@ -2018,34 +2071,33 @@
       fields.setGEQCurveCopy = "off";
       fields.setGEQSetDefaults = "off";
 
+      // Re-apply sent band values to the UI before POST (signed hidden fields).
+      applyBandsToUi(
+        Object.fromEntries(
+          BANDS.map(([label, formName]) => [
+            formName,
+            { value: fields[formName] },
+          ])
+        )
+      );
+
       const result = await postGraphicEq(fields);
       setStatus("EQ Set", "ok");
 
       if (!opts.skipReload) {
         const after = result?.after?.fields;
-        if (after && (after.radioGraphicEQ || {}).value === "ON") {
-          applyBandsToUi(after);
-          // If a read-back ever drops signs, keep the values we just sent.
-          for (const [label, formName] of BANDS) {
-            const sent = parseDb(fields[formName]);
-            const shown = state.lastEqBands[label];
-            if (
-              Number.isFinite(sent) &&
-              sent < 0 &&
-              Number.isFinite(shown) &&
-              shown === Math.abs(sent)
-            ) {
-              applyBandsToUi(
-                Object.fromEntries(
-                  BANDS.map(([l, f]) => [f, { value: fields[f] }])
-                )
-              );
-              break;
-            }
+        if (after) {
+          syncEqSelectsFromFields(after);
+          const on = (after.radioGraphicEQ || {}).value === "ON";
+          state.eqEnabled = on;
+          for (const inp of document.querySelectorAll(
+            'input[name="radioGraphicEQ"]'
+          )) {
+            inp.checked = inp.value === (on ? "ON" : "OFF");
           }
-        } else {
-          await fetchEqBandsForCurrentChannel();
+          setEqControlsEnabled(on);
         }
+        // Keep band sliders at what we sent — immediate read-back can drop minus signs.
       }
     } catch (err) {
       $("editor-banner").hidden = false;

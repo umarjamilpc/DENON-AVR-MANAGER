@@ -627,7 +627,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  min-width: 7ch;
+  min-width: 9ch;
 }
 #eq-actions {
   display: flex;
