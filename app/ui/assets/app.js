@@ -66,7 +66,7 @@
     audio_volume_s_audio: "Adjusts volume parameters",
     audio_audyssey_s_audio: "Adjusts Audyssey parameters",
     audio_graphiceq_s_audio:
-      "Adjusts the tonal quality for each speaker using a graphic equalizer",
+      "Graphic EQ per speaker. Channel list follows Amp Assign. Export/Import all curves; blocked if Amp Assign differs; missing speakers skipped.",
     audio_bilingualmode_s_audio: "Sets bilingual audio mode",
   };
   const state = {
@@ -331,6 +331,10 @@
     for (const id of ["eq-set", "eq-curve-copy", "eq-defaults"]) {
       const btn = $(id);
       if (btn) btn.disabled = standby || !state.eqEnabled;
+    }
+    for (const id of ["eq-export", "eq-import"]) {
+      const btn = $(id);
+      if (btn) btn.disabled = standby;
     }
     const banner = $("editor-banner");
     if (standby && banner && state.endpointId) {
@@ -2175,6 +2179,35 @@
     return signed;
   }
 
+  function fillEqSelect(selectEl, meta) {
+    if (!selectEl || !meta || typeof meta !== "object") return;
+    const opts = Array.isArray(meta.options) ? meta.options : [];
+    const prev = selectEl.value;
+    const want =
+      meta.value != null && String(meta.value) !== ""
+        ? String(meta.value)
+        : prev;
+    if (opts.length) {
+      selectEl.innerHTML = "";
+      for (const opt of opts) {
+        const value =
+          typeof opt === "object" ? String(opt.value ?? "").trim() : String(opt).trim();
+        if (!value) continue;
+        const label =
+          typeof opt === "object"
+            ? String(opt.label || opt.display || value).trim() || value
+            : value;
+        const o = document.createElement("option");
+        o.value = value;
+        o.textContent = label;
+        selectEl.appendChild(o);
+      }
+    }
+    if (want && [...selectEl.options].some((o) => o.value === want)) {
+      selectEl.value = want;
+    }
+  }
+
   function buildManualEqForm() {
     const form = $("field-form");
     form.classList.add("eq-form");
@@ -2188,23 +2221,11 @@
       </div>
       <div class="field" id="eq-sp-field">
         <label>Speaker Selection</label>
-        <select id="eq-sp" name="listGEQSpSelection">
-          <option value="ALL">All</option>
-          <option value="LRS">Left/Right</option>
-          <option value="EAC" selected>Each</option>
-        </select>
+        <select id="eq-sp" name="listGEQSpSelection"></select>
       </div>
       <div class="field" id="eq-ch-field">
         <label>Adjust EQ</label>
-        <select id="eq-channel" name="listGEQAdjustEQ">
-          <option value="FL">Front L</option>
-          <option value="FR">Front R</option>
-          <option value="CEN">Center</option>
-          <option value="SL">Surround L</option>
-          <option value="SR">Surround R</option>
-          <option value="TML">Top Middle L</option>
-          <option value="TMR">Top Middle R</option>
-        </select>
+        <select id="eq-channel" name="listGEQAdjustEQ"></select>
       </div>
       <div id="eq-bands" class="eq-bands is-inactive"></div>
       <div class="field field-action" id="eq-actions">
@@ -2212,6 +2233,12 @@
         <button type="button" class="btn-action" id="eq-curve-copy" disabled>Curve Copy</button>
         <button type="button" class="btn-action" id="eq-defaults" disabled>Set Defaults</button>
       </div>
+      <div class="field field-action" id="eq-backup-actions">
+        <button type="button" class="btn-action" id="eq-export">Export all channels</button>
+        <button type="button" class="btn-action" id="eq-import">Import…</button>
+        <input type="file" id="eq-import-file" accept="application/json,.json" hidden />
+      </div>
+      <p id="eq-backup-msg" class="status" hidden></p>
       <p id="eq-hint" class="status">Turn Manual EQ On to activate the band sliders.</p>
       <p id="eq-sync" class="meta sync-stamp">Last AVR check: —</p>
     `;
@@ -2264,6 +2291,133 @@
     $("eq-defaults").addEventListener("click", () =>
       runManualEqAction("set_defaults")
     );
+    $("eq-export").addEventListener("click", () => exportManualEqBackup());
+    $("eq-import").addEventListener("click", () => {
+      const file = $("eq-import-file");
+      if (file) {
+        file.value = "";
+        file.click();
+      }
+    });
+    $("eq-import-file").addEventListener("change", () => importManualEqBackup());
+  }
+
+  function setEqBackupMsg(text, kind) {
+    const el = $("eq-backup-msg");
+    if (!el) return;
+    if (!text) {
+      el.hidden = true;
+      el.textContent = "";
+      el.classList.remove("ok", "err", "warn");
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.classList.remove("ok", "err", "warn");
+    if (kind) el.classList.add(kind);
+  }
+
+  function downloadJson(filename, obj) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportManualEqBackup() {
+    if (state.eqBusy || state.eqLoading) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
+    state.eqBusy = true;
+    setEqBackupMsg("Exporting every channel from the AVR…", "warn");
+    setStatus("Exporting Manual EQ…", "warn");
+    try {
+      const data = await api("/api/manual-eq/export");
+      const backup = data.backup || data;
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      downloadJson(`denon-manual-eq-${stamp}.json`, backup);
+      const n = Object.keys(backup.channels || {}).length;
+      const warnN = (backup.warnings || []).length;
+      const amp = backup.amp_assign?.label || backup.amp_assign?.value || "?";
+      let msg = `Exported ${n} channel(s). Amp Assign: ${amp}.`;
+      if (warnN) msg += ` ${warnN} channel read warning(s).`;
+      setEqBackupMsg(msg, warnN ? "warn" : "ok");
+      setStatus("Manual EQ exported", "ok");
+    } catch (err) {
+      setEqBackupMsg(err.message, "err");
+      setStatus(err.message, "err");
+    } finally {
+      state.eqBusy = false;
+    }
+  }
+
+  async function importManualEqBackup() {
+    const fileEl = $("eq-import-file");
+    const file = fileEl?.files?.[0];
+    if (!file) return;
+    if (state.eqBusy || state.eqLoading) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      setEqBackupMsg("Invalid JSON file", "err");
+      setStatus("Invalid JSON file", "err");
+      return;
+    }
+    const chCount = Object.keys(backup.channels || {}).length;
+    const ampLabel =
+      backup.amp_assign?.label || backup.amp_assign?.value || "(unknown)";
+    if (
+      !confirm(
+        `Import Manual EQ for ${chCount} channel(s)?\n\n` +
+          `File Amp Assign: ${ampLabel}\n\n` +
+          `Import is blocked if Amp Assign differs from the AVR.\n` +
+          `Channels in the file that are not on the AVR are skipped with a warning.`
+      )
+    ) {
+      return;
+    }
+    state.eqBusy = true;
+    setEqBackupMsg("Importing Manual EQ…", "warn");
+    setStatus("Importing Manual EQ…", "warn");
+    try {
+      const data = await api("/api/manual-eq/import", {
+        method: "POST",
+        body: JSON.stringify({ backup, dry_run: false }),
+      });
+      const result = data.result || data;
+      const warnings = result.warnings || [];
+      const parts = [result.message || "Import finished"];
+      for (const w of warnings) {
+        parts.push(w.message || `Skipped ${w.channel}`);
+      }
+      for (const f of result.failed || []) {
+        parts.push(`Failed ${f.channel}: ${f.error}`);
+      }
+      const kind = result.ok === false || (result.failed || []).length ? "err" : warnings.length ? "warn" : "ok";
+      setEqBackupMsg(parts.join(" "), kind);
+      setStatus(result.message || "Manual EQ imported", kind === "err" ? "err" : "ok");
+      await loadManualEq();
+    } catch (err) {
+      setEqBackupMsg(err.message, "err");
+      setStatus(err.message, "err");
+    } finally {
+      state.eqBusy = false;
+      if (fileEl) fileEl.value = "";
+    }
   }
 
   function setEqControlsEnabled(on) {
@@ -2485,10 +2639,8 @@
   }
 
   function syncEqSelectsFromFields(fields) {
-    const ch = (fields.listGEQAdjustEQ || {}).value;
-    if (ch && $("eq-channel")) $("eq-channel").value = ch;
-    const sp = (fields.listGEQSpSelection || {}).value;
-    if (sp && $("eq-sp")) $("eq-sp").value = sp;
+    fillEqSelect($("eq-sp"), fields.listGEQSpSelection);
+    fillEqSelect($("eq-channel"), fields.listGEQAdjustEQ);
   }
 
   function eqFingerprintFromFields(fields) {
@@ -2640,10 +2792,7 @@
         inp.checked = inp.value === (on ? "ON" : "OFF");
       }
 
-      const ch = (fields.listGEQAdjustEQ || {}).value;
-      if (ch && $("eq-channel")) $("eq-channel").value = ch;
-      const sp = (fields.listGEQSpSelection || {}).value;
-      if (sp && $("eq-sp")) $("eq-sp").value = sp;
+      syncEqSelectsFromFields(fields);
 
       if (on && fields.textGEQ63 && fields.textGEQ63.value != null) {
         applyBandsToUi(fields, { force: true });
