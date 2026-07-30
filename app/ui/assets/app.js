@@ -86,6 +86,7 @@
     lastEqBands: Object.fromEntries(BANDS.map(([k]) => [k, 0])),
     eqRemoteFingerprint: null,
     eqPendingFingerprint: null,
+    eqPendingSince: 0,
     reloadAction: null,
     menuRefreshTimer: null,
     pollTimer: null,
@@ -98,7 +99,9 @@
     route: { view: "setup" },
   };
 
-  const REMOTE_POLL_MS = 30000;
+  const REMOTE_POLL_MS = 5000;
+  /** Manual EQ: require the same remote fingerprint for this long before applying. */
+  const EQ_CONFIRM_MS = 30000;
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $("connect-status");
@@ -283,11 +286,13 @@
     state.lastLocalWriteAt = Date.now();
     state.pageDirty = false;
     state.eqPendingFingerprint = null;
+    state.eqPendingSince = 0;
   }
 
   function markPageDirty() {
     state.pageDirty = true;
     state.eqPendingFingerprint = null;
+    state.eqPendingSince = 0;
   }
 
   function stopRemotePolling() {
@@ -298,7 +303,7 @@
 
   function startRemotePolling() {
     stopRemotePolling();
-    // Remote/OSD sync — 30s keeps AVR load low and reduces raced EQ reads.
+    // Check AVR often; Manual EQ only applies after EQ_CONFIRM_MS stable fingerprint.
     state.pollTimer = setInterval(() => {
       pollRemoteChanges().catch(() => {});
     }, REMOTE_POLL_MS);
@@ -348,7 +353,7 @@
       if (!state.pageDirty) {
         await softRefreshCurrentPage();
       }
-      // Menu greys ~ every 90s (every 3rd 30s tick).
+      // Menu greys ~ every 15s (every 3rd 5s tick).
       if (!onEq && state.pollTick % 3 === 0) {
         await refreshMenuAvailability({ immediate: true });
       }
@@ -2076,6 +2081,7 @@
     if (fp) {
       state.eqRemoteFingerprint = fp;
       state.eqPendingFingerprint = null;
+      state.eqPendingSince = 0;
     }
   }
 
@@ -2095,8 +2101,8 @@
 
   /**
    * Safe remote/OSD sync for Manual EQ.
-   * Server already double-reads; we also require the same new fingerprint on
-   * two consecutive polls before touching the UI (blocks one-off raced curves).
+   * Polls every 5s for timestamps; applies UI only after the same new fingerprint
+   * has been seen continuously for EQ_CONFIRM_MS (30s).
    */
   async function softRefreshManualEq() {
     if (state.pageDirty || state.eqBusy || state.eqLoading) return;
@@ -2117,23 +2123,37 @@
 
     if (fp === state.eqRemoteFingerprint || fp === eqFingerprintFromUi()) {
       state.eqPendingFingerprint = null;
+      state.eqPendingSince = 0;
       state.eqRemoteFingerprint = fp;
       markAvrSyncTime({ at: readAt, changed: false });
       return;
     }
 
-    // First sighting of a new remote snapshot — confirm on the next poll (~30s).
+    // New or changed pending snapshot — restart the 30s confirm window.
     if (fp !== state.eqPendingFingerprint) {
       state.eqPendingFingerprint = fp;
+      state.eqPendingSince = Date.now();
       markAvrSyncTime({ at: readAt, changed: false });
       const pending = $("eq-sync");
       if (pending) {
-        pending.textContent = `Last AVR check: ${formatSyncClock(readAt)} · confirming change…`;
+        pending.textContent = `Last AVR check: ${formatSyncClock(readAt)} · confirming (30s)…`;
+      }
+      return;
+    }
+
+    const waited = Date.now() - (state.eqPendingSince || 0);
+    if (waited < EQ_CONFIRM_MS) {
+      markAvrSyncTime({ at: readAt, changed: false });
+      const pending = $("eq-sync");
+      if (pending) {
+        const left = Math.max(1, Math.ceil((EQ_CONFIRM_MS - waited) / 1000));
+        pending.textContent = `Last AVR check: ${formatSyncClock(readAt)} · confirming (${left}s)…`;
       }
       return;
     }
 
     state.eqPendingFingerprint = null;
+    state.eqPendingSince = 0;
     applyManualEqFields(fields, { forceBands: true });
     markAvrSyncTime({ at: readAt, changed: true });
     setStatus("Manual EQ synced from AVR", "ok");
@@ -2157,6 +2177,7 @@
   async function loadManualEq() {
     state.eqLoading = true;
     state.eqPendingFingerprint = null;
+    state.eqPendingSince = 0;
     try {
       const data = await api(
         `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}/state`
