@@ -8,15 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=24" />
-  <script>
-    (function () {
-      try {
-        var t = localStorage.getItem("denon_theme") || "system";
-        document.documentElement.setAttribute("data-theme", t);
-      } catch (e) {}
-    })();
-  </script>
+  <link rel="stylesheet" href="/assets/styles.css?v=25" />
 </head>
 <body>
   <div class="shell">
@@ -59,6 +51,8 @@
     <nav class="tabs" id="tabs" aria-label="Views" hidden>
       <a class="tab active" id="tab-setup" href="/" data-view="setup">Setup Menu</a>
       <a class="tab" id="tab-info" href="/" data-view="info">Info</a>
+      <a class="tab" id="tab-settings" href="/" data-view="settings">Settings</a>
+      <a class="tab" id="tab-help" href="/" data-view="help">Help</a>
       <span id="mode-pill" class="pill">Real-time</span>
     </nav>
 
@@ -105,6 +99,135 @@
           <div id="info-all-body" class="info-all-body"></div>
         </article>
       </section>
+
+      <section id="view-settings" class="view app-page" hidden>
+        <article class="app-sheet">
+          <header class="app-sheet-head">
+            <div>
+              <h2>App Settings</h2>
+              <p class="meta">
+                Saved on the Docker host (survives container restarts). Not stored in the browser.
+              </p>
+            </div>
+            <div class="editor-actions">
+              <button type="button" id="settings-reset" class="btn-ghost">Reset defaults</button>
+              <button type="button" id="settings-save" class="btn-primary">Save</button>
+            </div>
+          </header>
+          <p id="settings-banner" class="banner" hidden></p>
+          <p id="settings-path" class="meta settings-path"></p>
+          <form id="settings-form" class="settings-form"></form>
+        </article>
+      </section>
+
+      <section id="view-help" class="view app-page" hidden>
+        <article class="app-sheet help-sheet">
+          <header class="app-sheet-head">
+            <div>
+              <h2>Help</h2>
+              <p class="meta">How to use DENON AVR MANAGER and what each app setting does.</p>
+            </div>
+          </header>
+
+          <div class="help-body">
+            <section class="help-section">
+              <h3>What this app does</h3>
+              <p>
+                This manager mirrors the AVR’s <strong>Setup Menu</strong> over HTTP (the same
+                SETUP pages Denon’s web UI uses). It is tested on the <strong>AVR-X1200W</strong>.
+                The AVR address comes only from <code>DENON_HOST</code> in Docker Compose — you
+                cannot change it from the browser.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>Main Zone power</h3>
+              <p>
+                The power button at the top toggles Main Zone between <strong>On</strong> and
+                <strong>Standby</strong> using Denon’s goform HTTP commands (no telnet).
+                Standby still keeps network control alive; a full unplug / power cut is different
+                and the app will show the AVR as unreachable.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>Setup Menu</h3>
+              <ul>
+                <li>Pick a section (Audio, Video, Speakers, …) then an item.</li>
+                <li>Most pages apply changes live when you change a control.</li>
+                <li>Some pages need an explicit <strong>Set</strong> / <strong>Save</strong> button (levels, rename, network, Manual EQ bands).</li>
+                <li>Greyed (“inactive”) items match Denon — usually the current input, amp assign, or signal does not allow that page.</li>
+                <li>Use <strong>Reload</strong> to re-read the open page from the AVR.</li>
+              </ul>
+            </section>
+
+            <section class="help-section">
+              <h3>Manual EQ</h3>
+              <p>
+                Turn Graphic EQ <strong>On</strong>, pick speaker / channel, drag bands, then press
+                <strong>Set</strong>. Remote changes from the AVR are only applied after the
+                <em>Manual EQ confirm time</em> (see Settings) so curves do not flip while you edit.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>Network &amp; firmware (caution)</h3>
+              <p>
+                <strong>Network Settings / Connection</strong> never auto-save. Save or Connect can
+                reset the AVR network for ~60 seconds. Firmware Update / Web Update / local upload
+                can reboot the receiver — confirmations are controlled in App Settings.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>Info tab</h3>
+              <p>
+                Read-only status pulled from the AVR (network, firmware, zones, etc.). Press
+                Refresh to reload. This does not change any settings.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>App Settings (persistent)</h3>
+              <p>
+                Stored as <code>app-settings.json</code> on the host volume
+                <code>/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER/</code>
+                (mounted at <code>/data</code> in the container). Survives
+                <code>docker compose pull</code> / recreate. Shared by every browser that uses this install.
+              </p>
+              <dl class="help-dl">
+                <dt>Remote polling</dt>
+                <dd>Periodically re-check power and the open Setup page for remote changes.</dd>
+                <dt>Poll interval (ms)</dt>
+                <dd>Milliseconds between AVR checks while polling is on (default 5000).</dd>
+                <dt>Manual EQ confirm time (ms)</dt>
+                <dd>How long a remote EQ curve must stay stable before the UI applies it (default 30000). Use 0 to apply on the next poll.</dd>
+                <dt>Lock settings in Standby</dt>
+                <dd>Block Setup writes while Main Zone is Standby; Power On still works.</dd>
+                <dt>Show sync timestamps</dt>
+                <dd>Footer / Manual EQ clocks for last AVR check and last applied update.</dd>
+                <dt>Color theme</dt>
+                <dd>System, Light, or Dark for this manager UI (saved on the server).</dd>
+                <dt>Confirm Network Save / Connect</dt>
+                <dd>Extra browser confirmation before network actions that can drop the LAN session.</dd>
+                <dt>Confirm firmware actions</dt>
+                <dd>Extra confirmation before Update / Add Feature / Web Update / local upload.</dd>
+              </dl>
+              <p>
+                <code>DENON_HOST</code> is <strong>not</strong> an App Setting — edit it in
+                <code>docker-compose.yml</code> and recreate the container.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>After updating the image</h3>
+              <pre class="help-pre">docker compose pull
+docker compose up -d</pre>
+              <p>Then hard-refresh the browser (Ctrl+F5) so <code>app.js</code> cache clears.</p>
+            </section>
+          </div>
+        </article>
+      </section>
     </main>
 
     <footer class="foot">
@@ -113,6 +236,6 @@
       <span id="foot-host"></span>
     </footer>
   </div>
-  <script src="/assets/app.js?v=35"></script>
+  <script src="/assets/app.js?v=36"></script>
 </body>
 </html>

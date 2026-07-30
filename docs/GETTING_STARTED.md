@@ -27,6 +27,9 @@ Open `http://YOUR_AVR_IP/` in a browser. If you see Denon’s web UI, the IP is 
    ```
 
    to your IP.
+
+   App Settings (poll rate, theme, etc.) are stored under the mounted volume
+   `/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER/` (see `docker-compose.yml`).
 4. In a terminal, from this folder:
 
    ```bash

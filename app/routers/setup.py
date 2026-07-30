@@ -6,6 +6,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
+from ..app_settings import (
+    load_settings,
+    reset_settings,
+    save_settings,
+    settings_response,
+)
 from ..denon_client import DenonSetupClient
 from ..denon_power import (
     STANDBY_SETTINGS_BLOCKED,
@@ -89,6 +95,13 @@ class PowerBody(BaseModel):
     )
 
 
+class AppSettingsBody(BaseModel):
+    settings: Dict[str, Any] = Field(
+        ...,
+        description="Partial or full app settings object to merge and persist.",
+    )
+
+
 def _default_base(request: Request) -> str:
     return request.app.state.default_host
 
@@ -120,7 +133,9 @@ def _probe(client: DenonSetupClient) -> Dict[str, Any]:
 
 
 def _reject_if_standby(client: DenonSetupClient) -> None:
-    """Block Setup / firmware writes while Main Zone is in Standby."""
+    """Block Setup / firmware writes while Main Zone is in Standby (if enabled)."""
+    if not load_settings().get("lock_settings_in_standby", True):
+        return
     if main_zone_is_standby(client):
         raise HTTPException(
             403,
@@ -130,6 +145,37 @@ def _reject_if_standby(client: DenonSetupClient) -> None:
                 "hint": "POST /api/power with power=on (or toggle) first.",
             },
         )
+
+
+# ---------- App settings (Docker volume JSON) ----------
+
+
+@router.get("/app-settings")
+def get_app_settings() -> Dict[str, Any]:
+    """Read persistent manager settings (survives container recreate)."""
+    return settings_response()
+
+
+@router.put("/app-settings")
+def put_app_settings(body: AppSettingsBody) -> Dict[str, Any]:
+    """Merge and save manager settings to the mounted data volume."""
+    try:
+        save_settings(body.settings)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except OSError as e:
+        raise HTTPException(500, f"Could not write settings file: {e}") from e
+    return settings_response()
+
+
+@router.post("/app-settings/reset")
+def post_app_settings_reset() -> Dict[str, Any]:
+    """Restore factory defaults and overwrite the settings file."""
+    try:
+        reset_settings()
+    except OSError as e:
+        raise HTTPException(500, f"Could not write settings file: {e}") from e
+    return settings_response()
 
 
 @router.get("/connection")

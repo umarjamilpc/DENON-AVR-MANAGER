@@ -101,11 +101,33 @@
     powerZone: "MAIN ZONE",
     powerInput: "—",
     route: { view: "setup" },
+    appSettings: {
+      poll_enabled: true,
+      poll_interval_ms: 5000,
+      eq_confirm_ms: 30000,
+      lock_settings_in_standby: true,
+      show_sync_timestamps: true,
+      theme: "system",
+      confirm_network_save: true,
+      confirm_firmware_actions: true,
+    },
+    appSettingsMeta: [],
+    appSettingsPath: "",
+    appSettingsFileExists: false,
+    settingsDirty: false,
   };
 
-  const REMOTE_POLL_MS = 5000;
-  /** Manual EQ: require the same remote fingerprint for this long before applying. */
-  const EQ_CONFIRM_MS = 30000;
+  const DEFAULT_APP_SETTINGS = { ...state.appSettings };
+
+  function pollIntervalMs() {
+    const n = Number(state.appSettings.poll_interval_ms);
+    return Number.isFinite(n) ? Math.max(2000, Math.min(120000, n)) : 5000;
+  }
+
+  function eqConfirmMs() {
+    const n = Number(state.appSettings.eq_confirm_ms);
+    return Number.isFinite(n) ? Math.max(0, Math.min(300000, n)) : 30000;
+  }
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $("connect-status");
@@ -163,18 +185,25 @@
     if (changed) state.lastAvrUpdateAt = iso;
 
     const clock = formatSyncClock(iso);
+    const show = state.appSettings.show_sync_timestamps !== false;
     const eqEl = $("eq-sync");
     if (eqEl) {
-      eqEl.textContent = changed
-        ? `Last update from AVR: ${clock}`
-        : `Last AVR check: ${clock}`;
+      eqEl.classList.toggle("is-hidden", !show);
+      if (show) {
+        eqEl.textContent = changed
+          ? `Last update from AVR: ${clock}`
+          : `Last AVR check: ${clock}`;
+      }
     }
     const foot = $("foot-sync");
     if (foot) {
-      const upd = state.lastAvrUpdateAt
-        ? formatSyncClock(state.lastAvrUpdateAt)
-        : "—";
-      foot.textContent = `Checked ${clock} · Updated ${upd}`;
+      foot.classList.toggle("is-hidden", !show);
+      if (show) {
+        const upd = state.lastAvrUpdateAt
+          ? formatSyncClock(state.lastAvrUpdateAt)
+          : "—";
+        foot.textContent = `Checked ${clock} · Updated ${upd}`;
+      }
     }
   }
 
@@ -205,26 +234,37 @@
     return t.replace(/^[\s\-–—·•\*]+/, "").trim();
   }
 
-  function initTheme() {
-    const root = document.documentElement;
-    const apply = (mode) => {
-      const m = ["system", "light", "dark"].includes(mode) ? mode : "system";
-      root.setAttribute("data-theme", m);
-      localStorage.setItem("denon_theme", m);
-      for (const btn of document.querySelectorAll("[data-theme-set]")) {
-        btn.classList.toggle("active", btn.getAttribute("data-theme-set") === m);
-      }
-    };
-    apply(localStorage.getItem("denon_theme") || "system");
+  function applyTheme(mode, { persist = false } = {}) {
+    const m = ["system", "light", "dark"].includes(mode) ? mode : "system";
+    document.documentElement.setAttribute("data-theme", m);
+    state.appSettings.theme = m;
     for (const btn of document.querySelectorAll("[data-theme-set]")) {
-      btn.addEventListener("click", () => apply(btn.getAttribute("data-theme-set")));
+      btn.classList.toggle("active", btn.getAttribute("data-theme-set") === m);
+    }
+    if (persist) {
+      void persistAppSettings({ theme: m }).catch((err) =>
+        setStatus(err.message, "err")
+      );
+    }
+  }
+
+  function initTheme() {
+    applyTheme(state.appSettings.theme || "system");
+    for (const btn of document.querySelectorAll("[data-theme-set]")) {
+      btn.addEventListener("click", () => {
+        applyTheme(btn.getAttribute("data-theme-set"), { persist: true });
+        const sel = $("settings-theme");
+        if (sel) sel.value = state.appSettings.theme;
+      });
     }
   }
 
   /* ---------- In-page views (no /ui path, no hash in the URL) ---------- */
 
+  const APP_VIEWS = new Set(["setup", "info", "settings", "help"]);
+
   function showView(view, { loadInfo = true } = {}) {
-    const next = view === "info" ? "info" : "setup";
+    const next = APP_VIEWS.has(view) ? view : "setup";
     const changed = state.route.view !== next;
     state.route = { view: next };
     for (const el of document.querySelectorAll(".view")) el.hidden = true;
@@ -232,8 +272,13 @@
     if (pane) pane.hidden = false;
     $("tab-setup")?.classList.toggle("active", next === "setup");
     $("tab-info")?.classList.toggle("active", next === "info");
+    $("tab-settings")?.classList.toggle("active", next === "settings");
+    $("tab-help")?.classList.toggle("active", next === "help");
     const pill = $("mode-pill");
     if (pill) pill.hidden = !state.connected;
+    if (next === "settings") {
+      return loadSettingsPage();
+    }
     if (
       loadInfo &&
       state.connected &&
@@ -258,9 +303,11 @@
 
   /* ---------- Boot ---------- */
 
-  /** Settings writes only when Main Zone is On (Standby = browse/read only). */
+  /** Settings writes only when Main Zone is On (unless standby lock is disabled). */
   function settingsWritable() {
-    return state.connected && state.powerOn === true;
+    if (!state.connected) return false;
+    if (!state.appSettings.lock_settings_in_standby) return true;
+    return state.powerOn === true;
   }
 
   function applyStandbySettingsLock() {
@@ -390,6 +437,16 @@
   }
 
   async function boot() {
+    setStatus("Loading app settings…");
+    $("tabs").hidden = false;
+    $("main").hidden = false;
+    try {
+      await refreshAppSettings();
+    } catch (err) {
+      setStatus(`Settings load failed: ${err.message}`, "warn");
+    }
+    applyTheme(state.appSettings.theme || "system");
+    markAvrSyncTime({ changed: false });
     setStatus("Connecting to configured AVR…");
     try {
       const data = await api("/api/connection");
@@ -401,13 +458,13 @@
         state.connected = false;
         footHost.textContent = "Host from DENON_HOST";
         applyPowerUi({ power: "unknown", zone: "MAIN ZONE", input: "—" });
+        stopRemotePolling();
+        await showView("settings", { loadInfo: false });
         return;
       }
       setStatus("Connected · live updates", "ok");
       state.connected = true;
       footHost.textContent = "Host from DENON_HOST";
-      $("tabs").hidden = false;
-      $("main").hidden = false;
       await refreshPower().catch(() => {});
       await loadMenu();
       await showView("setup", { loadInfo: false });
@@ -416,6 +473,7 @@
       setStatus(err.message, "err");
       state.connected = false;
       stopRemotePolling();
+      await showView("settings", { loadInfo: false });
     }
   }
 
@@ -440,10 +498,194 @@
 
   function startRemotePolling() {
     stopRemotePolling();
-    // Check AVR often; Manual EQ only applies after EQ_CONFIRM_MS stable fingerprint.
+    if (!state.appSettings.poll_enabled) return;
+    const ms = pollIntervalMs();
+    // Check AVR often; Manual EQ only applies after eq_confirm_ms stable fingerprint.
     state.pollTimer = setInterval(() => {
       pollRemoteChanges().catch(() => {});
-    }, REMOTE_POLL_MS);
+    }, ms);
+  }
+
+  function applyAppSettings(data) {
+    const next = { ...DEFAULT_APP_SETTINGS, ...(data?.settings || {}) };
+    state.appSettings = next;
+    state.appSettingsMeta = Array.isArray(data?.meta) ? data.meta : state.appSettingsMeta;
+    state.appSettingsPath = data?.path || state.appSettingsPath || "";
+    if (typeof data?.exists === "boolean") {
+      state.appSettingsFileExists = data.exists;
+    }
+    applyTheme(next.theme || "system");
+    markAvrSyncTime({
+      at: state.lastAvrCheckAt || new Date().toISOString(),
+      changed: false,
+    });
+    if (state.connected) startRemotePolling();
+    else stopRemotePolling();
+  }
+
+  async function refreshAppSettings() {
+    const data = await api("/api/app-settings");
+    applyAppSettings(data);
+    return data;
+  }
+
+  async function persistAppSettings(partial) {
+    const data = await api("/api/app-settings", {
+      method: "PUT",
+      body: JSON.stringify({ settings: partial }),
+    });
+    applyAppSettings(data);
+    state.settingsDirty = false;
+    return data;
+  }
+
+  function collectSettingsForm() {
+    const form = $("settings-form");
+    const out = {};
+    if (!form) return out;
+    for (const meta of state.appSettingsMeta) {
+      const key = meta.key;
+      const el = form.querySelector(`[name="${key}"]`);
+      if (!el) continue;
+      if (meta.type === "boolean") out[key] = Boolean(el.checked);
+      else if (meta.type === "number") out[key] = Number(el.value);
+      else out[key] = el.value;
+    }
+    return out;
+  }
+
+  function renderSettingsForm() {
+    const form = $("settings-form");
+    if (!form) return;
+    const meta = state.appSettingsMeta.length
+      ? state.appSettingsMeta
+      : Object.keys(DEFAULT_APP_SETTINGS).map((key) => ({
+          key,
+          label: key,
+          type: typeof DEFAULT_APP_SETTINGS[key] === "boolean" ? "boolean" : "number",
+          description: "",
+        }));
+    const frag = document.createDocumentFragment();
+    for (const item of meta) {
+      const row = document.createElement("div");
+      row.className = "settings-row";
+      const head = document.createElement("div");
+      head.className = "settings-row-head";
+      const label = document.createElement("label");
+      label.className = "settings-label";
+      label.htmlFor = `settings-${item.key}`;
+      label.textContent = item.label || item.key;
+      head.appendChild(label);
+
+      const val = state.appSettings[item.key];
+      let control;
+      if (item.type === "boolean") {
+        control = document.createElement("input");
+        control.type = "checkbox";
+        control.checked = Boolean(val);
+      } else if (item.type === "enum") {
+        control = document.createElement("select");
+        for (const opt of item.options || []) {
+          const o = document.createElement("option");
+          o.value = opt;
+          o.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+          if (String(val) === String(opt)) o.selected = true;
+          control.appendChild(o);
+        }
+      } else {
+        control = document.createElement("input");
+        control.type = "number";
+        control.value = String(val ?? "");
+        if (item.min != null) control.min = String(item.min);
+        if (item.max != null) control.max = String(item.max);
+        if (item.step != null) control.step = String(item.step);
+      }
+      control.id = `settings-${item.key}`;
+      control.name = item.key;
+      control.addEventListener("change", () => {
+        state.settingsDirty = true;
+      });
+      head.appendChild(control);
+      row.appendChild(head);
+      if (item.description) {
+        const desc = document.createElement("p");
+        desc.className = "settings-desc";
+        desc.textContent = item.description;
+        row.appendChild(desc);
+      }
+      frag.appendChild(row);
+    }
+    form.innerHTML = "";
+    form.appendChild(frag);
+    const pathEl = $("settings-path");
+    if (pathEl) {
+      pathEl.textContent = state.appSettingsPath
+        ? `File: ${state.appSettingsPath}${
+            state.appSettingsFileExists ? "" : " (created on first Save)"
+          }`
+        : "";
+    }
+  }
+
+  async function loadSettingsPage() {
+    const banner = $("settings-banner");
+    if (banner) banner.hidden = true;
+    try {
+      const data = await refreshAppSettings();
+      renderSettingsForm();
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+      renderSettingsForm();
+    }
+  }
+
+  async function saveSettingsPage() {
+    const banner = $("settings-banner");
+    try {
+      await persistAppSettings(collectSettingsForm());
+      renderSettingsForm();
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = "Saved to Docker volume.";
+      }
+      setStatus("App settings saved", "ok");
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+      setStatus(err.message, "err");
+    }
+  }
+
+  async function resetSettingsPage() {
+    if (
+      !window.confirm(
+        "Reset all app settings to defaults and overwrite the settings file on the Docker volume?"
+      )
+    ) {
+      return;
+    }
+    const banner = $("settings-banner");
+    try {
+      const data = await api("/api/app-settings/reset", { method: "POST" });
+      applyAppSettings(data);
+      renderSettingsForm();
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = "Defaults restored.";
+      }
+      setStatus("App settings reset", "ok");
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+      setStatus(err.message, "err");
+    }
   }
 
   async function softRefreshCurrentPage() {
@@ -482,7 +724,7 @@
     // Longer quiet window after local EQ writes so Set / channel never fights poll.
     const quietMs = onEq ? 8000 : 2500;
     if (Date.now() - state.lastLocalWriteAt < quietMs) return;
-    if (state.route?.view === "info") return;
+    if (["info", "settings", "help"].includes(state.route?.view)) return;
 
     state.pollInFlight = true;
     state.pollTick = (state.pollTick || 0) + 1;
@@ -494,8 +736,9 @@
       if (!state.pageDirty) {
         await softRefreshCurrentPage();
       }
-      // Menu greys ~ every 15s (every 3rd 5s tick).
-      if (!onEq && state.pollTick % 3 === 0) {
+      // Menu greys ~ every 15s.
+      const menuEvery = Math.max(1, Math.round(15000 / pollIntervalMs()));
+      if (!onEq && state.pollTick % menuEvery === 0) {
         await refreshMenuAvailability({ immediate: true });
       }
     } catch {
@@ -908,7 +1151,8 @@
     const warning = isConnect
       ? "Run Connect on the AVR?\n\nThis can change Wi‑Fi association and drop your current network session."
       : "Save Network Settings to the AVR?\n\nDenon will RESET the network connection. Wait ~60 seconds, then reload.\n\nOnly continue if you intentionally changed DHCP/IP/Proxy.";
-    if (!window.confirm(warning)) return;
+    if (state.appSettings.confirm_network_save !== false && !window.confirm(warning))
+      return;
     const prev = btn.textContent;
     btn.disabled = true;
     btn.textContent = isConnect ? "Connecting…" : "Saving…";
@@ -977,6 +1221,7 @@
     }
     if (!dryRun) {
       if (
+        state.appSettings.confirm_firmware_actions !== false &&
         !window.confirm(
           `Upload “${f.name}” (${Math.round(f.size / 1024)} KB) to the AVR?\n\n` +
             `Use an official Denon AVR-X1200W package only. Wrong files can brick the unit.\n` +
@@ -1049,6 +1294,7 @@
     };
     const title = labels[action] || action;
     if (
+      state.appSettings.confirm_firmware_actions !== false &&
       !window.confirm(
         `Run “${title}” on the AVR?\n\nThis matches Denon’s Firmware button and may start a network check or update. Do not power off the receiver while it runs.`
       )
@@ -2298,8 +2544,8 @@
 
   /**
    * Safe remote/OSD sync for Manual EQ.
-   * Polls every 5s for timestamps; applies UI only after the same new fingerprint
-   * has been seen continuously for EQ_CONFIRM_MS (30s).
+   * Polls for timestamps; applies UI only after the same new fingerprint
+   * has been seen continuously for eq_confirm_ms.
    */
   async function softRefreshManualEq() {
     if (state.pageDirty || state.eqBusy || state.eqLoading) return;
@@ -2326,24 +2572,29 @@
       return;
     }
 
-    // New or changed pending snapshot — restart the 30s confirm window.
+    const confirmMs = eqConfirmMs();
+    // New or changed pending snapshot — restart the confirm window.
     if (fp !== state.eqPendingFingerprint) {
       state.eqPendingFingerprint = fp;
       state.eqPendingSince = Date.now();
       markAvrSyncTime({ at: readAt, changed: false });
       const pending = $("eq-sync");
-      if (pending) {
-        pending.textContent = `Last AVR check: ${formatSyncClock(readAt)} · confirming (30s)…`;
+      if (pending && state.appSettings.show_sync_timestamps !== false) {
+        const secs = Math.max(1, Math.ceil(confirmMs / 1000));
+        pending.textContent =
+          confirmMs <= 0
+            ? `Last AVR check: ${formatSyncClock(readAt)} · applying…`
+            : `Last AVR check: ${formatSyncClock(readAt)} · confirming (${secs}s)…`;
       }
-      return;
+      if (confirmMs > 0) return;
     }
 
     const waited = Date.now() - (state.eqPendingSince || 0);
-    if (waited < EQ_CONFIRM_MS) {
+    if (confirmMs > 0 && waited < confirmMs) {
       markAvrSyncTime({ at: readAt, changed: false });
       const pending = $("eq-sync");
-      if (pending) {
-        const left = Math.max(1, Math.ceil((EQ_CONFIRM_MS - waited) / 1000));
+      if (pending && state.appSettings.show_sync_timestamps !== false) {
+        const left = Math.max(1, Math.ceil((confirmMs - waited) / 1000));
         pending.textContent = `Last AVR check: ${formatSyncClock(readAt)} · confirming (${left}s)…`;
       }
       return;
@@ -2594,6 +2845,8 @@
   });
   $("info-refresh").addEventListener("click", () => loadInfoDashboard(true));
   $("power-btn")?.addEventListener("click", () => togglePower());
+  $("settings-save")?.addEventListener("click", () => saveSettingsPage());
+  $("settings-reset")?.addEventListener("click", () => resetSettingsPage());
 
   boot();
 })();

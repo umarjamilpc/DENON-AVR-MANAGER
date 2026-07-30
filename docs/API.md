@@ -10,6 +10,9 @@ Routes are limited to what the DENON AVR MANAGER UI uses (no unused aliases).
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/api/app-settings` | Persistent manager settings + field descriptions |
+| PUT | `/api/app-settings` | Save settings (`{"settings":{...}}`) to Docker volume JSON |
+| POST | `/api/app-settings/reset` | Restore defaults and overwrite the settings file |
 | GET | `/api/connection` | Connection status + Main Zone `power` snapshot |
 | GET | `/api/power` | Main Zone power / input (goform HTTP, no telnet) |
 | POST | `/api/power` | Set power (`{"power":"on"|"standby"}`) or `{"toggle":true}` |
@@ -26,6 +29,18 @@ Routes are limited to what the DENON AVR MANAGER UI uses (no unused aliases).
 
 The AVR address is **only** taken from the **`DENON_HOST`** environment variable.  
 Clients cannot change the host at runtime (by design).
+
+## App settings (persistent)
+
+Manager options (poll interval, EQ confirm time, theme, standby lock, confirmations, …) are stored in a JSON file on a Docker volume — **not** in the browser.
+
+| Variable | Default (Compose) | Meaning |
+|----------|-------------------|---------|
+| `APP_SETTINGS_PATH` | `/data/app-settings.json` | Path inside the container |
+
+Compose mounts host  
+`/mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER` → `/data`  
+so settings survive `docker compose pull` / recreate.
 
 ## Response cleanup
 
