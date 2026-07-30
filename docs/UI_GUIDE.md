@@ -29,7 +29,18 @@ This UI mirrors that. Hover for the reason.
 - **On** — other Setup items grey out; clicks redirect here; API writes to other pages return 403.  
 - **Off** — normal editing resumes.  
 
-## Manual EQ
+## Edit modes (dev build)
+
+Top bar **Realtime | Save** toggle (also in Settings → Edit mode):
+
+- **Realtime** — changes apply to the AVR as you edit (original behavior).
+- **Save** — edit locally, then press **Save / Set**. Soft-refresh pauses while dirty or focused so typing is not wiped.
+
+Network pages always require explicit Save. Manual EQ still uses **Set**.
+
+Menu grey-outs continue to refresh on their own poll (~15s), independent of edit mode.
+
+See [DEV.md](DEV.md) for the `:dev` Docker image.
 
 Special UI for 9-band Graphic EQ (when MultEQ is Off). Channel / Speaker
 Selection lists come from the AVR (Amp Assign aware — not hard-coded).

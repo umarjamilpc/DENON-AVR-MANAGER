@@ -105,12 +105,14 @@
       poll_enabled: true,
       poll_interval_sec: 5,
       eq_confirm_sec: 30,
+      edit_mode: "realtime",
       lock_settings_in_standby: true,
       show_sync_timestamps: true,
       theme: "system",
       confirm_network_save: true,
       confirm_firmware_actions: true,
     },
+    buildChannel: "production",
     appSettingsMeta: [],
     appSettingsPath: "",
     appSettingsFileExists: false,
@@ -129,6 +131,119 @@
     const n = Number(state.appSettings.eq_confirm_sec);
     const sec = Number.isFinite(n) ? Math.max(0, Math.min(300, n)) : 30;
     return Math.round(sec * 1000);
+  }
+
+  function isSaveEditMode() {
+    return String(state.appSettings.edit_mode || "realtime") === "save";
+  }
+
+  function usesExplicitSave(endpointId) {
+    const id = endpointId || state.endpointId;
+    if (!id) return isSaveEditMode();
+    if (NETWORK_EXPLICIT_SAVE.has(id) || EXPLICIT_SAVE.has(id)) return true;
+    return isSaveEditMode();
+  }
+
+  function editorHasFocus() {
+    const form = $("field-form");
+    const active = document.activeElement;
+    if (!form || !active) return false;
+    return form.contains(active);
+  }
+
+  function syncEditModeUi() {
+    const mode = isSaveEditMode() ? "save" : "realtime";
+    for (const btn of document.querySelectorAll("[data-edit-mode]")) {
+      btn.classList.toggle(
+        "active",
+        btn.getAttribute("data-edit-mode") === mode
+      );
+    }
+    const hint = $("live-hint");
+    if (hint) {
+      hint.textContent = isSaveEditMode()
+        ? "Save mode — edit fields, then press Save / Set"
+        : "Realtime — changes apply as you edit";
+      hint.classList.toggle("is-save-mode", isSaveEditMode());
+    }
+    const pill = $("mode-pill");
+    if (pill) {
+      pill.textContent = isSaveEditMode() ? "Save" : "Realtime";
+      pill.classList.toggle("is-save-mode", isSaveEditMode());
+    }
+    const badge = $("build-badge");
+    if (badge) {
+      const isDev = state.buildChannel === "dev";
+      badge.hidden = !isDev;
+      document.body.classList.toggle("is-dev-build", isDev);
+    }
+    syncPageSaveToolbar();
+  }
+
+  async function setEditMode(mode) {
+    const next = mode === "save" ? "save" : "realtime";
+    if (String(state.appSettings.edit_mode) === next) {
+      syncEditModeUi();
+      return;
+    }
+    try {
+      await persistAppSettings({ edit_mode: next });
+      setStatus(
+        next === "save"
+          ? "Save mode — press Save / Set to write to the AVR"
+          : "Realtime mode — changes apply as you edit",
+        "ok"
+      );
+      if (typeof state.reloadAction === "function") {
+        await state.reloadAction();
+      }
+    } catch (err) {
+      setStatus(err.message, "err");
+    }
+  }
+
+  function wireEditModeToggle() {
+    for (const btn of document.querySelectorAll("[data-edit-mode]")) {
+      btn.addEventListener("click", () => {
+        setEditMode(btn.getAttribute("data-edit-mode")).catch(() => {});
+      });
+    }
+  }
+
+  function syncPageSaveToolbar() {
+    const panel = $("action-panel");
+    if (!panel) return;
+    const id = state.endpointId;
+    const skip =
+      !id ||
+      id === "audio_graphiceq_s_audio" ||
+      id === "inputs_inputassign_s_inputassign" ||
+      NETWORK_EXPLICIT_SAVE.has(id) ||
+      EXPLICIT_SAVE.has(id);
+    let bar = $("page-save-toolbar");
+    if (skip || !isSaveEditMode() || !state.writeAllowed) {
+      if (bar) bar.remove();
+      if (!panel.children.length) panel.hidden = true;
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "page-save-toolbar";
+      bar.className = "page-save-toolbar";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-action";
+      btn.id = "page-save-btn";
+      btn.textContent = "Save";
+      btn.addEventListener("click", () => saveEndpoint({ quiet: false }));
+      bar.appendChild(btn);
+      const note = document.createElement("p");
+      note.className = "meta";
+      note.textContent = "Save mode — values stay local until you Save.";
+      bar.appendChild(note);
+      panel.hidden = false;
+      panel.prepend(bar);
+    }
   }
 
   const $ = (id) => document.getElementById(id);
@@ -520,7 +635,11 @@
     if (typeof data?.exists === "boolean") {
       state.appSettingsFileExists = data.exists;
     }
+    if (data?.build_channel) {
+      state.buildChannel = data.build_channel === "dev" ? "dev" : "production";
+    }
     applyTheme(next.theme || "system");
+    syncEditModeUi();
     markAvrSyncTime({
       at: state.lastAvrCheckAt || new Date().toISOString(),
       changed: false,
@@ -696,6 +815,7 @@
 
   async function softRefreshCurrentPage() {
     if (!state.endpointId || state.pageDirty) return;
+    if (editorHasFocus()) return;
     if (state.endpointId === "audio_graphiceq_s_audio") {
       await softRefreshManualEq();
       return;
@@ -714,6 +834,7 @@
     const data = await api(
       `/api/endpoints/${encodeURIComponent(state.endpointId)}/state`
     );
+    if (state.pageDirty || editorHasFocus()) return;
     if (data.state?.fields) renderFields(data.state.fields);
     markAvrSyncTime({
       at: data.read_at || data.state?.read_at,
@@ -1045,12 +1166,13 @@
         menuNode?.label || cleanText(data.state?.title) || id;
       const isNetwork = NETWORK_EXPLICIT_SAVE.has(id);
       const help = PAGE_HELP[id];
+      const saveMode = usesExplicitSave(id);
       $("editor-meta").textContent = help
         ? help
         : isNetwork
           ? "Explicit Save only — network will reset if you save changes (~60s)"
-          : EXPLICIT_SAVE.has(id)
-            ? "Apply with Set / Set Defaults"
+          : saveMode
+            ? "Save mode — edit fields, then press Save / Set"
             : "Live updates";
       const blocked =
         menuNode?.write_allowed === false || data.schema?.write_allowed === false;
@@ -1347,7 +1469,8 @@
       return;
     }
     if (!state.writeAllowed || !state.endpointId) return;
-    if (EXPLICIT_SAVE.has(state.endpointId)) {
+    if (usesExplicitSave(state.endpointId)) {
+      markPageDirty();
       applyLiveGates();
       return;
     }
@@ -1357,13 +1480,19 @@
   }
 
   function wireRealtime(el) {
-    if (EXPLICIT_SAVE.has(state.endpointId)) {
-      el.addEventListener("change", () => applyLiveGates());
+    if (usesExplicitSave(state.endpointId)) {
+      el.addEventListener("change", () => {
+        markPageDirty();
+        applyLiveGates();
+      });
       if (
         el.tagName === "INPUT" &&
         (el.type === "text" || el.type === "number" || el.type === "range")
       ) {
-        el.addEventListener("input", () => applyLiveGates());
+        el.addEventListener("input", () => {
+          markPageDirty();
+          applyLiveGates();
+        });
       }
       return;
     }
@@ -1666,6 +1795,7 @@
     }
     applyLiveGates();
     applyStandbySettingsLock();
+    syncPageSaveToolbar();
   }
 
   function isGateParent(name) {
@@ -1760,6 +1890,30 @@
       return;
     }
     if (state.endpointId === "inputs_inputassign_s_inputassign") {
+      if (!isSaveEditMode()) return;
+      state.realtimeBusy = true;
+      try {
+        const result = await api(
+          `/api/endpoints/${encodeURIComponent(state.endpointId)}`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              fields: collectAssignFields(),
+              merge_defaults: true,
+            }),
+          }
+        );
+        setStatus("Saved", "ok");
+        if (result?.after?.fields) renderInputAssign(result.after.fields);
+        else await loadInputAssign();
+        markLocalWrite();
+      } catch (err) {
+        $("editor-banner").hidden = false;
+        $("editor-banner").textContent = err.message;
+        setStatus(err.message, "err");
+      } finally {
+        state.realtimeBusy = false;
+      }
       return;
     }
     state.realtimeBusy = true;
@@ -1768,11 +1922,12 @@
         method: "POST",
         body: JSON.stringify({ fields: collectFields(), merge_defaults: true }),
       });
-      setStatus("Live update", "ok");
+      setStatus(opts.quiet && !isSaveEditMode() ? "Live update" : "Saved", "ok");
       const afterFields = result?.after?.fields;
       if (afterFields) renderFields(afterFields);
       markLocalWrite();
       await refreshSetupLockState();
+      syncPageSaveToolbar();
     } catch (err) {
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
@@ -1939,8 +2094,14 @@
     $("action-panel").innerHTML = `
       <div class="assign-toolbar">
         <button type="button" id="assign-defaults" class="btn-ghost">Set Defaults</button>
+        <button type="button" id="assign-save" class="btn-action" hidden>Save</button>
       </div>`;
     $("assign-defaults").addEventListener("click", setInputAssignDefaults);
+    const assignSave = $("assign-save");
+    if (assignSave) {
+      assignSave.hidden = !isSaveEditMode();
+      assignSave.addEventListener("click", () => saveEndpoint({ quiet: false }));
+    }
     await loadInputAssign();
   }
 
@@ -2034,7 +2195,13 @@
           if (opt.selected || String(cell.meta.value) === String(opt.value)) o.selected = true;
           sel.appendChild(o);
         }
-        sel.addEventListener("change", () => saveInputAssignColumn(col.key));
+        sel.addEventListener("change", () => {
+          if (isSaveEditMode()) {
+            markPageDirty();
+            return;
+          }
+          saveInputAssignColumn(col.key);
+        });
         td.appendChild(sel);
         tr.appendChild(td);
       }
@@ -2857,6 +3024,7 @@
    */
   async function softRefreshManualEq() {
     if (state.pageDirty || state.eqBusy || state.eqLoading) return;
+    if (editorHasFocus()) return;
     if (Date.now() - state.lastLocalWriteAt < 8000) return;
 
     const data = await api(
@@ -3135,6 +3303,7 @@
 
   initTheme();
   wireTabs();
+  wireEditModeToggle();
   $("reconnect-btn").addEventListener("click", boot);
   $("reload-btn").addEventListener("click", () => {
     // Refresh greys + current page (Reload used to skip the menu scrape).

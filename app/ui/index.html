@@ -8,16 +8,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=26" />
+  <link rel="stylesheet" href="/assets/styles.css?v=42" />
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div class="brand-block">
-        <p class="brand">DENON AVR MANAGER</p>
+        <p class="brand">DENON AVR MANAGER <span id="build-badge" class="build-badge" hidden>DEV</span></p>
         <p class="tagline">Setup Menu · env-configured AVR · live updates</p>
       </div>
       <div class="topbar-actions">
+        <div class="edit-mode-switch" role="group" aria-label="Edit mode">
+          <button type="button" data-edit-mode="realtime" class="edit-mode-btn active" id="edit-mode-realtime">Realtime</button>
+          <button type="button" data-edit-mode="save" class="edit-mode-btn" id="edit-mode-save">Save</button>
+        </div>
         <div class="theme-switch" role="group" aria-label="Color theme">
           <button type="button" data-theme-set="system" class="theme-btn">System</button>
           <button type="button" data-theme-set="light" class="theme-btn">Light</button>
@@ -45,7 +49,7 @@
         <p id="connect-status" class="status" role="status">Checking AVR…</p>
         <button type="button" id="reconnect-btn" class="btn-ghost">Retry</button>
       </div>
-      <p class="live-hint">Changes apply in real time</p>
+      <p id="live-hint" class="live-hint">Changes apply in real time</p>
     </section>
 
     <nav class="tabs" id="tabs" aria-label="Views" hidden>
@@ -53,7 +57,7 @@
       <a class="tab" id="tab-info" href="/" data-view="info">Info</a>
       <a class="tab" id="tab-settings" href="/" data-view="settings">Settings</a>
       <a class="tab" id="tab-help" href="/" data-view="help">Help</a>
-      <span id="mode-pill" class="pill">Real-time</span>
+      <span id="mode-pill" class="pill">Realtime</span>
     </nav>
 
     <main id="main" hidden>
@@ -242,6 +246,6 @@ docker compose up -d</pre>
       <span id="foot-host"></span>
     </footer>
   </div>
-  <script src="/assets/app.js?v=41"></script>
+  <script src="/assets/app.js?v=42"></script>
 </body>
 </html>

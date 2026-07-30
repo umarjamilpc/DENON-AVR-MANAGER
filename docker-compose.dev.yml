@@ -1,0 +1,21 @@
+# DENON AVR MANAGER — development (dev branch / :dev tag)
+# Does not replace production docker-compose.yml (:latest).
+# Usage: docker compose -f docker-compose.dev.yml up -d
+# UI: http://127.0.0.1:8001/
+
+services:
+  denon-avr-manager-dev:
+    image: ghcr.io/umarjamilpc/denon-avr-manager:dev
+    # build: .
+    container_name: denon-avr-manager-dev
+    ports:
+      - "8001:8000"
+    environment:
+      DENON_HOST: "192.168.1.50"
+      APP_BUILD_CHANNEL: "dev"
+      PUID: "99"
+      PGID: "100"
+    volumes:
+      # Separate settings file volume from production if you want isolation
+      - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER-DEV:/data
+    restart: unless-stopped
