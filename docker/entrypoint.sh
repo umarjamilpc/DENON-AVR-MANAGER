@@ -2,14 +2,13 @@
 # Make /data usable from the container AND from the host on any system.
 #
 # 1. Optional PUID/PGID (linuxserver-style) — run the app as your host user.
-#    Defaults: 10001:10001 (image appuser).
-#    Unraid tip: PUID=99 PGID=100 (nobody:users).
+#    Defaults: 99:100 (Unraid nobody:users). Override on other systems with `id -u` / `id -g`.
 # 2. Always chmod a+rwX on /data so host editors/SMB can modify settings files
 #    even when ownership does not match.
 set -e
 
-PUID="${PUID:-10001}"
-PGID="${PGID:-10001}"
+PUID="${PUID:-99}"
+PGID="${PGID:-100}"
 
 mkdir -p /data
 
