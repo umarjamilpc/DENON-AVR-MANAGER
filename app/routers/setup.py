@@ -164,7 +164,18 @@ def put_app_settings(body: AppSettingsBody) -> Dict[str, Any]:
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     except OSError as e:
-        raise HTTPException(500, f"Could not write settings file: {e}") from e
+        raise HTTPException(
+            500,
+            {
+                "error": "settings_write_failed",
+                "message": f"Could not write settings file: {e}",
+                "hint": (
+                    "The /data volume must be writable. Recreate the container with the "
+                    "latest image (entrypoint fixes ownership), or on the host run: "
+                    "chown -R 10001:10001 /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER"
+                ),
+            },
+        ) from e
     return settings_response()
 
 
@@ -174,7 +185,18 @@ def post_app_settings_reset() -> Dict[str, Any]:
     try:
         reset_settings()
     except OSError as e:
-        raise HTTPException(500, f"Could not write settings file: {e}") from e
+        raise HTTPException(
+            500,
+            {
+                "error": "settings_write_failed",
+                "message": f"Could not write settings file: {e}",
+                "hint": (
+                    "The /data volume must be writable. Recreate the container with the "
+                    "latest image (entrypoint fixes ownership), or on the host run: "
+                    "chown -R 10001:10001 /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER"
+                ),
+            },
+        ) from e
     return settings_response()
 
 

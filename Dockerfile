@@ -17,14 +17,18 @@ LABEL org.opencontainers.image.title="DENON AVR MANAGER" \
       org.opencontainers.image.source="https://github.com/umarjamilpc/DENON-AVR-MANAGER" \
       org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache libffi \
-    && adduser -D -H -u 10001 appuser
+RUN apk add --no-cache libffi su-exec \
+    && adduser -D -H -u 10001 appuser \
+    && mkdir -p /data \
+    && chown appuser:appuser /data
 
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
 COPY app ./app
 COPY protocol ./protocol
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -32,6 +36,7 @@ ENV PYTHONUNBUFFERED=1 \
 # DENON_HOST must be provided at runtime (docker compose environment).
 EXPOSE 8000
 
-USER appuser
-
+# Entrypoint runs as root briefly to fix /data perms, then drops to appuser.
+USER root
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
