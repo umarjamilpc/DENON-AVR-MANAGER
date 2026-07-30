@@ -38,9 +38,13 @@ Edit `docker-compose.yml` and set your AVR IP:
 ```yaml
 environment:
   DENON_HOST: "192.168.1.50"   # ← change this
+  APP_SETTINGS_PATH: "/data/app-settings.json"
+volumes:
+  - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER:/data
 ```
 
-There is **no `.env` file**. All settings live in `docker-compose.yml`.
+There is **no `.env` file**. AVR host and volume paths live in `docker-compose.yml`.  
+**App Settings** (poll rate, theme, etc.) are saved under that volume and survive container restarts — open the **Settings** tab in the UI.
 
 ### 3. Run
 

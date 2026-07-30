@@ -15,5 +15,10 @@ services:
     environment:
       # Required — your Denon AVR IP or hostname on the LAN
       DENON_HOST: "192.168.1.50"
+      # Persistent app settings (poll rate, theme, etc.) inside the volume
+      APP_SETTINGS_PATH: "/data/app-settings.json"
+    volumes:
+      # Survives docker recreate — Unraid appdata path
+      - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER:/data
     restart: unless-stopped
     # Container must reach the AVR on your home network (same LAN / routed).
