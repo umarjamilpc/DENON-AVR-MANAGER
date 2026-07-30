@@ -233,7 +233,10 @@ def read_state(
     if not read_url:
         raise HTTPException(400, "No read_url known for this endpoint")
     try:
-        state = client.read_page(read_url)
+        if endpoint_id == "audio_graphiceq_s_audio":
+            state = client.read_page_stable(read_url)
+        else:
+            state = client.read_page(read_url)
     except RuntimeError as e:
         raise HTTPException(502, str(e)) from e
     if isinstance(state.get("fields"), dict):

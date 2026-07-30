@@ -261,9 +261,8 @@
   async function softRefreshCurrentPage() {
     if (!state.endpointId || state.pageDirty) return;
     if (state.endpointId === "audio_graphiceq_s_audio") {
-      // Never auto-refresh band sliders — background reads can flip minus signs.
-      // On/Off + channel selects only; use Reload for band values.
-      await refreshManualEqMetaOnly();
+      // AVR Manual EQ reads are racy under concurrent access; never idle-poll
+      // this page (bands or meta). Use Reload / channel change / Set instead.
       return;
     }
     if (state.endpointId === "inputs_inputassign_s_inputassign") {
