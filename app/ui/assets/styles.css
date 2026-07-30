@@ -154,9 +154,8 @@ body {
 }
 .status-panel {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem 1rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.65rem;
   margin: 1rem 0;
 }
 .status-row {
@@ -172,6 +171,86 @@ body {
   box-shadow: var(--shadow);
 }
 .status-row .status { flex: 1; margin: 0; }
+.power-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #2a323a 0%, #1a2128 100%);
+  color: #f2f5f7;
+  box-shadow: var(--shadow);
+}
+html[data-theme="light"] .power-bar,
+html[data-theme="system"] .power-bar {
+  background: linear-gradient(180deg, #3a4450 0%, #232b33 100%);
+}
+@media (prefers-color-scheme: light) {
+  html[data-theme="system"] .power-bar {
+    background: linear-gradient(180deg, #3a4450 0%, #232b33 100%);
+  }
+}
+.power-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.35);
+  color: #8b969f;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color var(--ease), background var(--ease), box-shadow var(--ease);
+}
+.power-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.power-btn .power-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.power-btn.is-on {
+  color: #3ddc84;
+  box-shadow: 0 0 0 1px rgba(61, 220, 132, 0.35), 0 0 14px rgba(61, 220, 132, 0.35);
+}
+.power-btn.is-on:hover:not(:disabled),
+.power-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.5);
+}
+.power-btn.is-busy {
+  opacity: 0.7;
+}
+.power-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1;
+}
+.power-zone {
+  font-family: var(--brand);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+.power-input {
+  font-size: 0.78rem;
+  color: rgba(242, 245, 247, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.power-state {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: rgba(242, 245, 247, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .live-hint {
   margin: 0;
   padding: 0.55rem 0.85rem;
@@ -181,6 +260,7 @@ body {
   color: var(--accent-ink);
   font-size: 0.78rem;
   font-weight: 600;
+  align-self: flex-start;
 }
 .connect-form {
   display: flex;

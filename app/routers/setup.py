@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from pydantic import BaseModel, Field
 
 from ..denon_client import DenonSetupClient
+from ..denon_power import read_main_zone_power, set_main_zone_power, toggle_main_zone_power
 from ..denon_menu_status import (
     SETUP_LOCK_ENDPOINT_ID,
     SETUP_LOCK_REASON,
@@ -71,6 +72,15 @@ class SubmitBody(BaseModel):
     )
 
 
+class PowerBody(BaseModel):
+    power: Optional[str] = Field(
+        None,
+        description="Main Zone power: on | standby. Omit with toggle=true.",
+    )
+    toggle: bool = Field(
+        False,
+        description="If true, switch between on and standby (ignores power).",
+    )
 
 
 def _default_base(request: Request) -> str:
@@ -117,6 +127,51 @@ def get_connection(request: Request) -> Dict[str, Any]:
         },
         "hint": "Set DENON_HOST in docker-compose.yml (environment) or the process environment.",
     }
+
+
+# ---------- Main Zone power (goform HTTP — no telnet) ----------
+
+
+@router.get("/power")
+def get_power(request: Request) -> Dict[str, Any]:
+    """Read Main Zone power / input via Denon goform XML (port 80)."""
+    client = _client(request)
+    try:
+        status = read_main_zone_power(client)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e)) from e
+    return scrub_host_urls(
+        {
+            **status,
+            "read_at": _utc_now_iso(),
+        }
+    )
+
+
+@router.post("/power")
+def post_power(body: PowerBody, request: Request) -> Dict[str, Any]:
+    """Set or toggle Main Zone power via formiPhoneAppDirect.xml (PWON / PWSTANDBY)."""
+    client = _client(request)
+    try:
+        if body.toggle:
+            result = toggle_main_zone_power(client)
+        else:
+            if not body.power:
+                raise HTTPException(
+                    400,
+                    "Provide power='on'|'standby' or toggle=true",
+                )
+            result = set_main_zone_power(client, body.power)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(502, str(e)) from e
+    return scrub_host_urls(
+        {
+            **result,
+            "read_at": _utc_now_iso(),
+        }
+    )
 
 
 @router.get("/menu")

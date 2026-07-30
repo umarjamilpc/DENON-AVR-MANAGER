@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=22" />
+  <link rel="stylesheet" href="/assets/styles.css?v=23" />
   <script>
     (function () {
       try {
@@ -36,6 +36,19 @@
     </header>
 
     <section class="status-panel">
+      <div class="power-bar" id="power-bar" aria-label="Main Zone power">
+        <button type="button" id="power-btn" class="power-btn" title="Main Zone power" aria-pressed="false" disabled>
+          <svg class="power-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2v10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M6.7 5.6a8 8 0 1 0 10.6 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="power-meta">
+          <span id="power-zone" class="power-zone">MAIN ZONE</span>
+          <span id="power-input" class="power-input">—</span>
+        </div>
+        <span id="power-state" class="power-state">…</span>
+      </div>
       <div class="status-row">
         <p id="connect-status" class="status" role="status">Checking AVR…</p>
         <button type="button" id="reconnect-btn" class="btn-ghost">Retry</button>
@@ -100,6 +113,6 @@
       <span id="foot-host"></span>
     </footer>
   </div>
-  <script src="/assets/app.js?v=31"></script>
+  <script src="/assets/app.js?v=32"></script>
 </body>
 </html>
