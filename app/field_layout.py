@@ -80,7 +80,7 @@ FIELD_ORDER: Dict[str, Sequence[str]] = {
         "textDelayTimeTMR",
     ),
     "speakers_levels_s_speakersetup": (
-        # Denon Levels UI order (clockwise / on-screen sequence)
+        # Denon Levels UI order (clockwise / on-screen sequence) + Set
         "textCVFL",
         "textCVC",
         "textCVFR",
@@ -89,7 +89,7 @@ FIELD_ORDER: Dict[str, Sequence[str]] = {
         "textCVTMR",
         "textCVTML",
         "textCVSW",
-        "setCLA",
+        "_btn_levels_set",
     ),
     "speakers_bass_s_speakersetup": (
         "radioRelaySurrMode",
@@ -832,6 +832,25 @@ def _enrich_source_level_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _enrich_levels_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Match Denon Speakers/Levels: sliders preview locally; Set pushes setCLA."""
+    out: Dict[str, Any] = {}
+    for name, meta in (fields or {}).items():
+        if name in ("setCLA", "setbtnCLA") or name.startswith("setbtn"):
+            continue
+        if isinstance(meta, dict) and (
+            name.startswith("textCV") or meta.get("type") == "range"
+        ):
+            m = dict(meta)
+            m["unit"] = m.get("unit") or "dB"
+            m["explicit_set"] = True
+            out[name] = m
+        else:
+            out[name] = meta
+    out["_btn_levels_set"] = _form_action_button("Set", {"setCLA": "Set"})
+    return out
+
+
 def _enrich_surround_parameter_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     """Cinema EQ → Loudness → Dynamic Compression (when On) → LFE + Set."""
     dyn_names = (
@@ -1173,6 +1192,9 @@ def layout_fields(
         laid = order_fields(laid, endpoint_id)
     elif endpoint_id == "inputs_sourcelevel_s_inputsetup":
         laid = _enrich_source_level_fields(laid)
+        laid = order_fields(laid, endpoint_id)
+    elif endpoint_id == "speakers_levels_s_speakersetup":
+        laid = _enrich_levels_fields(laid)
         laid = order_fields(laid, endpoint_id)
     elif endpoint_id == "audio_surroundparameter_s_audio":
         laid = _enrich_surround_parameter_fields(laid)

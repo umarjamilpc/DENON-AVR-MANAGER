@@ -729,11 +729,36 @@ class ManualEqAction(BaseModel):
     speaker_selection: str = "EAC"
 
 
+class ManualEqSelect(BaseModel):
+    """Switch Adjust EQ channel / Speaker Selection (Denon listBox submit)."""
+
+    channel: str = "FL"
+    speaker_selection: str = "EAC"
+
+
 @router.get("/audio/manual-eq")
 def get_manual_eq(
     request: Request,
 ) -> Dict[str, Any]:
     return read_state("audio_graphiceq_s_audio", request)
+
+
+@router.post("/audio/manual-eq/select")
+def select_manual_eq(
+    payload: ManualEqSelect,
+    request: Request,
+) -> Dict[str, Any]:
+    """Apply channel / speaker selection without writing band levels (listBox)."""
+    fields: Dict[str, str] = {
+        "radioGraphicEQ": "ON",
+        "listGEQSpSelection": payload.speaker_selection,
+        "listGEQAdjustEQ": payload.channel.upper(),
+        "setAdjustEQ": "off",
+        "setGEQCurveCopy": "off",
+        "setGEQSetDefaults": "off",
+    }
+    body = SubmitBody(fields=fields, merge_defaults=True)
+    return submit_endpoint("audio_graphiceq_s_audio", body, request)
 
 
 @router.post("/audio/manual-eq/enable")
