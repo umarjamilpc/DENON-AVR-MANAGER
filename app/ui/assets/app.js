@@ -85,6 +85,7 @@
     eqLoading: false,
     lastEqBands: Object.fromEntries(BANDS.map(([k]) => [k, 0])),
     reloadAction: null,
+    menuRefreshTimer: null,
     route: { view: "setup" },
   };
 
@@ -241,9 +242,54 @@
     }
   }
 
+  /**
+   * Re-scrape Denon menu greys (Restorer, Manual EQ, Front Speaker, …).
+   * Debounced — live field posts can fire often; full /api/menu is relatively heavy.
+   */
+  async function refreshMenuAvailability(opts = {}) {
+    const immediate = Boolean(opts.immediate);
+    const run = async () => {
+      const prevSelected = state.selectedMenuId;
+      const prevSection = state.sectionId;
+      await loadMenu();
+      if (
+        prevSection &&
+        (state.menu?.sections || []).some((s) => s.id === prevSection)
+      ) {
+        state.sectionId = prevSection;
+      }
+      state.selectedMenuId = prevSelected;
+      renderSections();
+      renderMenuItems();
+      updateItemsCaption();
+
+      const node = findMenuNode(prevSelected);
+      if (node?.inactive && node.id !== "general_lock" && state.endpointId) {
+        $("editor-banner").hidden = false;
+        $("editor-banner").textContent =
+          cleanText(node.inactive_reason) ||
+          "This item is greyed out until a required setting is enabled.";
+      }
+    };
+
+    if (immediate) {
+      clearTimeout(state.menuRefreshTimer);
+      state.menuRefreshTimer = null;
+      return run();
+    }
+    clearTimeout(state.menuRefreshTimer);
+    return new Promise((resolve) => {
+      state.menuRefreshTimer = setTimeout(() => {
+        run().then(resolve).catch(resolve);
+      }, 1000);
+    });
+  }
+
   async function refreshSetupLockState() {
-    if (state.endpointId !== "general_setuplock_s_general") return;
-    await loadMenu();
+    // Always refresh menu greys after a write; Setup Lock needs it immediately.
+    const onLockPage = state.endpointId === "general_setuplock_s_general";
+    await refreshMenuAvailability({ immediate: onLockPage });
+    if (!onLockPage) return;
     if (state.menu?.context?.setup_lock) {
       state.sectionId = "general";
       renderSections();
@@ -1472,6 +1518,7 @@
       setStatus(`Input Assign · ${column.toUpperCase()} updated`, "ok");
       if (result?.after?.fields) renderInputAssign(result.after.fields);
       else await loadInputAssign();
+      refreshMenuAvailability().catch(() => {});
     } catch (err) {
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
@@ -1510,6 +1557,7 @@
       setStatus("Input Assign defaults applied", "ok");
       if (result?.after?.fields) renderInputAssign(result.after.fields);
       else await loadInputAssign();
+      refreshMenuAvailability().catch(() => {});
     } catch (err) {
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
@@ -1673,10 +1721,16 @@
   }
 
   async function postGraphicEq(fields) {
-    return api(`/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}`, {
-      method: "POST",
-      body: JSON.stringify({ fields, merge_defaults: true }),
-    });
+    const result = await api(
+      `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ fields, merge_defaults: true }),
+      }
+    );
+    // Manual EQ On/Off changes menu greying for related Audio items.
+    refreshMenuAvailability().catch(() => {});
+    return result;
   }
 
   async function applyEqEnable(enabled) {
@@ -2007,11 +2061,16 @@
   wireTabs();
   $("reconnect-btn").addEventListener("click", boot);
   $("reload-btn").addEventListener("click", () => {
-    if (typeof state.reloadAction === "function") state.reloadAction();
-    else {
-      const node = findMenuNode(state.selectedMenuId);
-      if (node) openMenuNode(node);
-    }
+    // Refresh greys + current page (Reload used to skip the menu scrape).
+    refreshMenuAvailability({ immediate: true })
+      .catch(() => {})
+      .finally(() => {
+        if (typeof state.reloadAction === "function") state.reloadAction();
+        else {
+          const node = findMenuNode(state.selectedMenuId);
+          if (node) openMenuNode(node);
+        }
+      });
   });
   $("info-refresh").addEventListener("click", () => loadInfoDashboard(true));
 
