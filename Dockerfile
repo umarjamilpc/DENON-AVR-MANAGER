@@ -31,12 +31,15 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PUID=10001 \
+    PGID=10001
 
 # DENON_HOST must be provided at runtime (docker compose environment).
 EXPOSE 8000
 
-# Entrypoint runs as root briefly to fix /data perms, then drops to appuser.
+# Entrypoint runs as root briefly to fix /data perms (rw for container + host),
+# then drops to PUID:PGID.
 USER root
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

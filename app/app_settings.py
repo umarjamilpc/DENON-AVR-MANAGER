@@ -201,6 +201,11 @@ def load_settings() -> Dict[str, Any]:
 def _write_settings_file(settings: Dict[str, Any]) -> None:
     path = settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Host + container should both be able to edit (entrypoint also chmod a+rwX).
+    try:
+        os.chmod(path.parent, 0o777)
+    except OSError:
+        pass
     payload = json.dumps(settings, indent=2, sort_keys=True) + "\n"
     fd, tmp_name = tempfile.mkstemp(
         prefix=".app-settings-",
@@ -212,7 +217,15 @@ def _write_settings_file(settings: Dict[str, Any]) -> None:
             fh.write(payload)
             fh.flush()
             os.fsync(fh.fileno())
+        try:
+            os.chmod(tmp_name, 0o666)
+        except OSError:
+            pass
         Path(tmp_name).replace(path)
+        try:
+            os.chmod(path, 0o666)
+        except OSError:
+            pass
     except Exception:
         try:
             os.unlink(tmp_name)

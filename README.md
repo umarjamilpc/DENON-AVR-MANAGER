@@ -38,12 +38,14 @@ Edit `docker-compose.yml` and set your AVR IP:
 ```yaml
 environment:
   DENON_HOST: "192.168.1.50"   # ← change this
+  PUID: "99"                   # optional; Unraid nobody (use `id -u` on Linux)
+  PGID: "100"
 volumes:
   - /mnt/user/appdata/UMAR-NAS-DENON-AVR-MANAGER:/data
 ```
 
 There is **no `.env` file**. AVR host and volume paths live in `docker-compose.yml`.  
-**App Settings** are auto-created as `/data/app-settings.json` on first start and survive container restarts — open the **Settings** tab in the UI.
+**App Settings** are auto-created as `/data/app-settings.json` on first start. The volume is kept world-readable/writable so you can edit that file from the host as well as from the Settings UI.
 
 ### 3. Run
 
