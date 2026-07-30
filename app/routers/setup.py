@@ -7,7 +7,13 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from pydantic import BaseModel, Field
 
 from ..denon_client import DenonSetupClient
-from ..denon_power import read_main_zone_power, set_main_zone_power, toggle_main_zone_power
+from ..denon_power import (
+    STANDBY_SETTINGS_BLOCKED,
+    main_zone_is_standby,
+    read_main_zone_power,
+    set_main_zone_power,
+    toggle_main_zone_power,
+)
 from ..denon_menu_status import (
     SETUP_LOCK_ENDPOINT_ID,
     SETUP_LOCK_REASON,
@@ -111,6 +117,19 @@ def _probe(client: DenonSetupClient) -> Dict[str, Any]:
 
 
 # ---------- Connection status (env-configured host only) ----------
+
+
+def _reject_if_standby(client: DenonSetupClient) -> None:
+    """Block Setup / firmware writes while Main Zone is in Standby."""
+    if main_zone_is_standby(client):
+        raise HTTPException(
+            403,
+            {
+                "error": "main_zone_standby",
+                "message": STANDBY_SETTINGS_BLOCKED,
+                "hint": "POST /api/power with power=on (or toggle) first.",
+            },
+        )
 
 
 @router.get("/connection")
@@ -361,6 +380,7 @@ def submit_endpoint(
     request: Request,
 ) -> Dict[str, Any]:
     client = _client(request)
+    _reject_if_standby(client)
     try:
         item = get_endpoint(endpoint_id, client.base)
     except KeyError as e:
@@ -515,6 +535,7 @@ def firmware_action(
 ) -> Dict[str, Any]:
     """Trigger Update / Add New Feature / Web Update (matches Denon Firmware buttons)."""
     client = _client(request)
+    _reject_if_standby(client)
     if is_setup_locked(client):
         raise HTTPException(
             403,
@@ -608,6 +629,8 @@ async def firmware_local_upload(
     raw = await file.read()
     filename = file.filename or "firmware.bin"
     client = _client(request)
+    if not dry_run and confirm:
+        _reject_if_standby(client)
     try:
         result = upload_local_firmware(
             client,

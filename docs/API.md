@@ -12,10 +12,10 @@ Routes are limited to what the DENON AVR MANAGER UI uses (no unused aliases).
 |--------|------|---------|
 | GET | `/api/connection` | Connection status + Main Zone `power` snapshot |
 | GET | `/api/power` | Main Zone power / input (goform HTTP, no telnet) |
-| POST | `/api/power` | Set power (`{"power":"on"|"standby"}`) or `{"toggle":true}` — Setup Menu stays available in standby |
+| POST | `/api/power` | Set power (`{"power":"on"|"standby"}`) or `{"toggle":true}` |
 | GET | `/api/menu` | Setup tree + inactive/grey flags + `setup_lock` |
 | GET | `/api/endpoints/{id}/state` | Read page fields (`read_at` UTC ISO timestamp) |
-| POST | `/api/endpoints/{id}` | Write fields (`{"fields":{...},"merge_defaults":true}`); includes `read_at` |
+| POST | `/api/endpoints/{id}` | Write fields — **403 if Main Zone is Standby** |
 | GET | `/api/info/dashboard` | Read-only info cards |
 | POST | `/api/speakers/audyssey-setup/engage?confirm=true` | Engage **stub only** (never starts wizard) |
 | POST | `/api/firmware/actions/{action}?confirm=true` | Firmware Update / Add Feature / Web Update |

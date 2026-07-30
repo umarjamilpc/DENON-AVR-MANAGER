@@ -258,9 +258,38 @@
 
   /* ---------- Boot ---------- */
 
+  /** Settings writes only when Main Zone is On (Standby = browse/read only). */
+  function settingsWritable() {
+    return state.connected && state.powerOn === true;
+  }
+
+  function applyStandbySettingsLock() {
+    const standby = state.powerOn === false;
+    const form = $("field-form");
+    if (form && standby) {
+      for (const el of form.querySelectorAll("input, select, textarea, button")) {
+        el.disabled = true;
+      }
+    }
+    for (const id of ["eq-set", "eq-curve-copy", "eq-defaults"]) {
+      const btn = $(id);
+      if (btn) btn.disabled = standby || !state.eqEnabled;
+    }
+    const banner = $("editor-banner");
+    if (standby && banner && state.endpointId) {
+      banner.hidden = false;
+      banner.textContent =
+        "Main Zone is on Standby — settings are locked. Power On to make changes.";
+    }
+  }
+
   function applyPowerUi(data) {
     const on = data?.power === "on" || data?.power_on === true;
-    const known = data?.power === "on" || data?.power === "standby" || data?.power_on === true || data?.power_on === false;
+    const known =
+      data?.power === "on" ||
+      data?.power === "standby" ||
+      data?.power_on === true ||
+      data?.power_on === false;
     state.powerOn = known ? on : null;
     state.powerZone = data?.zone || "MAIN ZONE";
     state.powerInput = data?.input || "—";
@@ -287,29 +316,7 @@
         ? "Turn Main Zone to Standby"
         : "Turn Main Zone On";
     }
-  }
-
-  /** Denon web UI keeps Setup Menu usable in standby — do the same. */
-  function setupAllowedWhileStandby() {
-    return state.powerOn === false;
-  }
-
-  function clearMenuInactiveForStandby() {
-    if (!state.menu?.sections) return;
-    for (const section of state.menu.sections) {
-      for (const node of section.children || []) {
-        if (node.inactive) {
-          node._standbyClearedInactive = true;
-          node.inactive = false;
-        }
-        for (const child of node.children || []) {
-          if (child.inactive) {
-            child._standbyClearedInactive = true;
-            child.inactive = false;
-          }
-        }
-      }
-    }
+    applyStandbySettingsLock();
   }
 
   async function refreshPower() {
@@ -317,15 +324,9 @@
       const data = await api("/api/power");
       const wasOn = state.powerOn;
       applyPowerUi(data);
-      // Entering standby: keep Setup Menu clickable like Denon's web UI.
-      if (wasOn !== false && state.powerOn === false) {
-        clearMenuInactiveForStandby();
-        renderSections();
-        renderMenuItems();
-      }
-      // Leaving standby: refresh real Denon greys.
       if (wasOn === false && state.powerOn === true) {
         refreshMenuAvailability({ immediate: true }).catch(() => {});
+        if (typeof state.reloadAction === "function") state.reloadAction();
       }
       return data;
     } catch (err) {
@@ -353,14 +354,13 @@
       applyPowerUi(data);
       markLocalWrite();
       if (data.power === "standby") {
-        clearMenuInactiveForStandby();
-        renderSections();
-        renderMenuItems();
-        setStatus("Main Zone Standby — Setup Menu still available", "ok");
+        setStatus("Main Zone Standby — settings locked", "warn");
+        applyStandbySettingsLock();
       } else {
-        setStatus("Main Zone On", "ok");
+        setStatus("Main Zone On — settings unlocked", "ok");
         if (wasOn === false) {
           refreshMenuAvailability({ immediate: true }).catch(() => {});
+          if (typeof state.reloadAction === "function") state.reloadAction();
         }
       }
     } catch (err) {
@@ -486,9 +486,8 @@
       if (!state.pageDirty) {
         await softRefreshCurrentPage();
       }
-      // Menu greys ~ every 15s when Main Zone is on. Skip while standby so
-      // Denon grey scrape does not lock out Setup Menu items.
-      if (!onEq && state.powerOn !== false && state.pollTick % 3 === 0) {
+      // Menu greys ~ every 15s (every 3rd 5s tick).
+      if (!onEq && state.pollTick % 3 === 0) {
         await refreshMenuAvailability({ immediate: true });
       }
     } catch {
@@ -620,18 +619,14 @@
   function appendMenuButton(list, node, nested = false) {
     const b = document.createElement("button");
     b.type = "button";
-    // While Main Zone is standby, keep items visually openable (Denon web UI).
-    const inactive =
-      Boolean(node.inactive) && !setupAllowedWhileStandby();
+    const inactive = Boolean(node.inactive);
     b.className =
       (node.id === state.selectedMenuId ? "active " : "") +
       (nested ? "nested " : "") +
       (inactive ? "is-inactive" : "");
     b.title = inactive
       ? cleanText(node.inactive_reason || "Not available with current settings")
-      : setupAllowedWhileStandby()
-        ? "Main Zone Standby — Setup still available"
-        : "";
+      : "";
     const locked =
       node.write_allowed === false ||
       (node.endpoint && node.endpoint.write_allowed === false);
@@ -720,7 +715,7 @@
     $("editor-banner").hidden = true;
     $("reload-btn").hidden = false;
 
-    if (node.inactive && node.id !== "general_lock" && !setupAllowedWhileStandby()) {
+    if (node.inactive && node.id !== "general_lock") {
       $("reload-btn").hidden = true;
       $("editor-banner").hidden = false;
       $("editor-banner").textContent =
@@ -730,13 +725,6 @@
         cleanText(node.inactive_reason) || "Not available with the current configuration."
       )}</p>`;
       return;
-    }
-
-    // Standby: still open pages (Denon web Setup Menu stays usable when powered off).
-    if (node.inactive && setupAllowedWhileStandby()) {
-      $("editor-banner").hidden = false;
-      $("editor-banner").textContent =
-        "Main Zone is on Standby — Setup is still available. Some live values may be limited.";
     }
 
     if (isSetupInfoNode(node)) {
@@ -856,6 +844,11 @@
 
   async function saveWithExtraFields(extra, btn) {
     if (!state.endpointId || !state.writeAllowed) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
     if (state.realtimeBusy) return;
     const prev = btn ? btn.textContent : "";
     if (btn) {
@@ -898,6 +891,11 @@
 
   async function saveNetworkExplicit(kind, btn) {
     if (!state.endpointId || !state.writeAllowed) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
     const isConnect = kind === "connect";
     const warning = isConnect
       ? "Run Connect on the AVR?\n\nThis can change Wi‑Fi association and drop your current network session."
@@ -965,6 +963,10 @@
       setStatus("Choose a firmware file first", "err");
       return;
     }
+    if (!dryRun && !settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      return;
+    }
     if (!dryRun) {
       if (
         !window.confirm(
@@ -1028,6 +1030,10 @@
   }
 
   async function runFirmwareAction(action, btn) {
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      return;
+    }
     const labels = {
       update: "Update (check for firmware)",
       add_new_feature: "Add New Feature",
@@ -1076,6 +1082,10 @@
   }
 
   function scheduleRealtimeApply() {
+    if (!settingsWritable()) {
+      applyStandbySettingsLock();
+      return;
+    }
     if (!state.writeAllowed || !state.endpointId) return;
     if (EXPLICIT_SAVE.has(state.endpointId)) {
       applyLiveGates();
@@ -1395,9 +1405,8 @@
       form.innerHTML = "<p class='status'>No editable fields on this page.</p>";
     }
     applyLiveGates();
+    applyStandbySettingsLock();
   }
-
-  function isGateParent(name) {
     return [
       "radioCrossOvers",
       "radioMainPwOnLevel",
@@ -1478,6 +1487,11 @@
 
   async function saveEndpoint(opts = {}) {
     if (!state.endpointId || !state.writeAllowed) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
     if (state.realtimeBusy) return;
     if (state.endpointId === "audio_graphiceq_s_audio") {
       await saveManualEq();
@@ -1795,6 +1809,11 @@
 
   async function saveInputAssignColumn(column) {
     if (!state.writeAllowed || state.realtimeBusy) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
     state.realtimeBusy = true;
     try {
       const result = await api(
@@ -2020,6 +2039,9 @@
   }
 
   async function postGraphicEq(fields) {
+    if (!settingsWritable()) {
+      throw new Error("Main Zone Standby — settings locked. Power On to change EQ.");
+    }
     const result = await api(
       `/api/endpoints/${encodeURIComponent("audio_graphiceq_s_audio")}`,
       {
@@ -2035,6 +2057,14 @@
 
   async function applyEqEnable(enabled) {
     if (state.eqBusy) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      for (const inp of document.querySelectorAll('input[name="radioGraphicEQ"]')) {
+        inp.checked = inp.value === (state.eqEnabled ? "ON" : "OFF");
+      }
+      return;
+    }
     state.eqBusy = true;
     try {
       await postGraphicEq({
@@ -2126,6 +2156,11 @@
 
   async function runManualEqAction(action) {
     if (!state.eqEnabled || state.eqBusy) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
     state.eqBusy = true;
     try {
       await postGraphicEq({
@@ -2156,6 +2191,11 @@
 
   async function selectEqChannel() {
     if (!state.eqEnabled || state.eqBusy) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
     state.eqBusy = true;
     try {
       // Denon listBox(): POST selection without Set so AVR loads that channel's bands.
@@ -2356,6 +2396,7 @@
         changed: true,
       });
       setStatus(on ? "Manual EQ On" : "Manual EQ Off", "ok");
+      applyStandbySettingsLock();
     } catch (err) {
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
@@ -2368,6 +2409,11 @@
   async function saveManualEq(opts = {}) {
     if (state.eqBusy || state.eqLoading) return;
     if (!state.eqEnabled) return;
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
     state.eqBusy = true;
     try {
       // Keep hidden textGEQ* (signed strings) in sync — same pattern as Denon + Levels.

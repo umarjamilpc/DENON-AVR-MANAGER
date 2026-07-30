@@ -94,3 +94,15 @@ def toggle_main_zone_power(client: DenonSetupClient) -> Dict[str, Any]:
     result = set_main_zone_power(client, nxt)
     result["toggled_from"] = status.get("power")
     return result
+
+
+STANDBY_SETTINGS_BLOCKED = (
+    "Main Zone is on Standby. Power On to change settings."
+)
+
+
+def main_zone_is_standby(client: DenonSetupClient) -> bool:
+    try:
+        return read_main_zone_power(client).get("power") == "standby"
+    except RuntimeError:
+        return False
