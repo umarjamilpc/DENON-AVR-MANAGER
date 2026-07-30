@@ -104,7 +104,7 @@
     appSettings: {
       poll_enabled: true,
       poll_interval_sec: 5,
-      eq_confirm_ms: 30000,
+      eq_confirm_sec: 30,
       lock_settings_in_standby: true,
       show_sync_timestamps: true,
       theme: "system",
@@ -126,8 +126,9 @@
   }
 
   function eqConfirmMs() {
-    const n = Number(state.appSettings.eq_confirm_ms);
-    return Number.isFinite(n) ? Math.max(0, Math.min(300000, n)) : 30000;
+    const n = Number(state.appSettings.eq_confirm_sec);
+    const sec = Number.isFinite(n) ? Math.max(0, Math.min(300, n)) : 30;
+    return Math.round(sec * 1000);
   }
 
   const $ = (id) => document.getElementById(id);
@@ -501,7 +502,7 @@
     stopRemotePolling();
     if (!state.appSettings.poll_enabled) return;
     const ms = pollIntervalMs();
-    // Check AVR often; Manual EQ only applies after eq_confirm_ms stable fingerprint.
+    // Check AVR often; Manual EQ only applies after eq_confirm_sec stable fingerprint.
     state.pollTimer = setInterval(() => {
       pollRemoteChanges().catch(() => {});
     }, ms);
@@ -2546,7 +2547,7 @@
   /**
    * Safe remote/OSD sync for Manual EQ.
    * Polls for timestamps; applies UI only after the same new fingerprint
-   * has been seen continuously for eq_confirm_ms.
+   * has been seen continuously for eq_confirm_sec.
    */
   async function softRefreshManualEq() {
     if (state.pageDirty || state.eqBusy || state.eqLoading) return;

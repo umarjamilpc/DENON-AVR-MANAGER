@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 DEFAULTS: Dict[str, Any] = {
     "poll_enabled": True,
     "poll_interval_sec": 5,
-    "eq_confirm_ms": 30000,
+    "eq_confirm_sec": 30,
     "lock_settings_in_standby": True,
     "show_sync_timestamps": True,
     "theme": "system",
@@ -45,15 +45,15 @@ SETTING_META: List[Dict[str, Any]] = [
         ),
     },
     {
-        "key": "eq_confirm_ms",
-        "label": "Manual EQ confirm time (ms)",
+        "key": "eq_confirm_sec",
+        "label": "Manual EQ confirm time (seconds)",
         "type": "number",
         "min": 0,
-        "max": 300000,
-        "step": 1000,
+        "max": 300,
+        "step": 1,
         "description": (
             "Before applying a remote Manual EQ curve from the AVR, the same band "
-            "values must stay unchanged for this long (default 30000 = 30 seconds). "
+            "values must stay unchanged for this long (default 30 seconds). "
             "Prevents the UI from flipping while you are editing. Set 0 to apply "
             "remote EQ changes on the next poll."
         ),
@@ -155,11 +155,20 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         120,
         int(DEFAULTS["poll_interval_sec"]),
     )
-    out["eq_confirm_ms"] = _clamp_int(
-        src.get("eq_confirm_ms", out["eq_confirm_ms"]),
+    if "eq_confirm_sec" in src:
+        eq_sec = src.get("eq_confirm_sec")
+    elif "eq_confirm_ms" in src:
+        try:
+            eq_sec = int(round(int(src["eq_confirm_ms"]) / 1000))
+        except (TypeError, ValueError):
+            eq_sec = DEFAULTS["eq_confirm_sec"]
+    else:
+        eq_sec = out["eq_confirm_sec"]
+    out["eq_confirm_sec"] = _clamp_int(
+        eq_sec,
         0,
-        300000,
-        int(DEFAULTS["eq_confirm_ms"]),
+        300,
+        int(DEFAULTS["eq_confirm_sec"]),
     )
 
     theme = str(src.get("theme", out["theme"])).strip().lower()
@@ -178,7 +187,10 @@ def load_settings() -> Dict[str, Any]:
     raw = data if isinstance(data, dict) else {}
     normalized = normalize_settings(raw)
     # Rewrite once if an older milliseconds key is still on disk.
-    if "poll_interval_ms" in raw and "poll_interval_sec" not in raw:
+    legacy = ("poll_interval_ms" in raw and "poll_interval_sec" not in raw) or (
+        "eq_confirm_ms" in raw and "eq_confirm_sec" not in raw
+    )
+    if legacy:
         try:
             _write_settings_file(normalized)
         except OSError:
