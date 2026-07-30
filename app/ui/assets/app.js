@@ -266,9 +266,17 @@
   function applyStandbySettingsLock() {
     const standby = state.powerOn === false;
     const form = $("field-form");
-    if (form && standby) {
-      for (const el of form.querySelectorAll("input, select, textarea, button")) {
-        el.disabled = true;
+    if (form) {
+      if (standby) {
+        for (const el of form.querySelectorAll("input, select, textarea, button")) {
+          el.disabled = true;
+        }
+      } else {
+        for (const el of form.querySelectorAll("input, select, textarea, button")) {
+          const wrap = el.closest(".field");
+          el.disabled = Boolean(wrap?.classList.contains("is-inactive"));
+        }
+        applyLiveGates();
       }
     }
     for (const id of ["eq-set", "eq-curve-copy", "eq-defaults"]) {
@@ -1407,6 +1415,8 @@
     applyLiveGates();
     applyStandbySettingsLock();
   }
+
+  function isGateParent(name) {
     return [
       "radioCrossOvers",
       "radioMainPwOnLevel",
