@@ -2317,6 +2317,66 @@
     if (kind) el.classList.add(kind);
   }
 
+  function ensureEqProgressModal() {
+    let overlay = $("eq-progress-overlay");
+    if (overlay) return overlay;
+    overlay = document.createElement("div");
+    overlay.id = "eq-progress-overlay";
+    overlay.className = "eq-progress-overlay";
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <div class="eq-progress-card" role="dialog" aria-modal="true" aria-labelledby="eq-progress-title">
+        <h3 id="eq-progress-title">Working…</h3>
+        <p id="eq-progress-detail" class="eq-progress-detail">Starting…</p>
+        <div class="eq-progress-track" aria-hidden="true">
+          <div id="eq-progress-bar" class="eq-progress-fill"></div>
+        </div>
+        <p id="eq-progress-pct" class="eq-progress-pct">0%</p>
+        <p id="eq-progress-count" class="eq-progress-count"></p>
+      </div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function showEqProgress(title) {
+    const overlay = ensureEqProgressModal();
+    const t = $("eq-progress-title");
+    if (t) t.textContent = title || "Working…";
+    updateEqProgress({ percent: 0, message: "Starting…", current: 0, total: 0 });
+    overlay.hidden = false;
+    document.body.classList.add("eq-progress-open");
+  }
+
+  function updateEqProgress(evt) {
+    const pct = Math.max(0, Math.min(100, Number(evt?.percent) || 0));
+    const bar = $("eq-progress-bar");
+    const pctEl = $("eq-progress-pct");
+    const detail = $("eq-progress-detail");
+    const count = $("eq-progress-count");
+    if (bar) bar.style.width = `${pct}%`;
+    if (pctEl) pctEl.textContent = `${pct}%`;
+    if (detail) {
+      const label = evt?.label || evt?.channel;
+      detail.textContent =
+        evt?.message ||
+        (label ? `Working on ${label}…` : "Working…");
+    }
+    if (count) {
+      const cur = Number(evt?.current);
+      const tot = Number(evt?.total);
+      count.textContent =
+        Number.isFinite(tot) && tot > 0 && Number.isFinite(cur)
+          ? `${cur} / ${tot}`
+          : "";
+    }
+  }
+
+  function hideEqProgress() {
+    const overlay = $("eq-progress-overlay");
+    if (overlay) overlay.hidden = true;
+    document.body.classList.remove("eq-progress-open");
+  }
+
   function downloadJson(filename, obj) {
     const blob = new Blob([JSON.stringify(obj, null, 2)], {
       type: "application/json",
@@ -2329,6 +2389,62 @@
     URL.revokeObjectURL(url);
   }
 
+  async function readNdjsonStream(res, onEvent) {
+    if (!res.ok) {
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+      const msg =
+        data?.detail?.message ||
+        (typeof data?.detail === "string" ? data.detail : null) ||
+        data?.message ||
+        text ||
+        res.statusText;
+      throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    }
+    if (!res.body || !res.body.getReader) {
+      throw new Error("Streaming progress is not supported in this browser");
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let finalEvent = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let evt;
+        try {
+          evt = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (typeof onEvent === "function") onEvent(evt);
+        if (evt?.event === "done" || evt?.event === "error") finalEvent = evt;
+      }
+    }
+    const tail = buf.trim();
+    if (tail) {
+      try {
+        const evt = JSON.parse(tail);
+        if (typeof onEvent === "function") onEvent(evt);
+        if (evt?.event === "done" || evt?.event === "error") finalEvent = evt;
+      } catch {
+        /* ignore trailing junk */
+      }
+    }
+    return finalEvent;
+  }
+
   async function exportManualEqBackup() {
     if (state.eqBusy || state.eqLoading) return;
     if (!settingsWritable()) {
@@ -2337,11 +2453,22 @@
       return;
     }
     state.eqBusy = true;
+    showEqProgress("Exporting Manual EQ");
     setEqBackupMsg("Exporting every channel from the AVR…", "warn");
     setStatus("Exporting Manual EQ…", "warn");
     try {
-      const data = await api("/api/manual-eq/export");
-      const backup = data.backup || data;
+      const res = await fetch("/api/manual-eq/export/stream", {
+        headers: { Accept: "application/x-ndjson" },
+      });
+      const finalEvt = await readNdjsonStream(res, (evt) => {
+        if (evt?.event === "progress") updateEqProgress(evt);
+        else if (evt?.event === "done") updateEqProgress({ percent: 100, message: "Finishing…" });
+      });
+      if (!finalEvt || finalEvt.event === "error") {
+        throw new Error(finalEvt?.message || "Export failed");
+      }
+      const backup = finalEvt.backup || finalEvt;
+      updateEqProgress({ percent: 100, message: "Download starting…", current: Object.keys(backup.channels || {}).length, total: Object.keys(backup.channels || {}).length });
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
       downloadJson(`denon-manual-eq-${stamp}.json`, backup);
       const n = Object.keys(backup.channels || {}).length;
@@ -2355,6 +2482,7 @@
       setEqBackupMsg(err.message, "err");
       setStatus(err.message, "err");
     } finally {
+      hideEqProgress();
       state.eqBusy = false;
     }
   }
@@ -2391,14 +2519,31 @@
       return;
     }
     state.eqBusy = true;
+    showEqProgress("Importing Manual EQ");
     setEqBackupMsg("Importing Manual EQ…", "warn");
     setStatus("Importing Manual EQ…", "warn");
     try {
-      const data = await api("/api/manual-eq/import", {
+      const res = await fetch("/api/manual-eq/import/stream", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/x-ndjson",
+        },
         body: JSON.stringify({ backup, dry_run: false }),
       });
-      const result = data.result || data;
+      const finalEvt = await readNdjsonStream(res, (evt) => {
+        if (evt?.event === "progress") updateEqProgress(evt);
+        else if (evt?.event === "done") {
+          updateEqProgress({
+            percent: 100,
+            message: evt.result?.message || "Finishing…",
+          });
+        }
+      });
+      if (!finalEvt || finalEvt.event === "error") {
+        throw new Error(finalEvt?.message || "Import failed");
+      }
+      const result = finalEvt.result || finalEvt;
       const warnings = result.warnings || [];
       const parts = [result.message || "Import finished"];
       for (const w of warnings) {
@@ -2407,14 +2552,23 @@
       for (const f of result.failed || []) {
         parts.push(`Failed ${f.channel}: ${f.error}`);
       }
-      const kind = result.ok === false || (result.failed || []).length ? "err" : warnings.length ? "warn" : "ok";
+      const kind =
+        result.ok === false || (result.failed || []).length
+          ? "err"
+          : warnings.length
+            ? "warn"
+            : "ok";
       setEqBackupMsg(parts.join(" "), kind);
-      setStatus(result.message || "Manual EQ imported", kind === "err" ? "err" : "ok");
+      setStatus(
+        result.message || "Manual EQ imported",
+        kind === "err" ? "err" : "ok"
+      );
       await loadManualEq();
     } catch (err) {
       setEqBackupMsg(err.message, "err");
       setStatus(err.message, "err");
     } finally {
+      hideEqProgress();
       state.eqBusy = false;
       if (fileEl) fileEl.value = "";
     }

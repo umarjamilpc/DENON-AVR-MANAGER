@@ -14,7 +14,9 @@ Routes are limited to what the DENON AVR MANAGER UI uses (no unused aliases).
 | PUT | `/api/app-settings` | Save settings (`{"settings":{...}}`) to Docker volume JSON |
 | POST | `/api/app-settings/reset` | Restore defaults and overwrite the settings file |
 | GET | `/api/manual-eq/export` | Export all Manual EQ channels from the AVR’s live Adjust EQ list |
+| GET | `/api/manual-eq/export/stream` | Same export as NDJSON progress stream (`percent`, then `done`) |
 | POST | `/api/manual-eq/import` | Import Manual EQ JSON; **blocked** if Amp Assign differs; missing speakers skipped with warnings (`dry_run` optional) |
+| POST | `/api/manual-eq/import/stream` | Same import as NDJSON progress stream |
 | GET | `/api/connection` | Connection status + Main Zone `power` snapshot |
 | GET | `/api/power` | Main Zone power / input (goform HTTP, no telnet) |
 | POST | `/api/power` | Set power (`{"power":"on"|"standby"}`) or `{"toggle":true}` |

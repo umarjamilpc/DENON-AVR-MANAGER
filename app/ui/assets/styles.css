@@ -740,6 +740,73 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   white-space: pre-wrap;
 }
 
+.eq-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(15, 20, 25, 0.45);
+  backdrop-filter: blur(2px);
+}
+.eq-progress-overlay[hidden] {
+  display: none !important;
+}
+body.eq-progress-open {
+  overflow: hidden;
+}
+.eq-progress-card {
+  width: min(22rem, 100%);
+  background: var(--surface-solid);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.15rem 1.2rem 1.25rem;
+  text-align: center;
+}
+.eq-progress-card h3 {
+  margin: 0 0 0.45rem;
+  font-family: var(--brand);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.eq-progress-detail {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  min-height: 1.3em;
+}
+.eq-progress-track {
+  height: 0.65rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.eq-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 180ms var(--ease);
+}
+.eq-progress-pct {
+  margin: 0.65rem 0 0;
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+.eq-progress-count {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  min-height: 1.1em;
+}
+
 .foot {
   margin-top: 1.5rem;
   display: flex;
