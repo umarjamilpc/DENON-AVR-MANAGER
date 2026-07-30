@@ -1,4 +1,6 @@
 # DENON AVR MANAGER — run with Docker Compose
+# Production image tag: latest (branch main)
+# For Save/Realtime toggle testing use: docker-compose.dev.yml (:dev tag) — see docs/DEV.md
 # 1. Edit DENON_HOST below to your receiver's LAN IP
 # 2. docker compose up -d
 # 3. Open http://127.0.0.1:8000/

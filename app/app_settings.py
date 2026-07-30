@@ -13,6 +13,7 @@ DEFAULTS: Dict[str, Any] = {
     "poll_enabled": True,
     "poll_interval_sec": 5,
     "eq_confirm_sec": 30,
+    "edit_mode": "realtime",
     "lock_settings_in_standby": True,
     "show_sync_timestamps": True,
     "theme": "system",
@@ -56,6 +57,17 @@ SETTING_META: List[Dict[str, Any]] = [
             "values must stay unchanged for this long (default 30 seconds). "
             "Prevents the UI from flipping while you are editing. Set 0 to apply "
             "remote EQ changes on the next poll."
+        ),
+    },
+    {
+        "key": "edit_mode",
+        "label": "Edit mode",
+        "type": "enum",
+        "options": ["realtime", "save"],
+        "description": (
+            "realtime: changes apply to the AVR as you edit (Denon-like). "
+            "save: change fields locally, then press Save / Set. "
+            "Also available as toggle buttons in the top bar (dev build)."
         ),
     },
     {
@@ -173,6 +185,9 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
     theme = str(src.get("theme", out["theme"])).strip().lower()
     out["theme"] = theme if theme in {"system", "light", "dark"} else "system"
+
+    edit_mode = str(src.get("edit_mode", out.get("edit_mode", "realtime"))).strip().lower()
+    out["edit_mode"] = edit_mode if edit_mode in {"realtime", "save"} else "realtime"
     return out
 
 
@@ -264,6 +279,12 @@ def reset_settings() -> Dict[str, Any]:
     return merged
 
 
+def build_channel() -> str:
+    """production | dev — from APP_BUILD_CHANNEL env (Docker Compose)."""
+    raw = str(os.environ.get("APP_BUILD_CHANNEL") or "production").strip().lower()
+    return "dev" if raw in {"dev", "development"} else "production"
+
+
 def settings_response() -> Dict[str, Any]:
     path = settings_path()
     return {
@@ -272,6 +293,7 @@ def settings_response() -> Dict[str, Any]:
         "meta": SETTING_META,
         "path": str(path),
         "exists": path.is_file(),
+        "build_channel": build_channel(),
         "hint": (
             "Stored as /data/app-settings.json on the Docker volume "
             "(survives container restarts). Created automatically on first start. "
