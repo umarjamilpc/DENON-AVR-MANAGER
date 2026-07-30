@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from .denon_client import DenonSetupClient
 from .denon_power import main_zone_is_standby
@@ -18,6 +18,8 @@ EQ_ENDPOINT_ID = "audio_graphiceq_s_audio"
 AMP_ENDPOINT_ID = "speakers_ampassign_s_speakersetup"
 BACKUP_TYPE = "denon-manual-eq"
 BACKUP_VERSION = 1
+
+ProgressCallback = Callable[[Dict[str, Any]], None]
 
 BAND_FIELDS: Tuple[str, ...] = (
     "textGEQ63",
@@ -217,33 +219,105 @@ def live_channel_options(client: DenonSetupClient) -> Tuple[List[Dict[str, str]]
     return opts, each
 
 
-def export_manual_eq(client: DenonSetupClient) -> Dict[str, Any]:
+def _emit_progress(
+    on_progress: Optional[ProgressCallback],
+    *,
+    phase: str,
+    current: int,
+    total: int,
+    message: str,
+    channel: str = "",
+    label: str = "",
+) -> None:
+    if not on_progress:
+        return
+    total_n = max(0, int(total))
+    current_n = max(0, int(current))
+    if total_n:
+        current_n = min(current_n, total_n)
+        percent = int(round(100.0 * current_n / total_n))
+    else:
+        percent = 100 if phase == "done" else 0
+    if phase == "done":
+        percent = 100
+    on_progress(
+        {
+            "event": "progress",
+            "phase": phase,
+            "current": current_n,
+            "total": total_n,
+            "percent": max(0, min(100, percent)),
+            "channel": channel or None,
+            "label": label or None,
+            "message": message,
+        }
+    )
+
+
+def export_manual_eq(
+    client: DenonSetupClient,
+    *,
+    on_progress: Optional[ProgressCallback] = None,
+) -> Dict[str, Any]:
     """Read every live EQ channel curve into a portable backup object."""
     _require_main_on(client)
+    _emit_progress(
+        on_progress,
+        phase="prepare",
+        current=0,
+        total=0,
+        message="Reading Amp Assign and channel list…",
+    )
     amp = read_amp_assign(client)
     channels_meta, each = live_channel_options(client)
+    total = len(channels_meta)
+    _emit_progress(
+        on_progress,
+        phase="prepare",
+        current=0,
+        total=total,
+        message=f"Exporting {total} channel(s)…",
+    )
     channels: Dict[str, Any] = {}
     errors: List[Dict[str, str]] = []
 
-    for opt in channels_meta:
+    for index, opt in enumerate(channels_meta, start=1):
         code = opt["value"]
+        label = opt["label"]
+        _emit_progress(
+            on_progress,
+            phase="channel",
+            current=index - 1,
+            total=total,
+            channel=code,
+            label=label,
+            message=f"Reading {label} ({code})…",
+        )
         try:
             page = _select_channel(client, channel=code, speaker_selection=each)
             fields = page.get("fields") or {}
             got_ch = _field_value(fields, "listGEQAdjustEQ")
             if got_ch and got_ch != code:
-                # One retry if AVR lagged.
                 time.sleep(0.5)
                 page = _select_channel(client, channel=code, speaker_selection=each)
                 fields = page.get("fields") or {}
             channels[code] = {
-                "label": opt["label"],
+                "label": label,
                 "bands": _bands_from_fields(fields),
             }
         except Exception as exc:  # noqa: BLE001 — collect per-channel failures
             errors.append({"channel": code, "error": str(exc)})
+        _emit_progress(
+            on_progress,
+            phase="channel",
+            current=index,
+            total=total,
+            channel=code,
+            label=label,
+            message=f"Exported {label} ({index}/{total})",
+        )
 
-    return {
+    backup = {
         "type": BACKUP_TYPE,
         "version": BACKUP_VERSION,
         "exported_at": _utc_now(),
@@ -254,6 +328,14 @@ def export_manual_eq(client: DenonSetupClient) -> Dict[str, Any]:
         "channel_order": [o["value"] for o in channels_meta],
         "warnings": errors,
     }
+    _emit_progress(
+        on_progress,
+        phase="done",
+        current=total,
+        total=total,
+        message=f"Exported {len(channels)} channel(s).",
+    )
+    return backup
 
 
 def validate_backup(raw: Any) -> Dict[str, Any]:
@@ -281,9 +363,17 @@ def import_manual_eq(
     backup: Mapping[str, Any],
     *,
     dry_run: bool = False,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> Dict[str, Any]:
     """Restore channel curves. Refuses if Amp Assign differs; skips missing speakers."""
     _require_main_on(client)
+    _emit_progress(
+        on_progress,
+        phase="prepare",
+        current=0,
+        total=0,
+        message="Validating backup and Amp Assign…",
+    )
     data = validate_backup(dict(backup))
     current_amp = read_amp_assign(client)
     file_amp = str((data.get("amp_assign") or {}).get("value") or "")
@@ -313,6 +403,19 @@ def import_manual_eq(
         for code in missing
     ]
 
+    total = len(will_import)
+    _emit_progress(
+        on_progress,
+        phase="prepare",
+        current=0,
+        total=total,
+        message=(
+            f"Importing {total} channel(s)"
+            + (f", skipping {len(missing)} missing" if missing else "")
+            + "…"
+        ),
+    )
+
     report: Dict[str, Any] = {
         "dry_run": dry_run,
         "amp_assign": current_amp,
@@ -329,18 +432,55 @@ def import_manual_eq(
             f"Dry run: would import {len(will_import)} channel(s); "
             f"skip {len(missing)} missing."
         )
+        _emit_progress(
+            on_progress,
+            phase="done",
+            current=total,
+            total=total,
+            message=report["message"],
+        )
         return report
 
     if not will_import:
         report["ok"] = False
         report["message"] = "No matching channels to import."
+        _emit_progress(
+            on_progress,
+            phase="done",
+            current=0,
+            total=0,
+            message=report["message"],
+        )
         return report
 
-    for code in will_import:
+    for index, code in enumerate(will_import, start=1):
         entry = file_channels.get(code) or {}
+        label = str(
+            live_labels.get(code)
+            or (entry.get("label") if isinstance(entry, dict) else None)
+            or code
+        )
+        _emit_progress(
+            on_progress,
+            phase="channel",
+            current=index - 1,
+            total=total,
+            channel=code,
+            label=label,
+            message=f"Writing {label} ({code})…",
+        )
         bands = entry.get("bands") if isinstance(entry, dict) else None
         if not isinstance(bands, dict):
             report["failed"].append({"channel": code, "error": "Missing bands"})
+            _emit_progress(
+                on_progress,
+                phase="channel",
+                current=index,
+                total=total,
+                channel=code,
+                label=label,
+                message=f"Skipped {label} — missing bands ({index}/{total})",
+            )
             continue
         try:
             payload = {
@@ -359,17 +499,33 @@ def import_manual_eq(
             report["imported"].append(
                 {
                     "channel": code,
-                    "label": live_labels.get(code) or entry.get("label") or code,
+                    "label": label,
                     "bands": got,
                 }
             )
         except Exception as exc:  # noqa: BLE001
             report["failed"].append({"channel": code, "error": str(exc)})
+        _emit_progress(
+            on_progress,
+            phase="channel",
+            current=index,
+            total=total,
+            channel=code,
+            label=label,
+            message=f"Imported {label} ({index}/{total})",
+        )
 
     report["ok"] = not report["failed"]
     report["message"] = (
         f"Imported {len(report['imported'])} channel(s); "
         f"skipped {len(missing)} missing; "
         f"failed {len(report['failed'])}."
+    )
+    _emit_progress(
+        on_progress,
+        phase="done",
+        current=total,
+        total=total,
+        message=report["message"],
     )
     return report

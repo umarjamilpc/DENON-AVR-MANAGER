@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
+import queue
+import threading
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..app_settings import (
@@ -228,6 +232,79 @@ def get_manual_eq_export(request: Request) -> Dict[str, Any]:
     return scrub_host_urls({"backup": backup, "read_at": _utc_now_iso()})
 
 
+def _ndjson_manual_eq_stream(
+    run: Callable[[Callable[[Dict[str, Any]], None]], Dict[str, Any]],
+) -> StreamingResponse:
+    """Run Manual EQ work in a thread; stream NDJSON progress then done/error."""
+    q: queue.Queue = queue.Queue()
+
+    def on_progress(evt: Dict[str, Any]) -> None:
+        q.put(("progress", scrub_host_urls(dict(evt))))
+
+    def worker() -> None:
+        try:
+            payload = run(on_progress)
+            q.put(("done", scrub_host_urls(payload)))
+        except Exception as e:  # noqa: BLE001 — deliver to client as NDJSON error
+            msg = str(e)
+            status = None
+            if isinstance(e, ValueError):
+                status = 400
+            elif isinstance(e, RuntimeError):
+                if "Amp Assign differs" in msg:
+                    status = 409
+                elif "Standby" in msg:
+                    status = 403
+                else:
+                    status = 502
+            q.put(("error", {"message": msg, "status": status}))
+
+    def generate() -> Iterator[str]:
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        while True:
+            kind, payload = q.get()
+            if kind == "progress":
+                yield json.dumps(payload, ensure_ascii=False) + "\n"
+            elif kind == "done":
+                yield json.dumps(
+                    {
+                        "event": "done",
+                        **payload,
+                        "read_at": _utc_now_iso(),
+                    },
+                    ensure_ascii=False,
+                ) + "\n"
+                break
+            else:
+                body: Dict[str, Any] = {
+                    "event": "error",
+                    "message": payload.get("message") or str(payload),
+                }
+                if payload.get("status") is not None:
+                    body["status"] = payload["status"]
+                yield json.dumps(body, ensure_ascii=False) + "\n"
+                break
+        thread.join(timeout=5)
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/manual-eq/export/stream")
+def get_manual_eq_export_stream(request: Request) -> StreamingResponse:
+    """NDJSON stream: progress events, then done with {backup}."""
+    client = _client(request)
+
+    def run(on_progress: Callable[[Dict[str, Any]], None]) -> Dict[str, Any]:
+        return {"backup": export_manual_eq(client, on_progress=on_progress)}
+
+    return _ndjson_manual_eq_stream(run)
+
+
 @router.post("/manual-eq/import")
 def post_manual_eq_import(request: Request, body: ManualEqImportBody) -> Dict[str, Any]:
     """Import Manual EQ curves. Blocked if Amp Assign differs; missing speakers skipped."""
@@ -242,6 +319,27 @@ def post_manual_eq_import(request: Request, body: ManualEqImportBody) -> Dict[st
         code = 409 if "Amp Assign differs" in msg else (403 if "Standby" in msg else 502)
         raise HTTPException(code, msg) from e
     return scrub_host_urls({"result": result, "read_at": _utc_now_iso()})
+
+
+@router.post("/manual-eq/import/stream")
+def post_manual_eq_import_stream(
+    request: Request, body: ManualEqImportBody
+) -> StreamingResponse:
+    """NDJSON stream: progress events, then done with {result}."""
+    client = _client(request)
+    if not body.dry_run:
+        _reject_if_standby(client)
+    backup = body.backup
+    dry_run = body.dry_run
+
+    def run(on_progress: Callable[[Dict[str, Any]], None]) -> Dict[str, Any]:
+        return {
+            "result": import_manual_eq(
+                client, backup, dry_run=dry_run, on_progress=on_progress
+            )
+        }
+
+    return _ndjson_manual_eq_stream(run)
 
 
 @router.get("/connection")
