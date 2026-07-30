@@ -651,9 +651,9 @@
       renderSettingsForm();
       if (banner) {
         banner.hidden = false;
-        banner.textContent = "Saved to Docker volume.";
+        banner.textContent = "Saved";
       }
-      setStatus("App settings saved", "ok");
+      setStatus("Saved", "ok");
     } catch (err) {
       if (banner) {
         banner.hidden = false;
