@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
@@ -26,6 +27,10 @@ from ..menu_tree import build_menu
 from ..safety import annotate_catalog_item, is_write_blocked
 
 router = APIRouter(tags=["setup"])
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 # Routes in this module are limited to what the DENON AVR MANAGER UI calls.
 
@@ -264,11 +269,15 @@ def read_state(
             state["setup_lock"] = True
         elif endpoint_id == SETUP_LOCK_ENDPOINT_ID:
             state["setup_lock"] = is_setup_locked(client)
+    read_at = _utc_now_iso()
+    if isinstance(state, dict):
+        state["read_at"] = read_at
     return scrub_host_urls(
         {
             "endpoint_id": endpoint_id,
             "schema": item,
             "state": state,
+            "read_at": read_at,
         }
     )
 
@@ -376,12 +385,15 @@ def submit_endpoint(
                     build_information_editor_fields(html, fields)
                 )
         after["fields"] = layout_fields(fields, endpoint_id)
+        after["read_at"] = _utc_now_iso()
         result["after"] = after
+    read_at = _utc_now_iso()
     return scrub_host_urls(
         {
             "endpoint_id": endpoint_id,
             "write_allowed": True,
             "restored_safe_flags": True,
+            "read_at": read_at,
             **result,
         }
     )
