@@ -41,6 +41,7 @@
   const EXPLICIT_SAVE = new Set([
     "inputs_sourcerename_s_rename",
     "inputs_sourcelevel_s_inputsetup",
+    "speakers_levels_s_speakersetup",
     ...NETWORK_EXPLICIT_SAVE,
   ]);
   const PAGE_HELP = {
@@ -50,6 +51,8 @@
       "Selects source inputs to hide on the GUI and front panel displays",
     inputs_sourcelevel_s_inputsetup:
       "Adjusts the input level for the current source",
+    speakers_levels_s_speakersetup:
+      "Manually adjust the levels for each channel — drag sliders for preview, then press Set",
     video_tvformat_s_video:
       "Selects the format used to send video to the TV",
     video_hdmisetup_s_video: "Adjusts the HDMI settings",
@@ -540,6 +543,7 @@
       if (!extra?.setLfeLevel) fields.setLfeLevel = "off";
       if (!extra?.setAudioDelay) fields.setAudioDelay = "off";
       if (!extra?.setMainPwOnLevel) fields.setMainPwOnLevel = "off";
+      if (!extra?.setCLA) fields.setCLA = "off";
       const result = await api(`/api/endpoints/${encodeURIComponent(state.endpointId)}`, {
         method: "POST",
         body: JSON.stringify({ fields, merge_defaults: true }),
@@ -1014,11 +1018,13 @@
         val.className = "level-val";
         const unit = meta.unit || "dB";
         const sync = () => {
+          // Live preview of the value that Set will push (Denon showRangeArea*).
           val.textContent = `${Number(inp.value).toFixed(1)} ${unit}`;
         };
         sync();
         inp.addEventListener("input", sync);
-        if (!inactive) wireRealtime(inp);
+        // Levels / explicit-set ranges: preview only — never live-POST while dragging.
+        if (!inactive && !meta.explicit_set) wireRealtime(inp);
         row.appendChild(inp);
         row.appendChild(val);
         wrap.appendChild(row);
@@ -1129,10 +1135,6 @@
     for (const [k, v] of fd.entries()) out[k] = v;
     for (const inp of form.querySelectorAll('input[type="checkbox"]')) {
       if (inp.name) out[inp.name] = inp.checked ? "ON" : "OFF";
-    }
-    // Speakers/Levels — Denon applies only when setCLA = Set
-    if (state.endpointId === "speakers_levels_s_speakersetup") {
-      out.setCLA = "Set";
     }
     return out;
   }
@@ -1547,7 +1549,7 @@
         <label>Speaker Selection</label>
         <select id="eq-sp">
           <option value="ALL">All</option>
-          <option value="LRS">L/R/Surround</option>
+          <option value="LRS">Left/Right</option>
           <option value="EAC" selected>Each</option>
         </select>
       </div>
@@ -1598,8 +1600,12 @@
       });
     }
     $("eq-channel").addEventListener("change", async () => {
-      if (!state.eqEnabled) return;
-      await fetchEqBandsForCurrentChannel();
+      if (!state.eqEnabled || state.eqLoading || state.eqBusy) return;
+      await selectEqChannel();
+    });
+    $("eq-sp").addEventListener("change", async () => {
+      if (!state.eqEnabled || state.eqLoading || state.eqBusy) return;
+      await selectEqChannel();
     });
     $("eq-set").addEventListener("click", () => saveManualEq());
     $("eq-curve-copy").addEventListener("click", () =>
@@ -1710,12 +1716,48 @@
     }
   }
 
+  async function selectEqChannel() {
+    if (!state.eqEnabled || state.eqBusy) return;
+    state.eqBusy = true;
+    try {
+      // Denon listBox(): POST selection first so AVR loads that channel's bands.
+      const result = await api("/api/audio/manual-eq/select", {
+        method: "POST",
+        body: JSON.stringify({
+          channel: $("eq-channel").value,
+          speaker_selection: $("eq-sp").value,
+        }),
+      });
+      const fields = result?.after?.fields || {};
+      if (Object.keys(fields).length) {
+        applyBandsToUi(fields);
+        syncEqSelectsFromFields(fields);
+      } else {
+        await fetchEqBandsForCurrentChannel();
+      }
+      setStatus("EQ channel synced", "ok");
+    } catch (err) {
+      $("editor-banner").hidden = false;
+      $("editor-banner").textContent = err.message;
+      setStatus(err.message, "err");
+      await fetchEqBandsForCurrentChannel();
+    } finally {
+      state.eqBusy = false;
+    }
+  }
+
+  function syncEqSelectsFromFields(fields) {
+    const ch = (fields.listGEQAdjustEQ || {}).value;
+    if (ch && $("eq-channel")) $("eq-channel").value = ch;
+    const sp = (fields.listGEQSpSelection || {}).value;
+    if (sp && $("eq-sp")) $("eq-sp").value = sp;
+  }
+
   async function fetchEqBandsForCurrentChannel() {
     const data = await api("/api/audio/manual-eq");
     const fields = data.state?.fields || {};
     applyBandsToUi(fields);
-    const sp = (fields.listGEQSpSelection || {}).value;
-    if (sp && $("eq-sp")) $("eq-sp").value = sp;
+    syncEqSelectsFromFields(fields);
     return fields;
   }
 
