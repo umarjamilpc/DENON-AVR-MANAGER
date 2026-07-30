@@ -32,8 +32,8 @@ RUN chmod +x /entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PUID=10001 \
-    PGID=10001
+    PUID=99 \
+    PGID=100
 
 # DENON_HOST must be provided at runtime (docker compose environment).
 EXPOSE 8000

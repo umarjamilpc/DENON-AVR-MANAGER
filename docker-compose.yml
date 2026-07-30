@@ -16,9 +16,8 @@ services:
       # Required — your Denon AVR IP or hostname on the LAN
       DENON_HOST: "192.168.1.50"
       # Optional — match your host user so /data files look familiar on disk.
-      # Unraid: 99:100 (nobody:users). Linux desktop: run `id -u` / `id -g`.
-      # Defaults inside the image are 10001:10001. /data is always chmod a+rwX
-      # so the host can edit app-settings.json even if PUID differs.
+      # Defaults are already Unraid nobody:users (99:100). On Linux desktop use `id -u` / `id -g`.
+      # /data is always chmod a+rwX so the host can edit app-settings.json either way.
       PUID: "99"
       PGID: "100"
     volumes:

@@ -21,7 +21,7 @@ volumes:
 | Variable | Required | Meaning |
 |----------|----------|---------|
 | `DENON_HOST` | **Yes** | AVR IP or hostname |
-| `PUID` / `PGID` | No | Numeric user/group for the app process (default `10001`). Unraid: `99`/`100`. |
+| `PUID` / `PGID` | No | Numeric user/group for the app process (default **`99`/`100`**, Unraid nobody:users). |
 
 The `/data` volume keeps App Settings across container restarts. On first start the app creates `/data/app-settings.json` with defaults.
 
