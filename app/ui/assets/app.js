@@ -260,7 +260,8 @@
 
   function applyPowerUi(data) {
     const on = data?.power === "on" || data?.power_on === true;
-    state.powerOn = data?.power == null ? null : on;
+    const known = data?.power === "on" || data?.power === "standby" || data?.power_on === true || data?.power_on === false;
+    state.powerOn = known ? on : null;
     state.powerZone = data?.zone || "MAIN ZONE";
     state.powerInput = data?.input || "—";
     const btn = $("power-btn");
@@ -268,26 +269,64 @@
     const input = $("power-input");
     const st = $("power-state");
     if (zone) zone.textContent = state.powerZone;
-    if (input) input.textContent = state.powerInput;
+    if (input) input.textContent = state.powerInput || "—";
     if (st) {
       st.textContent =
         state.powerOn == null ? "…" : state.powerOn ? "On" : "Standby";
     }
     if (btn) {
       btn.disabled = !state.connected || state.powerBusy;
-      btn.classList.toggle("is-on", Boolean(state.powerOn));
+      btn.classList.toggle("is-on", state.powerOn === true);
+      btn.classList.toggle("is-off", state.powerOn === false);
       btn.classList.toggle("is-busy", state.powerBusy);
-      btn.setAttribute("aria-pressed", state.powerOn ? "true" : "false");
+      btn.setAttribute(
+        "aria-pressed",
+        state.powerOn == null ? "mixed" : state.powerOn ? "true" : "false"
+      );
       btn.title = state.powerOn
         ? "Turn Main Zone to Standby"
         : "Turn Main Zone On";
     }
   }
 
+  /** Denon web UI keeps Setup Menu usable in standby — do the same. */
+  function setupAllowedWhileStandby() {
+    return state.powerOn === false;
+  }
+
+  function clearMenuInactiveForStandby() {
+    if (!state.menu?.sections) return;
+    for (const section of state.menu.sections) {
+      for (const node of section.children || []) {
+        if (node.inactive) {
+          node._standbyClearedInactive = true;
+          node.inactive = false;
+        }
+        for (const child of node.children || []) {
+          if (child.inactive) {
+            child._standbyClearedInactive = true;
+            child.inactive = false;
+          }
+        }
+      }
+    }
+  }
+
   async function refreshPower() {
     try {
       const data = await api("/api/power");
+      const wasOn = state.powerOn;
       applyPowerUi(data);
+      // Entering standby: keep Setup Menu clickable like Denon's web UI.
+      if (wasOn !== false && state.powerOn === false) {
+        clearMenuInactiveForStandby();
+        renderSections();
+        renderMenuItems();
+      }
+      // Leaving standby: refresh real Denon greys.
+      if (wasOn === false && state.powerOn === true) {
+        refreshMenuAvailability({ immediate: true }).catch(() => {});
+      }
       return data;
     } catch (err) {
       applyPowerUi({ power: "unknown", zone: "MAIN ZONE", input: "—" });
@@ -310,12 +349,20 @@
         method: "POST",
         body: JSON.stringify({ toggle: true }),
       });
+      const wasOn = state.powerOn;
       applyPowerUi(data);
       markLocalWrite();
-      setStatus(
-        data.power === "on" ? "Main Zone On" : "Main Zone Standby",
-        "ok"
-      );
+      if (data.power === "standby") {
+        clearMenuInactiveForStandby();
+        renderSections();
+        renderMenuItems();
+        setStatus("Main Zone Standby — Setup Menu still available", "ok");
+      } else {
+        setStatus("Main Zone On", "ok");
+        if (wasOn === false) {
+          refreshMenuAvailability({ immediate: true }).catch(() => {});
+        }
+      }
     } catch (err) {
       setStatus(err.message, "err");
       try {
@@ -439,8 +486,9 @@
       if (!state.pageDirty) {
         await softRefreshCurrentPage();
       }
-      // Menu greys ~ every 15s (every 3rd 5s tick).
-      if (!onEq && state.pollTick % 3 === 0) {
+      // Menu greys ~ every 15s when Main Zone is on. Skip while standby so
+      // Denon grey scrape does not lock out Setup Menu items.
+      if (!onEq && state.powerOn !== false && state.pollTick % 3 === 0) {
         await refreshMenuAvailability({ immediate: true });
       }
     } catch {
@@ -572,12 +620,18 @@
   function appendMenuButton(list, node, nested = false) {
     const b = document.createElement("button");
     b.type = "button";
-    const inactive = Boolean(node.inactive);
+    // While Main Zone is standby, keep items visually openable (Denon web UI).
+    const inactive =
+      Boolean(node.inactive) && !setupAllowedWhileStandby();
     b.className =
       (node.id === state.selectedMenuId ? "active " : "") +
       (nested ? "nested " : "") +
       (inactive ? "is-inactive" : "");
-    b.title = inactive ? cleanText(node.inactive_reason || "Not available with current settings") : "";
+    b.title = inactive
+      ? cleanText(node.inactive_reason || "Not available with current settings")
+      : setupAllowedWhileStandby()
+        ? "Main Zone Standby — Setup still available"
+        : "";
     const locked =
       node.write_allowed === false ||
       (node.endpoint && node.endpoint.write_allowed === false);
@@ -666,7 +720,7 @@
     $("editor-banner").hidden = true;
     $("reload-btn").hidden = false;
 
-    if (node.inactive && node.id !== "general_lock") {
+    if (node.inactive && node.id !== "general_lock" && !setupAllowedWhileStandby()) {
       $("reload-btn").hidden = true;
       $("editor-banner").hidden = false;
       $("editor-banner").textContent =
@@ -676,6 +730,13 @@
         cleanText(node.inactive_reason) || "Not available with the current configuration."
       )}</p>`;
       return;
+    }
+
+    // Standby: still open pages (Denon web Setup Menu stays usable when powered off).
+    if (node.inactive && setupAllowedWhileStandby()) {
+      $("editor-banner").hidden = false;
+      $("editor-banner").textContent =
+        "Main Zone is on Standby — Setup is still available. Some live values may be limited.";
     }
 
     if (isSetupInfoNode(node)) {

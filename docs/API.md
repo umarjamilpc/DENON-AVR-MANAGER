@@ -10,9 +10,9 @@ Routes are limited to what the DENON AVR MANAGER UI uses (no unused aliases).
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/connection` | Connection status for `DENON_HOST` |
+| GET | `/api/connection` | Connection status + Main Zone `power` snapshot |
 | GET | `/api/power` | Main Zone power / input (goform HTTP, no telnet) |
-| POST | `/api/power` | Set power (`{"power":"on"|"standby"}`) or `{"toggle":true}` |
+| POST | `/api/power` | Set power (`{"power":"on"|"standby"}`) or `{"toggle":true}` — Setup Menu stays available in standby |
 | GET | `/api/menu` | Setup tree + inactive/grey flags + `setup_lock` |
 | GET | `/api/endpoints/{id}/state` | Read page fields (`read_at` UTC ISO timestamp) |
 | POST | `/api/endpoints/{id}` | Write fields (`{"fields":{...},"merge_defaults":true}`); includes `read_at` |
