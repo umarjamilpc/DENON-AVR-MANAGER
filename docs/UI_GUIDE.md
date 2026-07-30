@@ -31,7 +31,8 @@ This UI mirrors that. Hover for the reason.
 
 ## Manual EQ
 
-Special UI for 9-band Graphic EQ (when MultEQ is Off). Uses dedicated API helpers under `/api/audio/manual-eq*`.
+Special UI for 9-band Graphic EQ (when MultEQ is Off). Uses the same  
+`/api/endpoints/audio_graphiceq_s_audio` read/write path as other Setup pages.
 
 ## Themes
 

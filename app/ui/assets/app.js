@@ -86,6 +86,11 @@
     lastEqBands: Object.fromEntries(BANDS.map(([k]) => [k, 0])),
     reloadAction: null,
     menuRefreshTimer: null,
+    pollTimer: null,
+    pollInFlight: false,
+    pollTick: 0,
+    pageDirty: false,
+    lastLocalWriteAt: 0,
     route: { view: "setup" },
   };
 
@@ -222,9 +227,81 @@
       $("main").hidden = false;
       await loadMenu();
       await showView("setup", { loadInfo: false });
+      startRemotePolling();
     } catch (err) {
       setStatus(err.message, "err");
       state.connected = false;
+      stopRemotePolling();
+    }
+  }
+
+  function markLocalWrite() {
+    state.lastLocalWriteAt = Date.now();
+    state.pageDirty = false;
+  }
+
+  function markPageDirty() {
+    state.pageDirty = true;
+  }
+
+  function stopRemotePolling() {
+    clearInterval(state.pollTimer);
+    state.pollTimer = null;
+    state.pollInFlight = false;
+  }
+
+  function startRemotePolling() {
+    stopRemotePolling();
+    // Pick up remote/OSD changes without requiring Reload.
+    state.pollTimer = setInterval(() => {
+      pollRemoteChanges().catch(() => {});
+    }, 5000);
+  }
+
+  async function softRefreshCurrentPage() {
+    if (!state.endpointId || state.pageDirty) return;
+    if (state.endpointId === "audio_graphiceq_s_audio") {
+      await loadManualEq();
+      return;
+    }
+    if (state.endpointId === "inputs_inputassign_s_inputassign") {
+      await loadInputAssign();
+      return;
+    }
+    if (
+      state.selectedMenuId &&
+      (INFO_ACTIONS.has(state.selectedMenuId) ||
+        findMenuNode(state.selectedMenuId)?.action === "info")
+    ) {
+      return;
+    }
+    const data = await api(
+      `/api/endpoints/${encodeURIComponent(state.endpointId)}/state`
+    );
+    if (data.state?.fields) renderFields(data.state.fields);
+  }
+
+  async function pollRemoteChanges() {
+    if (!state.connected) return;
+    if (document.visibilityState === "hidden") return;
+    if (state.pollInFlight || state.realtimeBusy || state.eqBusy) return;
+    if (Date.now() - state.lastLocalWriteAt < 2500) return;
+    if (state.route?.view === "info") return;
+
+    state.pollInFlight = true;
+    state.pollTick = (state.pollTick || 0) + 1;
+    try {
+      // Current page every tick; menu greys every 3rd tick (heavier scrape).
+      if (!state.pageDirty) {
+        await softRefreshCurrentPage();
+      }
+      if (state.pollTick % 3 === 0) {
+        await refreshMenuAvailability({ immediate: true });
+      }
+    } catch {
+      /* ignore transient poll errors */
+    } finally {
+      state.pollInFlight = false;
     }
   }
 
@@ -506,6 +583,7 @@
 
   async function openEndpoint(id, menuNode) {
     state.endpointId = id;
+    state.pageDirty = false;
     state.reloadAction = () => openEndpoint(id, menuNode);
     $("editor-title").textContent = menuNode?.label || "Loading…";
     $("field-form").innerHTML = "";
@@ -597,6 +675,7 @@
       setStatus("Applied", "ok");
       const afterFields = result?.after?.fields;
       if (afterFields) renderFields(afterFields);
+      markLocalWrite();
       await refreshSetupLockState();
     } catch (err) {
       $("editor-banner").hidden = false;
@@ -1071,6 +1150,9 @@
         inp.addEventListener("input", sync);
         // Levels / explicit-set ranges: preview only — never live-POST while dragging.
         if (!inactive && !meta.explicit_set) wireRealtime(inp);
+        else if (!inactive && meta.explicit_set) {
+          inp.addEventListener("input", markPageDirty);
+        }
         row.appendChild(inp);
         row.appendChild(val);
         wrap.appendChild(row);
@@ -1083,6 +1165,9 @@
         inp.value = meta.value ?? "";
         inp.disabled = inactive;
         if (!inactive && !meta.explicit_set) wireRealtime(inp);
+        else if (!inactive && meta.explicit_set) {
+          inp.addEventListener("input", markPageDirty);
+        }
         row.appendChild(inp);
         if (meta.unit) {
           const u = document.createElement("span");
@@ -1204,6 +1289,7 @@
       setStatus("Live update", "ok");
       const afterFields = result?.after?.fields;
       if (afterFields) renderFields(afterFields);
+      markLocalWrite();
       await refreshSetupLockState();
     } catch (err) {
       $("editor-banner").hidden = false;
@@ -1362,6 +1448,7 @@
   async function openInputAssign(node) {
     state.endpointId = "inputs_inputassign_s_inputassign";
     state.writeAllowed = true;
+    state.pageDirty = false;
     state.reloadAction = () => openInputAssign(node);
     $("editor-banner").hidden = true;
     $("editor-title").textContent = "Input Assign";
@@ -1518,6 +1605,7 @@
       setStatus(`Input Assign · ${column.toUpperCase()} updated`, "ok");
       if (result?.after?.fields) renderInputAssign(result.after.fields);
       else await loadInputAssign();
+      markLocalWrite();
       refreshMenuAvailability().catch(() => {});
     } catch (err) {
       $("editor-banner").hidden = false;
@@ -1572,6 +1660,7 @@
   async function openManualEq(node) {
     state.endpointId = "audio_graphiceq_s_audio";
     state.writeAllowed = true;
+    state.pageDirty = false;
     state.reloadAction = () => openManualEq(node);
     $("editor-banner").hidden = true;
     $("editor-title").textContent = "Manual EQ";
@@ -1661,6 +1750,7 @@
         hidden.value = text;
         state.lastEqBands[label] = Number(text);
         db.textContent = formatDb(text);
+        markPageDirty();
       });
       bands.appendChild(d);
     }
@@ -1728,6 +1818,7 @@
         body: JSON.stringify({ fields, merge_defaults: true }),
       }
     );
+    markLocalWrite();
     // Manual EQ On/Off changes menu greying for related Audio items.
     refreshMenuAvailability().catch(() => {});
     return result;
