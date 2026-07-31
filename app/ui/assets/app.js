@@ -359,7 +359,7 @@
     if (!msg) return;
     // Skip transient progress noise in the feed
     const skip =
-      /^(Applying|Updating|Reading AVR|Loading AVR|Refreshing)/i.test(msg);
+      /^(Applying|Updating|Reading AVR|Loading AVR|Refreshing|Ready)/i.test(msg);
     if (!skip) {
       state.activityLog.unshift({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -374,33 +374,12 @@
       renderActivityBadge();
       if (state.activityOpen) renderActivityList();
     }
-    if (!silent) flashTransientBanner(msg, kind);
+    // Never mirror activity into page banners — the bell is the notification UI.
+    void silent;
   }
 
-  function flashTransientBanner(text, kind) {
-    // Prefer the active view banner; fall back to control then dashboard.
-    const view = state.route?.view;
-    let el =
-      view === "dashboard"
-        ? $("dashboard-banner")
-        : view === "control"
-          ? $("control-banner")
-          : $("control-banner") || $("dashboard-banner");
-    if (!el) return;
-    el.hidden = false;
-    el.textContent = text;
-    el.classList.remove("ok", "err", "warn");
-    if (kind && kind !== "info") el.classList.add(kind);
-    if (state.activityBannerTimer) clearTimeout(state.activityBannerTimer);
-    // Keep errors visible longer; auto-hide success / info into the activity bell.
-    const ms = kind === "err" ? 8000 : 3500;
-    state.activityBannerTimer = setTimeout(() => {
-      if (el.textContent === text) {
-        el.hidden = true;
-        el.textContent = "";
-        el.classList.remove("ok", "err", "warn");
-      }
-    }, ms);
+  function flashTransientBanner(_text, _kind) {
+    // Intentionally empty: activity goes to the top-bar bell only.
   }
 
   function renderActivityBadge() {
@@ -3596,23 +3575,32 @@
       el.classList.remove("ok", "err", "warn");
       return;
     }
-    if (log && !/^(Applying|Updating|Reading AVR|Loading AVR|Refreshing|Ready)/i.test(text)) {
+    if (log) {
       pushActivity(text, kind || "info", { silent: true });
+    }
+    // Only surface errors / sticky progress on the page; success → activity bell.
+    const show =
+      sticky || kind === "err" || kind === "warn" ||
+      /^(Loading AVR|Refreshing|Reading AVR|Updating|Connect)/i.test(text);
+    if (!show) {
+      el.hidden = true;
+      el.textContent = "";
+      el.classList.remove("ok", "err", "warn");
+      return;
     }
     el.hidden = false;
     el.textContent = text;
     el.classList.remove("ok", "err", "warn");
     if (kind) el.classList.add(kind);
     if (state.activityBannerTimer) clearTimeout(state.activityBannerTimer);
-    if (!sticky) {
-      const ms = kind === "err" ? 8000 : 3500;
+    if (!sticky && kind !== "err") {
       state.activityBannerTimer = setTimeout(() => {
         if (el.textContent === text) {
           el.hidden = true;
           el.textContent = "";
           el.classList.remove("ok", "err", "warn");
         }
-      }, ms);
+      }, 2500);
     }
   }
 
@@ -4312,23 +4300,31 @@
       el.classList.remove("ok", "err", "warn");
       return;
     }
-    if (log && !/^(Applying|Updating|Reading AVR|Loading AVR|Refreshing|Ready)/i.test(text)) {
+    if (log) {
       pushActivity(text, kind || "info", { silent: true });
+    }
+    const show =
+      sticky || kind === "err" || kind === "warn" ||
+      /^(Loading AVR|Refreshing|Connect)/i.test(text);
+    if (!show) {
+      el.hidden = true;
+      el.textContent = "";
+      el.classList.remove("ok", "err", "warn");
+      return;
     }
     el.hidden = false;
     el.textContent = text;
     el.classList.remove("ok", "err", "warn");
     if (kind) el.classList.add(kind);
     if (state.activityBannerTimer) clearTimeout(state.activityBannerTimer);
-    if (!sticky) {
-      const ms = kind === "err" ? 8000 : 3500;
+    if (!sticky && kind !== "err") {
       state.activityBannerTimer = setTimeout(() => {
         if (el.textContent === text) {
           el.hidden = true;
           el.textContent = "";
           el.classList.remove("ok", "err", "warn");
         }
-      }, ms);
+      }, 2500);
     }
   }
 
@@ -4549,10 +4545,12 @@
           control_id: wEl.dataset.controlId,
           control_layout: wEl.dataset.controlLayout || "less",
           sort_order: widgets.length,
-          shape: wEl.dataset.shape || "rectangle",
+          shape: wEl.dataset.shape || "square",
           size: wEl.dataset.size || "md",
           icon_on: wEl.dataset.iconOn || "",
           icon_off: wEl.dataset.iconOff || "",
+          color_on: wEl.dataset.colorOn || "",
+          color_off: wEl.dataset.colorOff || "",
         });
       }
       sections.push({
@@ -4560,7 +4558,7 @@
         title,
         sort_order: sections.length,
         collapsed: secEl.classList.contains("is-collapsed"),
-        shape: secEl.dataset.shape || "rectangle",
+        stack: secEl.dataset.stack || "horizontal",
         size: secEl.dataset.size || "full",
         widgets,
       });
@@ -4606,7 +4604,7 @@
     if (meta) {
       const n = sections.reduce((a, s) => a + (s.widgets?.length || 0), 0);
       meta.textContent = state.dashboardEdit
-        ? `Editing · ${sections.length} sections · ${n} widgets · resize, shape & icons`
+        ? `Editing · ${sections.length} sections · ${n} widgets · stacks, sizes & colors`
         : `${sections.length} sections · ${n} widgets · stored in SQLite`;
     }
     root.innerHTML = "";
@@ -4638,24 +4636,69 @@
     return sel;
   }
 
-  function buildShapeSelect(value, onChange) {
+  function buildStackSelect(value, onChange) {
     return buildSizeSelect(
       [
-        ["rectangle", "Rectangle"],
-        ["square", "Square"],
+        ["horizontal", "Horizontal"],
+        ["vertical", "Vertical"],
       ],
-      value || "rectangle",
+      value || "horizontal",
       onChange
     );
   }
 
+  function contrastInk(hex) {
+    const h = String(hex || "").replace("#", "");
+    if (h.length !== 3 && h.length !== 6) return "#f8fafc";
+    const full =
+      h.length === 3
+        ? h
+            .split("")
+            .map((c) => c + c)
+            .join("")
+        : h;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.55 ? "#1e293b" : "#f8fafc";
+  }
+
+  function applyDashCardColors(shell, w) {
+    const on = w.color_on || "#e8eef2";
+    const off = w.color_off || "#3a4248";
+    shell.style.setProperty("--dash-on-bg", on);
+    shell.style.setProperty("--dash-off-bg", off);
+    shell.style.setProperty("--dash-on-fg", contrastInk(on));
+    shell.style.setProperty("--dash-off-fg", contrastInk(off));
+    shell.dataset.colorOn = on;
+    shell.dataset.colorOff = off;
+  }
+
+  function buildColorInput(value, title, onChange) {
+    const wrap = document.createElement("label");
+    wrap.className = "dash-color-field";
+    wrap.title = title;
+    const lab = document.createElement("span");
+    lab.textContent = title;
+    const input = document.createElement("input");
+    input.type = "color";
+    input.value = value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#3a4248";
+    input.addEventListener("mousedown", (e) => e.stopPropagation());
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("change", () => onChange(input.value));
+    wrap.appendChild(lab);
+    wrap.appendChild(input);
+    return wrap;
+  }
+
   function buildDashboardSection(sec) {
     const wrap = document.createElement("section");
-    const shape = sec.shape || "rectangle";
+    const stack = sec.stack || "horizontal";
     const size = sec.size || "full";
-    wrap.className = `dashboard-section shape-${shape} size-${size}`;
+    wrap.className = `dashboard-section stack-${stack} size-${size}`;
     wrap.dataset.sectionId = sec.id;
-    wrap.dataset.shape = shape;
+    wrap.dataset.stack = stack;
     wrap.dataset.size = size;
     if (sec.collapsed) wrap.classList.add("is-collapsed");
     if (state.dashboardEdit) {
@@ -4726,8 +4769,8 @@
         )
       );
       actions.appendChild(
-        buildShapeSelect(shape, (v) =>
-          patchSectionFields(sec.id, { shape: v }).catch((e) =>
+        buildStackSelect(stack, (v) =>
+          patchSectionFields(sec.id, { stack: v }).catch((e) =>
             dashboardBanner(e.message, "err")
           )
         )
@@ -4757,7 +4800,7 @@
     wrap.appendChild(head);
 
     const grid = document.createElement("div");
-    grid.className = "dashboard-grid";
+    grid.className = `dashboard-grid stack-${stack}`;
     grid.dataset.sectionId = sec.id;
     if (state.dashboardEdit) {
       grid.addEventListener("dragover", (ev) => {
@@ -4858,6 +4901,7 @@
     shell.dataset.kind = kind;
     shell.dataset.iconOn = w.icon_on || "";
     shell.dataset.iconOff = w.icon_off || "";
+    applyDashCardColors(shell, w);
     if (control) {
       shell.dataset.onLabel =
         control.on_label ||
@@ -4927,8 +4971,28 @@
         )
       );
       toolbar.appendChild(
-        buildShapeSelect(shape, (v) =>
-          patchWidgetFields(w.id, { shape: v }).catch((e) =>
+        buildSizeSelect(
+          [
+            ["square", "Square"],
+            ["rectangle", "Rect"],
+          ],
+          shape,
+          (v) =>
+            patchWidgetFields(w.id, { shape: v }).catch((e) =>
+              dashboardBanner(e.message, "err")
+            )
+        )
+      );
+      toolbar.appendChild(
+        buildColorInput(w.color_on || "#e8eef2", "On", (v) =>
+          patchWidgetFields(w.id, { color_on: v }).catch((e) =>
+            dashboardBanner(e.message, "err")
+          )
+        )
+      );
+      toolbar.appendChild(
+        buildColorInput(w.color_off || "#3a4248", "Off", (v) =>
+          patchWidgetFields(w.id, { color_off: v }).catch((e) =>
             dashboardBanner(e.message, "err")
           )
         )

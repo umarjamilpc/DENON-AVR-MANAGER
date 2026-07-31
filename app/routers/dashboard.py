@@ -151,6 +151,8 @@ def _enrich_dashboard(data: Dict[str, Any], request_base: str) -> Dict[str, Any]
             defaults = _default_icons_for(cid)
             icon_on = str(w.get("icon_on") or "") or defaults["icon_on"]
             icon_off = str(w.get("icon_off") or "") or defaults["icon_off"]
+            color_on = str(w.get("color_on") or "") or "#e8eef2"
+            color_off = str(w.get("color_off") or "") or "#3a4248"
             widgets_out.append(
                 {
                     **w,
@@ -158,6 +160,8 @@ def _enrich_dashboard(data: Dict[str, Any], request_base: str) -> Dict[str, Any]
                     "control_layout": layout,
                     "icon_on": icon_on,
                     "icon_off": icon_off,
+                    "color_on": color_on,
+                    "color_off": color_off,
                     "icon_on_resolved": icons_store.resolve_icon_ref(icon_on),
                     "icon_off_resolved": icons_store.resolve_icon_ref(icon_off),
                 }
@@ -187,7 +191,8 @@ class SectionBody(BaseModel):
 
 class SectionPatchBody(BaseModel):
     title: Optional[str] = None
-    shape: Optional[str] = None
+    stack: Optional[str] = None
+    shape: Optional[str] = None  # legacy alias → stack
     size: Optional[str] = None
     collapsed: Optional[bool] = None
 
@@ -196,10 +201,12 @@ class WidgetBody(BaseModel):
     section_id: str
     control_id: str
     control_layout: str = "less"
-    shape: str = "rectangle"
+    shape: str = "square"
     size: str = "md"
     icon_on: str = ""
     icon_off: str = ""
+    color_on: str = ""
+    color_off: str = ""
 
 
 class WidgetPatchBody(BaseModel):
@@ -207,6 +214,8 @@ class WidgetPatchBody(BaseModel):
     size: Optional[str] = None
     icon_on: Optional[str] = None
     icon_off: Optional[str] = None
+    color_on: Optional[str] = None
+    color_off: Optional[str] = None
     control_layout: Optional[str] = None
 
 
@@ -244,6 +253,7 @@ def patch_section(
         section_id,
         {
             "title": body.title,
+            "stack": body.stack,
             "shape": body.shape,
             "size": body.size,
             "collapsed": body.collapsed,
@@ -270,6 +280,8 @@ def create_widget(request: Request, body: WidgetBody) -> Dict[str, Any]:
             size=body.size,
             icon_on=body.icon_on or defaults["icon_on"],
             icon_off=body.icon_off or defaults["icon_off"],
+            color_on=body.color_on,
+            color_off=body.color_off,
         )
     except KeyError as e:
         raise HTTPException(404, str(e)) from e
@@ -289,6 +301,8 @@ def patch_widget(
             "size": body.size,
             "icon_on": body.icon_on,
             "icon_off": body.icon_off,
+            "color_on": body.color_on,
+            "color_off": body.color_off,
             "control_layout": body.control_layout,
         },
     )
