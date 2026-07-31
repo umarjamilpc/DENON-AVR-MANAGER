@@ -110,6 +110,10 @@
     controlPollTimer: null,
     controlLog: [],
     controlBusy: false,
+    activityLog: [],
+    activityUnread: 0,
+    activityOpen: false,
+    activityBannerTimer: null,
     dashboard: null,
     dashboardEdit: false,
     dashboardCatalog: null,
@@ -348,6 +352,128 @@
     statusEl.textContent = text;
     statusEl.classList.remove("ok", "err", "warn");
     if (kind) statusEl.classList.add(kind);
+  }
+
+  function pushActivity(text, kind = "info", { silent = false } = {}) {
+    const msg = String(text || "").trim();
+    if (!msg) return;
+    // Skip transient progress noise in the feed
+    const skip =
+      /^(Applying|Updating|Reading AVR|Loading AVR|Refreshing)/i.test(msg);
+    if (!skip) {
+      state.activityLog.unshift({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text: msg,
+        kind: kind || "info",
+        at: new Date().toISOString(),
+      });
+      if (state.activityLog.length > 100) state.activityLog.length = 100;
+      if (!state.activityOpen) {
+        state.activityUnread = Math.min(99, (state.activityUnread || 0) + 1);
+      }
+      renderActivityBadge();
+      if (state.activityOpen) renderActivityList();
+    }
+    if (!silent) flashTransientBanner(msg, kind);
+  }
+
+  function flashTransientBanner(text, kind) {
+    // Prefer the active view banner; fall back to control then dashboard.
+    const view = state.route?.view;
+    let el =
+      view === "dashboard"
+        ? $("dashboard-banner")
+        : view === "control"
+          ? $("control-banner")
+          : $("control-banner") || $("dashboard-banner");
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = text;
+    el.classList.remove("ok", "err", "warn");
+    if (kind && kind !== "info") el.classList.add(kind);
+    if (state.activityBannerTimer) clearTimeout(state.activityBannerTimer);
+    // Keep errors visible longer; auto-hide success / info into the activity bell.
+    const ms = kind === "err" ? 8000 : 3500;
+    state.activityBannerTimer = setTimeout(() => {
+      if (el.textContent === text) {
+        el.hidden = true;
+        el.textContent = "";
+        el.classList.remove("ok", "err", "warn");
+      }
+    }, ms);
+  }
+
+  function renderActivityBadge() {
+    const badge = $("activity-count");
+    const btn = $("activity-btn");
+    if (!badge) return;
+    const n = state.activityUnread || 0;
+    if (n <= 0) {
+      badge.hidden = true;
+      badge.textContent = "0";
+      btn?.classList.remove("has-unread");
+      return;
+    }
+    badge.hidden = false;
+    badge.textContent = n > 99 ? "99+" : String(n);
+    btn?.classList.add("has-unread");
+  }
+
+  function renderActivityList() {
+    const list = $("activity-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!state.activityLog.length) {
+      list.innerHTML = `<p class="meta activity-empty">No activity yet</p>`;
+      return;
+    }
+    for (const item of state.activityLog) {
+      const row = document.createElement("div");
+      row.className = `activity-item kind-${item.kind || "info"}`;
+      const time = document.createElement("time");
+      time.dateTime = item.at;
+      time.textContent = formatSyncClock(item.at);
+      const body = document.createElement("p");
+      body.textContent = item.text;
+      row.appendChild(time);
+      row.appendChild(body);
+      list.appendChild(row);
+    }
+  }
+
+  function setActivityOpen(open) {
+    state.activityOpen = Boolean(open);
+    const panel = $("activity-panel");
+    const btn = $("activity-btn");
+    if (panel) panel.hidden = !state.activityOpen;
+    btn?.setAttribute("aria-expanded", state.activityOpen ? "true" : "false");
+    btn?.classList.toggle("is-open", state.activityOpen);
+    if (state.activityOpen) {
+      state.activityUnread = 0;
+      renderActivityBadge();
+      renderActivityList();
+    }
+  }
+
+  function wireActivity() {
+    $("activity-btn")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      setActivityOpen(!state.activityOpen);
+    });
+    $("activity-close")?.addEventListener("click", () => setActivityOpen(false));
+    $("activity-clear")?.addEventListener("click", () => {
+      state.activityLog = [];
+      state.activityUnread = 0;
+      renderActivityBadge();
+      renderActivityList();
+    });
+    document.addEventListener("click", (ev) => {
+      if (!state.activityOpen) return;
+      const panel = $("activity-panel");
+      const btn = $("activity-btn");
+      if (panel?.contains(ev.target) || btn?.contains(ev.target)) return;
+      setActivityOpen(false);
+    });
   }
 
   function formatSyncClock(isoOrDate) {
@@ -3461,7 +3587,7 @@
     return state.controlCatalogByLayout?.[normalizeControlLayout(layout)] || null;
   }
 
-  function controlBanner(text, kind) {
+  function controlBanner(text, kind, { sticky = false, log = true } = {}) {
     const el = $("control-banner");
     if (!el) return;
     if (!text) {
@@ -3470,10 +3596,24 @@
       el.classList.remove("ok", "err", "warn");
       return;
     }
+    if (log && !/^(Applying|Updating|Reading AVR|Loading AVR|Refreshing|Ready)/i.test(text)) {
+      pushActivity(text, kind || "info", { silent: true });
+    }
     el.hidden = false;
     el.textContent = text;
     el.classList.remove("ok", "err", "warn");
     if (kind) el.classList.add(kind);
+    if (state.activityBannerTimer) clearTimeout(state.activityBannerTimer);
+    if (!sticky) {
+      const ms = kind === "err" ? 8000 : 3500;
+      state.activityBannerTimer = setTimeout(() => {
+        if (el.textContent === text) {
+          el.hidden = true;
+          el.textContent = "";
+          el.classList.remove("ok", "err", "warn");
+        }
+      }, ms);
+    }
   }
 
   function appendControlLog(entry) {
@@ -3482,6 +3622,16 @@
     const pre = $("control-log");
     const wrap = $("control-log-wrap");
     if (wrap) wrap.hidden = false;
+    if (entry?.request) {
+      const resp = (entry.responses || []).slice(0, 3).join(" | ");
+      pushActivity(
+        resp
+          ? `${entry.request} → ${resp}`
+          : String(entry.request),
+        "ok",
+        { silent: true }
+      );
+    }
     if (!pre) return;
     pre.textContent = state.controlLog
       .map((e) => {
@@ -3989,10 +4139,10 @@
         applyControlEntitiesToDom();
       }
       if (onDashboard) {
-        dashboardBanner(`Applied: ${result.request}`, "ok");
+        dashboardBanner(`Applied: ${result.request}`, "ok", { log: false });
         refreshDashboardStatus({ quiet: true }).catch(() => {});
       } else {
-        controlBanner(`Applied: ${result.request}`, "ok");
+        controlBanner(`Applied: ${result.request}`, "ok", { log: false });
         refreshControlStatus({ quiet: true, refresh: false }).catch(() => {});
       }
       setStatus(`Control: ${result.request}`, "ok");
@@ -4115,7 +4265,7 @@
       renderControlNav();
       const preload = state.controlCatalog?.preload || {};
       if (preload.status === "pending" || preload.status === "running") {
-        controlBanner("Loading AVR status…");
+        controlBanner("Loading AVR status…", null, { sticky: true, log: false });
         await waitForControlPreload();
       }
       const sections = state.controlCatalog.sections || [];
@@ -4153,7 +4303,7 @@
     mv_master: { on: "mdi:volume-high", off: "mdi:volume-medium" },
   };
 
-  function dashboardBanner(text, kind) {
+  function dashboardBanner(text, kind, { sticky = false, log = true } = {}) {
     const el = $("dashboard-banner");
     if (!el) return;
     if (!text) {
@@ -4162,10 +4312,24 @@
       el.classList.remove("ok", "err", "warn");
       return;
     }
+    if (log && !/^(Applying|Updating|Reading AVR|Loading AVR|Refreshing|Ready)/i.test(text)) {
+      pushActivity(text, kind || "info", { silent: true });
+    }
     el.hidden = false;
     el.textContent = text;
     el.classList.remove("ok", "err", "warn");
     if (kind) el.classList.add(kind);
+    if (state.activityBannerTimer) clearTimeout(state.activityBannerTimer);
+    if (!sticky) {
+      const ms = kind === "err" ? 8000 : 3500;
+      state.activityBannerTimer = setTimeout(() => {
+        if (el.textContent === text) {
+          el.hidden = true;
+          el.textContent = "";
+          el.classList.remove("ok", "err", "warn");
+        }
+      }, ms);
+    }
   }
 
   function setDashboardEdit(on) {
@@ -4250,15 +4414,22 @@
       return;
     }
     try {
-      dashboardBanner("Loading AVR status…");
-      // Match Control Panel: wait for startup preload so first paint is correct.
+      let waitingPreload = false;
       try {
         const preload = await api("/api/control/preload");
         if (preload.status === "pending" || preload.status === "running") {
+          waitingPreload = true;
+          dashboardBanner("Loading AVR status…", null, {
+            sticky: true,
+            log: false,
+          });
           await waitForControlPreload();
         }
       } catch (_) {
         /* ignore */
+      }
+      if (force && !waitingPreload) {
+        dashboardBanner("Refreshing…", null, { sticky: true, log: false });
       }
       if (force || !state.dashboard) {
         state.dashboard = await api("/api/dashboard");
@@ -4267,7 +4438,6 @@
         state.dashboardCatalog = await api("/api/dashboard/catalog");
       }
       await ensureDashboardIcons({ force });
-      // After preload, cache + goform power sync is enough; Refresh forces live query.
       await refreshDashboardStatus({ quiet: true, refresh: force });
       state.dashboardStatusReady = true;
       renderDashboard();
@@ -4311,27 +4481,55 @@
     const root = $("dashboard-sections");
     if (!root) return;
     applyControlEntitiesToDom();
-    // Dual-layer icons live on the shell, outside .control-widget.
     for (const shell of root.querySelectorAll(".dashboard-widget")) {
       const id = shell.dataset.controlId;
       const ent = controlEntity(id);
+      const kind = shell.dataset.kind || "";
       const icon = shell.querySelector('[data-role="dash-icon"]');
-      if (!icon) continue;
-      const kind = shell.querySelector(".control-widget")?.dataset.kind;
+      const stateEl = shell.querySelector('[data-role="dash-state"]');
+      const inactive = Boolean(ent?.inactive);
       let on = false;
       if (kind === "toggle") {
         on = ent?.on === true || ent?.value === true;
       } else {
         on = Boolean(
           ent &&
-            !ent.inactive &&
+            !inactive &&
             (ent.on === true || ent.active || ent.display || ent.raw)
         );
       }
-      icon.classList.toggle("is-on", on);
-      icon.classList.toggle("is-off", !on);
+      if (icon) {
+        icon.classList.toggle("is-on", on);
+        icon.classList.toggle("is-off", !on);
+      }
       shell.classList.toggle("is-entity-on", on);
       shell.classList.toggle("is-entity-off", !on);
+      shell.classList.toggle("is-inactive", inactive);
+      if (stateEl) {
+        if (kind === "toggle") {
+          const onL =
+            shell.dataset.onLabel ||
+            (String(id).includes("mute") ? "Muted" : "On");
+          const offL =
+            shell.dataset.offLabel ||
+            (id === "pw_power"
+              ? "Standby"
+              : String(id).includes("mute")
+                ? "Unmuted"
+                : "Off");
+          stateEl.textContent = inactive
+            ? "—"
+            : on
+              ? onL
+              : offL;
+        } else if (ent?.display) {
+          stateEl.textContent = ent.display;
+        } else if (ent?.raw) {
+          stateEl.textContent = ent.raw;
+        } else {
+          stateEl.textContent = "—";
+        }
+      }
     }
   }
 
@@ -4595,26 +4793,88 @@
     return wrap;
   }
 
+  function bounceDashCard(el) {
+    if (!el) return;
+    el.classList.remove("dash-bounce");
+    // force reflow so animation can replay
+    void el.offsetWidth;
+    el.classList.add("dash-bounce");
+    window.setTimeout(() => el.classList.remove("dash-bounce"), 500);
+  }
+
+  function openEnumPopup(control) {
+    const dlg = $("dashboard-enum-popup");
+    const title = $("dashboard-enum-title");
+    const list = $("dashboard-enum-list");
+    if (!dlg || !list || !control) return;
+    if (title) title.textContent = control.label || "Select";
+    list.innerHTML = "";
+    const ent = controlEntity(control.id);
+    const current = ent?.command || ent?.raw || "";
+    const options = control.options || [];
+    if (!options.length) {
+      list.innerHTML = "<p class='meta'>No options</p>";
+    }
+    for (const opt of options) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "dashboard-enum-option" +
+        (opt.command === current ? " is-selected" : "");
+      btn.innerHTML = `<strong>${opt.label || opt.command}</strong>`;
+      if (opt.command && opt.command !== opt.label) {
+        const code = document.createElement("span");
+        code.textContent = opt.command;
+        btn.appendChild(code);
+      }
+      btn.addEventListener("click", () => {
+        runControlCommand({
+          id: control.id,
+          value: opt.command,
+          confirm: Boolean(control.confirm),
+          confirmMessage: control.confirm_message,
+        });
+        if (typeof dlg.close === "function") dlg.close();
+        else dlg.removeAttribute("open");
+      });
+      list.appendChild(btn);
+    }
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "open");
+  }
+
   function buildDashboardWidget(w) {
     const control = w.control;
-    const shell = document.createElement("div");
-    const shape = w.shape || "rectangle";
+    const shell = document.createElement("article");
+    const shape = w.shape || "square";
     const size = w.size || "md";
-    shell.className = `dashboard-widget shape-${shape} size-${size}`;
+    const kind = control?.kind || "";
+    shell.className = `dashboard-widget dash-button shape-${shape} size-${size}`;
     shell.dataset.widgetId = w.id;
     shell.dataset.controlId = w.control_id;
     shell.dataset.controlLayout = w.control_layout || "less";
     shell.dataset.shape = shape;
     shell.dataset.size = size;
+    shell.dataset.kind = kind;
     shell.dataset.iconOn = w.icon_on || "";
     shell.dataset.iconOff = w.icon_off || "";
-
-    shell.appendChild(buildDashIconHost(w));
+    if (control) {
+      shell.dataset.onLabel =
+        control.on_label ||
+        (String(control.id).includes("mute") ? "Muted" : "On");
+      shell.dataset.offLabel =
+        control.off_label ||
+        (control.id === "pw_power"
+          ? "Standby"
+          : String(control.id).includes("mute")
+            ? "Unmuted"
+            : "Off");
+    }
 
     if (state.dashboardEdit) {
       shell.draggable = true;
       shell.addEventListener("dragstart", (ev) => {
-        if (ev.target.closest("select,button,input,a")) {
+        if (ev.target.closest("select,button,input,a,.dashboard-widget-toolbar")) {
           ev.preventDefault();
           return;
         }
@@ -4710,15 +4970,121 @@
       shell.appendChild(toolbar);
       shell.appendChild(remove);
     }
-    if (control) {
-      const widget = buildControlWidget(control);
-      shell.appendChild(widget);
-    } else {
-      const missing = document.createElement("div");
-      missing.className = "control-widget";
-      missing.textContent = `Missing control: ${w.control_id}`;
-      shell.appendChild(missing);
+
+    // HA button-card style body (matt8707/hass-config inspiration)
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "dash-card";
+    card.dataset.role = "dash-card";
+    if (state.dashboardEdit) {
+      card.tabIndex = -1;
+      card.setAttribute("aria-disabled", "true");
     }
+
+    const icon = buildDashIconHost(w);
+    icon.classList.add("dash-card-icon");
+    const name = document.createElement("span");
+    name.className = "dash-card-name";
+    name.textContent = control?.label || w.control_id;
+    const stateEl = document.createElement("span");
+    stateEl.className = "dash-card-state";
+    stateEl.dataset.role = "dash-state";
+    stateEl.textContent = "—";
+
+    card.appendChild(icon);
+    card.appendChild(name);
+    card.appendChild(stateEl);
+
+    if (!state.dashboardEdit && control) {
+      if (kind === "toggle") {
+        card.title = `Toggle ${control.label}`;
+        card.addEventListener("click", () => {
+          bounceDashCard(shell);
+          const ent = controlEntity(control.id);
+          const currentlyOn = ent?.on === true || ent?.value === true;
+          runControlCommand({
+            id: control.id,
+            value: !currentlyOn,
+            confirm: Boolean(control.confirm),
+            confirmMessage: control.confirm_message,
+          });
+        });
+      } else if (kind === "enum") {
+        card.title = `Choose ${control.label}`;
+        card.classList.add("has-popup");
+        card.addEventListener("click", () => {
+          bounceDashCard(shell);
+          openEnumPopup(control);
+        });
+      } else if (kind === "action" || kind === "query") {
+        card.addEventListener("click", () => {
+          bounceDashCard(shell);
+          runControlCommand({
+            id: control.id,
+            confirm: Boolean(control.confirm),
+            confirmMessage: control.confirm_message,
+          });
+        });
+      } else if (kind === "stepper") {
+        // Compact − value + row under the card face
+        const steppers = document.createElement("div");
+        steppers.className = "dash-stepper-row";
+        steppers.addEventListener("click", (e) => e.stopPropagation());
+        const down = document.createElement("button");
+        down.type = "button";
+        down.className = "btn-ghost control-btn";
+        down.textContent = "−";
+        down.addEventListener("click", () => {
+          if (control.down || control.up) {
+            runControlCommand({ id: control.id, value: "down" });
+            return;
+          }
+          const ent = controlEntity(control.id);
+          const step = Number(control.step || 1);
+          const lo = control.min != null ? Number(control.min) : 0;
+          let v = Number(ent?.value);
+          if (Number.isNaN(v)) v = lo;
+          runControlCommand({
+            id: control.id,
+            value: Math.max(lo, v - step),
+          });
+        });
+        const up = document.createElement("button");
+        up.type = "button";
+        up.className = "btn-ghost control-btn";
+        up.textContent = "+";
+        up.addEventListener("click", () => {
+          if (control.up || control.down) {
+            runControlCommand({ id: control.id, value: "up" });
+            return;
+          }
+          const ent = controlEntity(control.id);
+          const step = Number(control.step || 1);
+          const hi = control.max != null ? Number(control.max) : 98;
+          let v = Number(ent?.value);
+          if (Number.isNaN(v)) v = Number(control.min || 0);
+          runControlCommand({
+            id: control.id,
+            value: Math.min(hi, v + step),
+          });
+        });
+        steppers.appendChild(down);
+        steppers.appendChild(up);
+        shell.appendChild(card);
+        shell.appendChild(steppers);
+        return shell;
+      } else {
+        // Fallback: open enum-style info or use control widget
+        card.addEventListener("click", () => bounceDashCard(shell));
+      }
+    }
+
+    if (!control) {
+      stateEl.textContent = "Missing";
+      card.disabled = true;
+    }
+
+    shell.appendChild(card);
     return shell;
   }
 
@@ -5014,7 +5380,9 @@
   wireTabs();
   wireControlPanel();
   wireDashboard();
+  wireActivity();
   wireEditModeToggle();
+  renderActivityBadge();
   $("reconnect-btn").addEventListener("click", boot);
   $("editor-primary-btn").addEventListener("click", () => {
     onEditorPrimaryClick().catch((err) => setStatus(err.message, "err"));
