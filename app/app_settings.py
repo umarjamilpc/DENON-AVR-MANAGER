@@ -1,10 +1,8 @@
-"""Persistent app settings (Docker volume JSON — not browser storage)."""
+"""Persistent app settings (SQLite on Docker volume — not browser storage)."""
 
 from __future__ import annotations
 
-import json
 import os
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -147,9 +145,10 @@ SETTING_META: List[Dict[str, Any]] = [
         "options": ["less controls", "more controls"],
         "description": (
             "less controls: keep the full catalog, but combine On/Off pairs into "
-            "one toggle (power, mute, zone power, …). Dropdowns stay as dropdowns. "
-            "more controls: show every discrete button (On and Standby separately, "
-            "Mute On/Off, queries, network keys, Quick Select Memory, …)."
+            "one toggle (power, mute, zone power, …). Dropdowns stay as dropdowns; "
+            "Query buttons are hidden (use more controls for those). "
+            "more controls: show every discrete button including Query, "
+            "On/Standby separately, network keys, Quick Select Memory, …)."
         ),
     },
     {
@@ -174,10 +173,16 @@ SETTING_META: List[Dict[str, Any]] = [
 
 
 def settings_path() -> Path:
-    """Prefer mounted Docker volume `/data`; else local project `data/`."""
-    if Path("/data").is_dir():
-        return Path("/data/app-settings.json")
-    return Path(__file__).resolve().parents[1] / "data" / "app-settings.json"
+    """Legacy JSON path (migrated into SQLite on first start)."""
+    from .db import legacy_settings_json_path
+
+    return legacy_settings_json_path()
+
+
+def db_file_path() -> Path:
+    from .db import db_path
+
+    return db_path()
 
 
 def _clamp_int(value: Any, lo: int, hi: int, default: int) -> int:
@@ -273,79 +278,37 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def load_settings() -> Dict[str, Any]:
-    path = settings_path()
-    if not path.is_file():
-        return dict(DEFAULTS)
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return dict(DEFAULTS)
-    raw = data if isinstance(data, dict) else {}
-    normalized = normalize_settings(raw)
-    # Rewrite once if an older milliseconds key is still on disk.
-    legacy = ("poll_interval_ms" in raw and "poll_interval_sec" not in raw) or (
-        "eq_confirm_ms" in raw and "eq_confirm_sec" not in raw
-    )
-    if legacy:
-        try:
-            _write_settings_file(normalized)
-        except OSError:
-            pass
-    return normalized
+    from .db import get_setting_rows, init_db
+
+    init_db()
+    raw = get_setting_rows()
+    return normalize_settings(raw if raw else dict(DEFAULTS))
 
 
 def _write_settings_file(settings: Dict[str, Any]) -> None:
-    path = settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Host + container should both be able to edit (entrypoint also chmod a+rwX).
-    try:
-        os.chmod(path.parent, 0o777)
-    except OSError:
-        pass
-    payload = json.dumps(settings, indent=2, sort_keys=True) + "\n"
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=".app-settings-",
-        suffix=".json",
-        dir=str(path.parent),
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(payload)
-            fh.flush()
-            os.fsync(fh.fileno())
-        try:
-            os.chmod(tmp_name, 0o666)
-        except OSError:
-            pass
-        Path(tmp_name).replace(path)
-        try:
-            os.chmod(path, 0o666)
-        except OSError:
-            pass
-    except Exception:
-        try:
-            os.unlink(tmp_name)
-        except OSError:
-            pass
-        raise
+    from .db import set_setting_rows
+
+    set_setting_rows(settings)
 
 
 def ensure_settings_file() -> Dict[str, Any]:
-    """Create app-settings.json with defaults on first start if missing."""
-    path = settings_path()
-    if path.is_file():
-        return load_settings()
-    settings = dict(DEFAULTS)
-    try:
-        _write_settings_file(settings)
-    except OSError:
-        # Volume not writable yet — keep in-memory defaults; UI Save can retry.
+    """Initialize SQLite (migrate JSON if present) and ensure defaults exist."""
+    from .db import get_setting_rows, init_db, set_setting_rows
+
+    init_db()
+    raw = get_setting_rows()
+    if not raw:
+        settings = dict(DEFAULTS)
+        try:
+            set_setting_rows(settings)
+        except OSError:
+            return settings
         return settings
-    return settings
+    return normalize_settings(raw)
 
 
 def save_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge partial updates, write atomically, return normalized settings."""
+    """Merge partial updates, write to SQLite, return normalized settings."""
     current = load_settings()
     if not isinstance(partial, dict):
         raise ValueError("settings must be an object")
@@ -367,7 +330,7 @@ def build_channel() -> str:
 
 
 def settings_response() -> Dict[str, Any]:
-    path = settings_path()
+    path = db_file_path()
     return {
         "settings": load_settings(),
         "defaults": dict(DEFAULTS),
@@ -375,9 +338,9 @@ def settings_response() -> Dict[str, Any]:
         "path": str(path),
         "exists": path.is_file(),
         "build_channel": build_channel(),
+        "storage": "sqlite",
         "hint": (
-            "Stored as /data/app-settings.json on the Docker volume "
-            "(survives container restarts). Created automatically on first start. "
-            "Not stored in the browser."
+            "Settings and dashboard layout are stored in SQLite on the Docker "
+            "volume (/data/app.db) so they survive container reboots."
         ),
     }

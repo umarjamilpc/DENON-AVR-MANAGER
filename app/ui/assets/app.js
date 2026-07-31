@@ -100,7 +100,7 @@
     powerBusy: false,
     powerZone: "MAIN ZONE",
     powerInput: "—",
-    route: { view: "setup" },
+    route: { view: "dashboard" },
     controlCatalog: null,
     controlCatalogByLayout: { less: null, more: null },
     controlSectionId: null,
@@ -110,6 +110,10 @@
     controlPollTimer: null,
     controlLog: [],
     controlBusy: false,
+    dashboard: null,
+    dashboardEdit: false,
+    dashboardCatalog: null,
+    dashboardDrag: null,
     appSettings: {
       poll_enabled: true,
       poll_interval_sec: 5,
@@ -437,22 +441,33 @@
 
   /* ---------- In-page views (no /ui path, no hash in the URL) ---------- */
 
-  const APP_VIEWS = new Set(["setup", "control", "info", "settings", "help"]);
+  const APP_VIEWS = new Set([
+    "dashboard",
+    "setup",
+    "control",
+    "info",
+    "settings",
+    "help",
+  ]);
 
   function showView(view, { loadInfo = true } = {}) {
-    const next = APP_VIEWS.has(view) ? view : "setup";
+    const next = APP_VIEWS.has(view) ? view : "dashboard";
     const changed = state.route.view !== next;
     const prev = state.route.view;
     state.route = { view: next };
     for (const el of document.querySelectorAll(".view")) el.hidden = true;
     const pane = $(`view-${next}`);
     if (pane) pane.hidden = false;
+    $("tab-dashboard")?.classList.toggle("active", next === "dashboard");
     $("tab-setup")?.classList.toggle("active", next === "setup");
     $("tab-control")?.classList.toggle("active", next === "control");
     $("tab-info")?.classList.toggle("active", next === "info");
     $("tab-settings")?.classList.toggle("active", next === "settings");
     $("tab-help")?.classList.toggle("active", next === "help");
     if (prev === "control" && next !== "control") stopControlPoll();
+    if (next === "dashboard") {
+      return loadDashboard({ force: changed || !state.dashboard });
+    }
     if (next === "settings") {
       return loadSettingsPage();
     }
@@ -656,7 +671,7 @@
       state.connected = true;
       await refreshPower().catch(() => {});
       await loadMenu();
-      await showView("setup", { loadInfo: false });
+      await showView("dashboard", { loadInfo: false });
       startRemotePolling();
     } catch (err) {
       setStatus(err.message, "err");
@@ -3841,9 +3856,16 @@
   }
 
   function applyControlEntitiesToDom() {
-    const grid = $("control-grid");
-    if (!grid) return;
-    for (const wrap of grid.querySelectorAll(".control-widget")) {
+    const roots = [
+      $("control-grid"),
+      $("dashboard-sections"),
+    ].filter(Boolean);
+    if (!roots.length) return;
+    const widgets = [];
+    for (const root of roots) {
+      widgets.push(...root.querySelectorAll(".control-widget"));
+    }
+    for (const wrap of widgets) {
       const id = wrap.dataset.controlId;
       const ent = controlEntity(id);
       const cur = wrap.querySelector('[data-role="current"]');
@@ -3915,15 +3937,25 @@
         `Send command${command ? ` ${command}` : ""}?`;
       if (!window.confirm(msg)) return;
     }
+    const onDashboard = state.route?.view === "dashboard";
     state.controlBusy = true;
-    controlBanner("Applying…");
+    if (onDashboard) dashboardBanner("Applying…");
+    else controlBanner("Applying…");
     try {
-      const layout = sectionControlLayout();
-      const sectionIds = mappedSectionsFor(state.controlSectionId, layout);
+      let layout = "less";
+      let section;
+      if (onDashboard) {
+        const host = document.activeElement?.closest?.(".dashboard-widget");
+        layout = host?.dataset?.controlLayout || "less";
+      } else {
+        layout = sectionControlLayout();
+        const sectionIds = mappedSectionsFor(state.controlSectionId, layout);
+        section = sectionIds.length === 1 ? sectionIds[0] : undefined;
+      }
       const body = {
         confirm: Boolean(confirm || confirmMessage),
         allow_raw: Boolean(allow_raw),
-        section: sectionIds.length === 1 ? sectionIds[0] : undefined,
+        section,
         layout,
       };
       if (id) {
@@ -3942,11 +3974,17 @@
         state.controlEntities = { ...state.controlEntities, ...result.entities };
         applyControlEntitiesToDom();
       }
-      controlBanner(`Applied: ${result.request}`, "ok");
+      if (onDashboard) {
+        dashboardBanner(`Applied: ${result.request}`, "ok");
+        refreshDashboardStatus({ quiet: true }).catch(() => {});
+      } else {
+        controlBanner(`Applied: ${result.request}`, "ok");
+        refreshControlStatus({ quiet: true, refresh: false }).catch(() => {});
+      }
       setStatus(`Control: ${result.request}`, "ok");
-      refreshControlStatus({ quiet: true, refresh: false }).catch(() => {});
     } catch (err) {
-      controlBanner(err.message, "err");
+      if (onDashboard) dashboardBanner(err.message, "err");
+      else controlBanner(err.message, "err");
       setStatus(err.message, "err");
     } finally {
       state.controlBusy = false;
@@ -4089,9 +4127,418 @@
     );
   }
 
+  /* ---------- Dashboard (customisable favourites) ---------- */
+
+  function dashboardBanner(text, kind) {
+    const el = $("dashboard-banner");
+    if (!el) return;
+    if (!text) {
+      el.hidden = true;
+      el.textContent = "";
+      el.classList.remove("ok", "err", "warn");
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.classList.remove("ok", "err", "warn");
+    if (kind) el.classList.add(kind);
+  }
+
+  function setDashboardEdit(on) {
+    state.dashboardEdit = Boolean(on);
+    document.body.classList.toggle("dashboard-editing", state.dashboardEdit);
+    $("dashboard-customize")?.classList.toggle("is-active", state.dashboardEdit);
+    $("dashboard-customize").textContent = state.dashboardEdit
+      ? "Done"
+      : "Customize";
+    if ($("dashboard-add-section")) {
+      $("dashboard-add-section").hidden = !state.dashboardEdit;
+    }
+    renderDashboard();
+  }
+
+  async function loadDashboard({ force = false } = {}) {
+    if (!state.connected) {
+      dashboardBanner("Connect to AVR first", "warn");
+      return;
+    }
+    try {
+      if (force || !state.dashboard) {
+        state.dashboard = await api("/api/dashboard");
+      }
+      if (force || !state.dashboardCatalog) {
+        state.dashboardCatalog = await api("/api/dashboard/catalog");
+      }
+      await refreshDashboardStatus({ quiet: true });
+      renderDashboard();
+    } catch (err) {
+      dashboardBanner(err.message, "err");
+    }
+  }
+
+  async function refreshDashboardStatus({ quiet = false } = {}) {
+    try {
+      const snap = await api("/api/control/status?refresh=false&layout=more");
+      state.controlEntities = {
+        ...(state.controlEntities || {}),
+        ...(snap.entities || {}),
+      };
+      applyDashboardEntities();
+      if (!quiet) dashboardBanner("Dashboard updated", "ok");
+    } catch (err) {
+      if (!quiet) dashboardBanner(err.message, "err");
+    }
+  }
+
+  function applyDashboardEntities() {
+    const root = $("dashboard-sections");
+    if (!root) return;
+    applyControlEntitiesToDom();
+  }
+
+  function dashboardPayloadFromDom() {
+    const root = $("dashboard-sections");
+    const sections = [];
+    if (!root) return { sections };
+    for (const secEl of root.querySelectorAll(".dashboard-section")) {
+      const sid = secEl.dataset.sectionId;
+      const title =
+        secEl.querySelector(".dashboard-section-title")?.textContent?.trim() ||
+        "Section";
+      const widgets = [];
+      for (const wEl of secEl.querySelectorAll(".dashboard-widget")) {
+        widgets.push({
+          id: wEl.dataset.widgetId,
+          control_id: wEl.dataset.controlId,
+          control_layout: wEl.dataset.controlLayout || "less",
+          sort_order: widgets.length,
+        });
+      }
+      sections.push({
+        id: sid,
+        title,
+        sort_order: sections.length,
+        collapsed: secEl.classList.contains("is-collapsed"),
+        widgets,
+      });
+    }
+    return { sections };
+  }
+
+  async function persistDashboardFromDom() {
+    const body = dashboardPayloadFromDom();
+    state.dashboard = await api("/api/dashboard", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+    renderDashboard();
+  }
+
+  function renderDashboard() {
+    const root = $("dashboard-sections");
+    const empty = $("dashboard-empty");
+    const meta = $("dashboard-meta");
+    if (!root) return;
+    const sections = state.dashboard?.sections || [];
+    if (meta) {
+      const n = sections.reduce((a, s) => a + (s.widgets?.length || 0), 0);
+      meta.textContent = state.dashboardEdit
+        ? `Editing · ${sections.length} sections · ${n} widgets · drag to reorder`
+        : `${sections.length} sections · ${n} widgets · stored in SQLite`;
+    }
+    root.innerHTML = "";
+    if (!sections.length) {
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    for (const sec of sections) {
+      root.appendChild(buildDashboardSection(sec));
+    }
+    applyDashboardEntities();
+  }
+
+  function buildDashboardSection(sec) {
+    const wrap = document.createElement("section");
+    wrap.className = "dashboard-section";
+    wrap.dataset.sectionId = sec.id;
+    if (sec.collapsed) wrap.classList.add("is-collapsed");
+    if (state.dashboardEdit) {
+      wrap.draggable = true;
+      wrap.addEventListener("dragstart", (ev) => {
+        state.dashboardDrag = { type: "section", id: sec.id };
+        wrap.classList.add("is-dragging");
+        ev.dataTransfer.effectAllowed = "move";
+      });
+      wrap.addEventListener("dragend", () => {
+        wrap.classList.remove("is-dragging");
+        state.dashboardDrag = null;
+      });
+      wrap.addEventListener("dragover", (ev) => {
+        if (state.dashboardDrag?.type !== "section") return;
+        ev.preventDefault();
+        wrap.classList.add("drag-over");
+      });
+      wrap.addEventListener("dragleave", () => wrap.classList.remove("drag-over"));
+      wrap.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        wrap.classList.remove("drag-over");
+        const drag = state.dashboardDrag;
+        if (!drag || drag.type !== "section" || drag.id === sec.id) return;
+        const root = $("dashboard-sections");
+        const from = root.querySelector(`[data-section-id="${drag.id}"]`);
+        if (from) root.insertBefore(from, wrap);
+        persistDashboardFromDom().catch((e) => dashboardBanner(e.message, "err"));
+      });
+    }
+
+    const head = document.createElement("header");
+    head.className = "dashboard-section-head";
+    const title = document.createElement("h3");
+    title.className = "dashboard-section-title";
+    title.textContent = sec.title || "Section";
+    if (state.dashboardEdit) {
+      title.contentEditable = "true";
+      title.spellcheck = false;
+      title.addEventListener("blur", () => {
+        const t = title.textContent.trim() || "Section";
+        title.textContent = t;
+        api(`/api/dashboard/sections/${sec.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ title: t }),
+        })
+          .then((d) => {
+            state.dashboard = d;
+          })
+          .catch((e) => dashboardBanner(e.message, "err"));
+      });
+    }
+    head.appendChild(title);
+    if (state.dashboardEdit) {
+      const actions = document.createElement("div");
+      actions.className = "dashboard-section-actions";
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "btn-ghost";
+      addBtn.textContent = "Add widget";
+      addBtn.addEventListener("click", () => openDashboardPicker(sec.id));
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn-ghost";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", () => {
+        if (!window.confirm(`Delete section “${sec.title}”?`)) return;
+        api(`/api/dashboard/sections/${sec.id}`, { method: "DELETE" })
+          .then((d) => {
+            state.dashboard = d;
+            renderDashboard();
+          })
+          .catch((e) => dashboardBanner(e.message, "err"));
+      });
+      actions.appendChild(addBtn);
+      actions.appendChild(delBtn);
+      head.appendChild(actions);
+    }
+    wrap.appendChild(head);
+
+    const grid = document.createElement("div");
+    grid.className = "dashboard-grid control-grid";
+    grid.dataset.sectionId = sec.id;
+    if (state.dashboardEdit) {
+      grid.addEventListener("dragover", (ev) => {
+        if (state.dashboardDrag?.type !== "widget") return;
+        ev.preventDefault();
+        grid.classList.add("drag-over");
+      });
+      grid.addEventListener("dragleave", () => grid.classList.remove("drag-over"));
+      grid.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        grid.classList.remove("drag-over");
+        const drag = state.dashboardDrag;
+        if (!drag || drag.type !== "widget") return;
+        const from = document.querySelector(
+          `.dashboard-widget[data-widget-id="${drag.id}"]`
+        );
+        if (from) grid.appendChild(from);
+        persistDashboardFromDom().catch((e) => dashboardBanner(e.message, "err"));
+      });
+    }
+    for (const w of sec.widgets || []) {
+      grid.appendChild(buildDashboardWidget(w));
+    }
+    if (!(sec.widgets || []).length) {
+      const hint = document.createElement("p");
+      hint.className = "dashboard-section-empty";
+      hint.textContent = state.dashboardEdit
+        ? "Drop widgets here or press Add widget"
+        : "No widgets in this section";
+      grid.appendChild(hint);
+    }
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  function buildDashboardWidget(w) {
+    const control = w.control;
+    const shell = document.createElement("div");
+    shell.className = "dashboard-widget";
+    shell.dataset.widgetId = w.id;
+    shell.dataset.controlId = w.control_id;
+    shell.dataset.controlLayout = w.control_layout || "less";
+    if (state.dashboardEdit) {
+      shell.draggable = true;
+      shell.addEventListener("dragstart", (ev) => {
+        state.dashboardDrag = { type: "widget", id: w.id };
+        shell.classList.add("is-dragging");
+        ev.dataTransfer.effectAllowed = "move";
+        ev.stopPropagation();
+      });
+      shell.addEventListener("dragend", () => {
+        shell.classList.remove("is-dragging");
+        state.dashboardDrag = null;
+      });
+      shell.addEventListener("dragover", (ev) => {
+        if (state.dashboardDrag?.type !== "widget") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        shell.classList.add("drag-over");
+      });
+      shell.addEventListener("dragleave", () => shell.classList.remove("drag-over"));
+      shell.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        shell.classList.remove("drag-over");
+        const drag = state.dashboardDrag;
+        if (!drag || drag.type !== "widget" || drag.id === w.id) return;
+        const from = document.querySelector(
+          `.dashboard-widget[data-widget-id="${drag.id}"]`
+        );
+        if (from && shell.parentElement) {
+          shell.parentElement.insertBefore(from, shell);
+          persistDashboardFromDom().catch((e) => dashboardBanner(e.message, "err"));
+        }
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "dashboard-widget-remove";
+      remove.textContent = "×";
+      remove.title = "Remove widget";
+      remove.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        api(`/api/dashboard/widgets/${w.id}`, { method: "DELETE" })
+          .then((d) => {
+            state.dashboard = d;
+            renderDashboard();
+          })
+          .catch((e) => dashboardBanner(e.message, "err"));
+      });
+      shell.appendChild(remove);
+    }
+    if (control) {
+      const widget = buildControlWidget(control);
+      shell.appendChild(widget);
+    } else {
+      const missing = document.createElement("div");
+      missing.className = "control-widget";
+      missing.textContent = `Missing control: ${w.control_id}`;
+      shell.appendChild(missing);
+    }
+    return shell;
+  }
+
+  function openDashboardPicker(sectionId) {
+    const dlg = $("dashboard-picker");
+    const secSel = $("dashboard-picker-section");
+    const layoutSel = $("dashboard-picker-layout");
+    const search = $("dashboard-picker-search");
+    if (!dlg || !secSel) return;
+    secSel.innerHTML = "";
+    for (const sec of state.dashboard?.sections || []) {
+      const o = document.createElement("option");
+      o.value = sec.id;
+      o.textContent = sec.title;
+      if (sec.id === sectionId) o.selected = true;
+      secSel.appendChild(o);
+    }
+    const refreshList = () => renderDashboardPickerList();
+    layoutSel.onchange = refreshList;
+    search.oninput = refreshList;
+    renderDashboardPickerList();
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "open");
+  }
+
+  function renderDashboardPickerList() {
+    const list = $("dashboard-picker-list");
+    const layout = $("dashboard-picker-layout")?.value || "less";
+    const q = ($("dashboard-picker-search")?.value || "").trim().toLowerCase();
+    const cat = state.dashboardCatalog?.[layout];
+    if (!list || !cat) return;
+    list.innerHTML = "";
+    const controls = (cat.controls || []).filter((c) => {
+      if (!q) return true;
+      return (
+        String(c.label || "").toLowerCase().includes(q) ||
+        String(c.id || "").toLowerCase().includes(q) ||
+        String(c.section || "").toLowerCase().includes(q)
+      );
+    });
+    for (const c of controls) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dashboard-picker-item";
+      btn.innerHTML = `<strong>${c.label}</strong><span>${c.section} · ${c.kind} · ${layout}</span>`;
+      btn.addEventListener("click", () => {
+        const sectionId = $("dashboard-picker-section")?.value;
+        if (!sectionId) return;
+        api("/api/dashboard/widgets", {
+          method: "POST",
+          body: JSON.stringify({
+            section_id: sectionId,
+            control_id: c.id,
+            control_layout: layout,
+          }),
+        })
+          .then((d) => {
+            state.dashboard = d;
+            renderDashboard();
+            dashboardBanner(`Added ${c.label}`, "ok");
+          })
+          .catch((e) => dashboardBanner(e.message, "err"));
+      });
+      list.appendChild(btn);
+    }
+    if (!controls.length) {
+      list.innerHTML = "<p class='meta'>No matching controls</p>";
+    }
+  }
+
+  function wireDashboard() {
+    $("dashboard-customize")?.addEventListener("click", () =>
+      setDashboardEdit(!state.dashboardEdit)
+    );
+    $("dashboard-add-section")?.addEventListener("click", () => {
+      const title = window.prompt("Section title", "New section");
+      if (title == null) return;
+      api("/api/dashboard/sections", {
+        method: "POST",
+        body: JSON.stringify({ title: title.trim() || "New section" }),
+      })
+        .then((d) => {
+          state.dashboard = d;
+          renderDashboard();
+        })
+        .catch((e) => dashboardBanner(e.message, "err"));
+    });
+    $("dashboard-refresh")?.addEventListener("click", () =>
+      loadDashboard({ force: true }).catch((e) => dashboardBanner(e.message, "err"))
+    );
+  }
+
   initTheme();
   wireTabs();
   wireControlPanel();
+  wireDashboard();
   wireEditModeToggle();
   $("reconnect-btn").addEventListener("click", boot);
   $("editor-primary-btn").addEventListener("click", () => {
