@@ -640,15 +640,36 @@ def _enrich_network_settings_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     from .denon_client import _infer_missing_radio_values
 
     _infer_missing_radio_values(out)
+    # Denon Proxy radios: always expose Off / On(Address) / On(Name).
+    proxy = out.get("radioNetworkSettingProxy_OnOff")
+    if isinstance(proxy, dict):
+        opts = proxy.get("options")
+        if not isinstance(opts, list) or len(opts) < 3:
+            cur = str(proxy.get("value") or "")
+            proxy["options"] = [
+                {"value": "OFF", "label": "Off", "selected": cur.upper() == "OFF"},
+                {
+                    "value": "ADR",
+                    "label": "On(Address)",
+                    "selected": cur.upper() == "ADR",
+                },
+                {
+                    "value": "NAM",
+                    "label": "On(Name)",
+                    "selected": cur.upper() == "NAM",
+                },
+            ]
+            out["radioNetworkSettingProxy_OnOff"] = proxy
     for name in ("radioNetworkSettingDHCP", "radioNetworkSettingProxy_OnOff"):
         meta = out.get(name)
         if not isinstance(meta, dict):
             continue
         opts = meta.get("options")
         if isinstance(opts, list):
+            cur = str(meta.get("value") or "").upper()
             for opt in opts:
                 if isinstance(opt, dict):
-                    opt["selected"] = str(opt.get("value")) == str(meta.get("value") or "")
+                    opt["selected"] = str(opt.get("value") or "").upper() == cur
     out["_btn_network_settings_save"] = {
         "type": "network_save",
         "label": "Save",
