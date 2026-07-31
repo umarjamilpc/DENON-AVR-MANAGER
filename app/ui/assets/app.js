@@ -162,14 +162,9 @@
     const hint = $("live-hint");
     if (hint) {
       hint.textContent = isSaveEditMode()
-        ? "Save mode — edit fields, then press Save"
-        : "Realtime — changes apply as you edit";
+        ? "Edit locally, then press Save"
+        : "Realtime edits";
       hint.classList.toggle("is-save-mode", isSaveEditMode());
-    }
-    const pill = $("mode-pill");
-    if (pill) {
-      pill.textContent = isSaveEditMode() ? "Save" : "Realtime";
-      pill.classList.toggle("is-save-mode", isSaveEditMode());
     }
     const badge = $("build-badge");
     if (badge) {
@@ -177,6 +172,8 @@
       badge.hidden = !isDev;
       document.body.classList.toggle("is-dev-build", isDev);
     }
+    document.body.classList.toggle("edit-mode-save", isSaveEditMode());
+    document.body.classList.toggle("edit-mode-realtime", !isSaveEditMode());
     syncPageSaveToolbar();
   }
 
@@ -190,8 +187,8 @@
       await persistAppSettings({ edit_mode: next });
       setStatus(
         next === "save"
-          ? "Save mode — press Save to write and refresh"
-          : "Realtime mode — changes apply as you edit",
+          ? "Save mode on — press Save to write and refresh"
+          : "Realtime on — changes apply as you edit",
         "ok"
       );
       if (typeof state.reloadAction === "function") {
@@ -433,8 +430,6 @@
     $("tab-info")?.classList.toggle("active", next === "info");
     $("tab-settings")?.classList.toggle("active", next === "settings");
     $("tab-help")?.classList.toggle("active", next === "help");
-    const pill = $("mode-pill");
-    if (pill) pill.hidden = !state.connected;
     if (next === "settings") {
       return loadSettingsPage();
     }
@@ -1220,7 +1215,7 @@
         : isNetwork
           ? "Explicit Save only — network will reset if you save changes (~60s)"
           : saveMode
-            ? "Save mode — edit fields, then press Save"
+            ? "Edit fields, then press Save"
             : "Live updates";
       const blocked =
         menuNode?.write_allowed === false || data.schema?.write_allowed === false;
@@ -2803,7 +2798,7 @@
     if (sp) sp.disabled = !on;
     const eqSet = $("eq-set");
     if (eqSet) {
-      // Save mode: header icon Save replaces Set.
+      // Save mode: editor Save replaces Set.
       eqSet.hidden = isSaveEditMode();
       eqSet.disabled = !on || isSaveEditMode();
     }
