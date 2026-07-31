@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>DENON AVR MANAGER</title>
-  <link rel="stylesheet" href="/assets/fonts.css?v=62" />
-  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=62" />
-  <link rel="stylesheet" href="/assets/styles.css?v=62" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=64" />
+  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=64" />
+  <link rel="stylesheet" href="/assets/styles.css?v=64" />
 </head>
 <body>
   <div class="shell">
@@ -27,6 +27,22 @@
         </div>
       </div>
       <div class="topbar-actions">
+        <button type="button" id="activity-btn" class="activity-btn" title="Activity" aria-expanded="false" aria-controls="activity-panel">
+          <i class="mdi mdi-bell-outline" aria-hidden="true"></i>
+          <span id="activity-count" class="activity-count" hidden>0</span>
+        </button>
+        <div id="activity-panel" class="activity-panel" hidden role="dialog" aria-label="Activity">
+          <header class="activity-panel-head">
+            <h3>Activity</h3>
+            <div class="activity-panel-actions">
+              <button type="button" id="activity-clear" class="btn-ghost">Clear</button>
+              <button type="button" id="activity-close" class="btn-ghost">Close</button>
+            </div>
+          </header>
+          <div id="activity-list" class="activity-list">
+            <p class="meta activity-empty">No activity yet</p>
+          </div>
+        </div>
         <div class="edit-mode-switch" role="group" aria-label="Edit mode">
           <button type="button" data-edit-mode="realtime" class="edit-mode-btn active" id="edit-mode-realtime">Realtime</button>
           <button type="button" data-edit-mode="save" class="edit-mode-btn" id="edit-mode-save">Save mode</button>
@@ -89,6 +105,16 @@
           <p>No sections yet. Press Customize → Add section, then add widgets.</p>
         </div>
       </section>
+
+      <dialog id="dashboard-enum-popup" class="dashboard-picker dashboard-enum-popup">
+        <form method="dialog" class="dashboard-picker-form">
+          <header class="dashboard-picker-head">
+            <h3 id="dashboard-enum-title">Select</h3>
+            <button type="submit" value="cancel" class="btn-ghost">Close</button>
+          </header>
+          <div id="dashboard-enum-list" class="dashboard-picker-list dashboard-enum-list"></div>
+        </form>
+      </dialog>
 
       <dialog id="dashboard-picker" class="dashboard-picker">
         <form method="dialog" class="dashboard-picker-form" id="dashboard-picker-form">
@@ -402,6 +428,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=62"></script>
+  <script src="/assets/app.js?v=64"></script>
 </body>
 </html>
