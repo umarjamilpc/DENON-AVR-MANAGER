@@ -1713,6 +1713,22 @@ body.eq-progress-open {
   flex: 1;
   min-width: 8rem;
 }
+.control-subhead {
+  grid-column: 1 / -1;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+#control-section-layout.is-override {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.control-section-nav button.is-layout-override {
+  font-style: italic;
+}
 .control-slider-row input[type="range"] {
   flex: 1;
   min-width: 5rem;

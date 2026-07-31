@@ -20,6 +20,8 @@ DEFAULTS: Dict[str, Any] = {
     "confirm_network_save": True,
     "confirm_firmware_actions": True,
     "avr_model": "AVR-X1200W",
+    # grouped = streamlined toggles/steppers; ungrouped = full discrete catalog
+    "control_grouping": "grouped",
     # HA denonavr-style: zones are opt-in (default off to keep Control Panel lean)
     "show_zone2": False,
     "show_zone3": False,
@@ -139,12 +141,26 @@ SETTING_META: List[Dict[str, Any]] = [
         ),
     },
     {
+        "key": "control_grouping",
+        "label": "Control Panel layout",
+        "type": "enum",
+        "options": ["grouped", "ungrouped"],
+        "description": (
+            "grouped: related commands share one control (power On/Standby toggle, "
+            "volume −/+, mute switch) with a Receiver overview. "
+            "ungrouped: show the full discrete catalog as before (separate On, "
+            "Standby, Volume Up/Down, Mute On/Off, Quick Select Memory, network "
+            "media keys, etc.)."
+        ),
+    },
+    {
         "key": "show_zone2",
         "label": "Show Zone 2",
         "type": "boolean",
         "description": (
-            "Like Home Assistant’s denonavr zone2 option: show Zone 2 controls in "
-            "the Control Panel. Off by default to keep the panel uncluttered."
+            "When layout is grouped: show Zone 2 controls (like Home Assistant’s "
+            "denonavr zone2 option). Ignored in ungrouped mode, which always shows "
+            "all sections from the full catalog."
         ),
     },
     {
@@ -152,8 +168,8 @@ SETTING_META: List[Dict[str, Any]] = [
         "label": "Show Zone 3",
         "type": "boolean",
         "description": (
-            "Like Home Assistant’s denonavr zone3 option: show Zone 3 controls when "
-            "your model supports them (e.g. X3200W / X4200W). Off by default."
+            "When layout is grouped: show Zone 3 controls if your model supports "
+            "them. Ignored in ungrouped mode."
         ),
     },
 ]
@@ -193,6 +209,13 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         out["show_zone2"] = bool(src["show_zone2"])
     if "show_zone3" in src:
         out["show_zone3"] = bool(src["show_zone3"])
+
+    grouping = str(
+        src.get("control_grouping", out.get("control_grouping", "grouped"))
+    ).strip().lower()
+    out["control_grouping"] = (
+        grouping if grouping in {"grouped", "ungrouped"} else "grouped"
+    )
 
     # Prefer seconds; migrate older poll_interval_ms if present.
     if "poll_interval_sec" in src:

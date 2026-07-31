@@ -102,7 +102,10 @@
     powerInput: "—",
     route: { view: "setup" },
     controlCatalog: null,
+    controlCatalogByLayout: { grouped: null, ungrouped: null },
     controlSectionId: null,
+    /** Per nav-section override: 'grouped' | 'ungrouped' — independent of Settings */
+    controlSectionLayout: {},
     controlEntities: {},
     controlPollTimer: null,
     controlLog: [],
@@ -118,6 +121,9 @@
       confirm_network_save: true,
       confirm_firmware_actions: true,
       avr_model: "AVR-X1200W",
+      control_grouping: "grouped",
+      show_zone2: false,
+      show_zone3: false,
     },
     buildChannel: "production",
     appSettingsMeta: [],
@@ -835,6 +841,7 @@
       const prevModel = state.appSettings?.avr_model;
       const prevZ2 = state.appSettings?.show_zone2;
       const prevZ3 = state.appSettings?.show_zone3;
+      const prevGrouping = state.appSettings?.control_grouping;
       await persistAppSettings(collectSettingsForm());
       renderSettingsForm();
       if (banner) {
@@ -842,14 +849,17 @@
         banner.textContent = "Saved";
       }
       setStatus("Saved", "ok");
-      // Reload Control Panel when model or zone visibility changes
+      // Reload Control Panel when model, layout, or zone visibility changes
       if (
         state.appSettings?.avr_model !== prevModel ||
         state.appSettings?.show_zone2 !== prevZ2 ||
-        state.appSettings?.show_zone3 !== prevZ3
+        state.appSettings?.show_zone3 !== prevZ3 ||
+        state.appSettings?.control_grouping !== prevGrouping
       ) {
         state.controlCatalog = null;
+        state.controlCatalogByLayout = { grouped: null, ungrouped: null };
         state.controlSectionId = null;
+        state.controlSectionLayout = {};
       }
     } catch (err) {
       if (banner) {
@@ -3397,6 +3407,54 @@
 
   /* ---------- Control Panel (telnet) ---------- */
 
+  // Map nav section → counterpart section ids in the other layout
+  const CONTROL_SECTION_ALIASES = {
+    main: ["power", "volume"],
+    power: ["main"],
+    volume: ["main"],
+    sound: ["surround"],
+    surround: ["sound"],
+    input: ["input"],
+    levels: ["channel"],
+    channel: ["levels"],
+    audio: ["tone", "audyssey"],
+    tone: ["audio"],
+    audyssey: ["audio"],
+    video: ["video"],
+    timers: ["timers"],
+    zone2: ["zone2"],
+    zone3: ["zone3"],
+    tuner: ["tuner"],
+    media: ["network"],
+    network: ["media"],
+    system: ["system"],
+    advanced: ["advanced"],
+  };
+
+  function globalControlLayout() {
+    const g = state.appSettings?.control_grouping || "grouped";
+    return g === "ungrouped" ? "ungrouped" : "grouped";
+  }
+
+  function sectionControlLayout(sectionId) {
+    const sid = sectionId || state.controlSectionId;
+    const over = sid ? state.controlSectionLayout?.[sid] : null;
+    if (over === "grouped" || over === "ungrouped") return over;
+    return globalControlLayout();
+  }
+
+  function mappedSectionsFor(navSectionId, targetLayout) {
+    const global = globalControlLayout();
+    if (targetLayout === global) return [navSectionId];
+    const mapped = CONTROL_SECTION_ALIASES[navSectionId];
+    if (mapped?.length) return mapped;
+    return [navSectionId];
+  }
+
+  function catalogForLayout(layout) {
+    return state.controlCatalogByLayout?.[layout] || null;
+  }
+
   function controlBanner(text, kind) {
     const el = $("control-banner");
     if (!el) return;
@@ -3455,6 +3513,25 @@
     return state.controlEntities?.[id] || null;
   }
 
+  function updateSectionLayoutButton() {
+    const btn = $("control-section-layout");
+    if (!btn || !state.controlSectionId) return;
+    const effective = sectionControlLayout();
+    const global = globalControlLayout();
+    const overridden = effective !== global;
+    // Button offers the opposite of current section view
+    if (effective === "grouped") {
+      btn.textContent = "Ungroup";
+      btn.title =
+        "Show full discrete controls for this section (session only — does not change Settings)";
+    } else {
+      btn.textContent = "Group";
+      btn.title =
+        "Show grouped controls for this section (session only — does not change Settings)";
+    }
+    btn.classList.toggle("is-override", overridden);
+  }
+
   function renderControlNav() {
     const nav = $("control-section-nav");
     if (!nav || !state.controlCatalog) return;
@@ -3463,9 +3540,14 @@
     for (const sec of sections) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = sec.label;
+      const over = state.controlSectionLayout?.[sec.id];
+      btn.textContent =
+        over && over !== globalControlLayout()
+          ? `${sec.label} · ${over === "ungrouped" ? "all" : "group"}`
+          : sec.label;
       btn.dataset.section = sec.id;
       if (sec.id === state.controlSectionId) btn.classList.add("active");
+      if (over && over !== globalControlLayout()) btn.classList.add("is-layout-override");
       btn.addEventListener("click", () => {
         selectControlSection(sec.id).catch((err) => controlBanner(err.message, "err"));
       });
@@ -3482,6 +3564,23 @@
     startControlPoll();
   }
 
+  async function toggleSectionLayout() {
+    if (!state.controlSectionId) return;
+    const sid = state.controlSectionId;
+    const current = sectionControlLayout(sid);
+    const next = current === "grouped" ? "ungrouped" : "grouped";
+    const global = globalControlLayout();
+    if (next === global) {
+      delete state.controlSectionLayout[sid];
+    } else {
+      state.controlSectionLayout[sid] = next;
+    }
+    await ensureControlCatalogs();
+    renderControlNav();
+    renderControlSectionPage();
+    await refreshControlStatus({ quiet: false, refresh: false });
+  }
+
   function renderControlSectionPage() {
     const editor = $("control-editor");
     const empty = $("control-empty");
@@ -3493,23 +3592,47 @@
       if (empty) empty.hidden = false;
       return;
     }
-    const sec = (state.controlCatalog.sections || []).find(
+    const navSec = (state.controlCatalog.sections || []).find(
       (s) => s.id === state.controlSectionId
     );
-    const items = (state.controlCatalog.controls || []).filter(
-      (c) => c.section === state.controlSectionId
-    );
+    const layout = sectionControlLayout();
+    const cat = catalogForLayout(layout) || state.controlCatalog;
+    const sectionIds = mappedSectionsFor(state.controlSectionId, layout);
+    const items = (cat.controls || []).filter((c) => sectionIds.includes(c.section));
     if (empty) empty.hidden = true;
     if (editor) editor.hidden = false;
-    if (title) title.textContent = sec?.label || state.controlSectionId;
+    if (title) title.textContent = navSec?.label || state.controlSectionId;
     if (meta) {
-      const model = state.appSettings?.avr_model || state.controlCatalog.model || "AVR";
-      meta.textContent = `${items.length} · ${model}`;
+      const model = state.appSettings?.avr_model || cat.model || "AVR";
+      const global = globalControlLayout();
+      const tag =
+        layout !== global
+          ? `${layout} (this section)`
+          : layout;
+      meta.textContent = `${items.length} · ${model} · ${tag}`;
     }
+    updateSectionLayoutButton();
     if (!grid) return;
     grid.innerHTML = "";
-    grid.classList.toggle("control-grid--main", state.controlSectionId === "main");
-    for (const c of items) grid.appendChild(buildControlWidget(c));
+    grid.classList.toggle(
+      "control-grid--main",
+      layout === "grouped" && sectionIds.includes("main")
+    );
+    // When multiple mapped sections (e.g. power+volume), light subsection labels
+    if (sectionIds.length > 1) {
+      for (const sid of sectionIds) {
+        const subItems = items.filter((c) => c.section === sid);
+        if (!subItems.length) continue;
+        const sub = (cat.sections || []).find((s) => s.id === sid);
+        const h = document.createElement("h3");
+        h.className = "control-subhead";
+        h.textContent = sub?.label || sid;
+        grid.appendChild(h);
+        for (const c of subItems) grid.appendChild(buildControlWidget(c));
+      }
+    } else {
+      for (const c of items) grid.appendChild(buildControlWidget(c));
+    }
     applyControlEntitiesToDom();
   }
 
@@ -3823,10 +3946,13 @@
     state.controlBusy = true;
     controlBanner("Applying…");
     try {
+      const layout = sectionControlLayout();
+      const sectionIds = mappedSectionsFor(state.controlSectionId, layout);
       const body = {
         confirm: Boolean(confirm || confirmMessage),
         allow_raw: Boolean(allow_raw),
-        section: state.controlSectionId || undefined,
+        section: sectionIds.length === 1 ? sectionIds[0] : undefined,
+        layout,
       };
       if (id) {
         body.id = id;
@@ -3863,21 +3989,39 @@
     if (!state.controlSectionId) return;
     if (!quiet) controlBanner(refresh ? "Reading AVR…" : "Updating…");
     try {
+      const layout = sectionControlLayout();
+      const sectionIds = mappedSectionsFor(state.controlSectionId, layout);
       const q = new URLSearchParams({
         refresh: refresh ? "true" : "false",
+        layout,
       });
       if (full) {
         q.set("full", "true");
-      } else {
-        q.set("section", state.controlSectionId);
+      } else if (sectionIds.length === 1) {
+        q.set("section", sectionIds[0]);
       }
+      // Multi-mapped sections (e.g. power+volume): read full cache entities
       const snap = await api(`/api/control/status?${q}`);
       setControlTransport(snap.from_cache ? "cache" : snap.transport);
-      state.controlEntities = snap.entities || {};
+      let entities = snap.entities || {};
+      if (!full && sectionIds.length > 1) {
+        const cat = catalogForLayout(layout);
+        const allow = new Set(
+          (cat?.controls || [])
+            .filter((c) => sectionIds.includes(c.section))
+            .map((c) => c.id)
+        );
+        entities = Object.fromEntries(
+          Object.entries(entities).filter(([id]) => allow.has(id))
+        );
+      }
+      state.controlEntities = entities;
       applyControlEntitiesToDom();
       if (refresh && snap.responses?.length) {
         appendControlLog({
-          request: full ? "STATUS:all" : `STATUS:${state.controlSectionId}`,
+          request: full
+            ? "STATUS:all"
+            : `STATUS:${state.controlSectionId}/${layout}`,
           transport: snap.transport,
           responses: snap.responses.slice(0, 40),
         });
@@ -3912,17 +4056,40 @@
     return { status: "timeout" };
   }
 
+  async function ensureControlCatalogs({ force = false } = {}) {
+    if (force) {
+      state.controlCatalogByLayout = { grouped: null, ungrouped: null };
+    }
+    const jobs = [];
+    if (force || !state.controlCatalogByLayout.grouped) {
+      jobs.push(
+        api("/api/control/catalog?layout=grouped").then((d) => {
+          state.controlCatalogByLayout.grouped = d;
+        })
+      );
+    }
+    if (force || !state.controlCatalogByLayout.ungrouped) {
+      jobs.push(
+        api("/api/control/catalog?layout=ungrouped").then((d) => {
+          state.controlCatalogByLayout.ungrouped = d;
+        })
+      );
+    }
+    if (jobs.length) await Promise.all(jobs);
+    state.controlCatalog =
+      state.controlCatalogByLayout[globalControlLayout()] ||
+      state.controlCatalogByLayout.grouped;
+  }
+
   async function loadControlPanel({ force = false } = {}) {
     if (!state.connected) {
       controlBanner("Connect to AVR first", "warn");
       return;
     }
     try {
-      if (force || !state.controlCatalog) {
-        state.controlCatalog = await api("/api/control/catalog");
-      }
+      await ensureControlCatalogs({ force: force || !state.controlCatalog });
       renderControlNav();
-      const preload = state.controlCatalog.preload || {};
+      const preload = state.controlCatalog?.preload || {};
       if (preload.status === "pending" || preload.status === "running") {
         controlBanner("Loading AVR status…");
         await waitForControlPreload();
@@ -3944,6 +4111,9 @@
       refreshControlStatus({ quiet: false, refresh: true, full: true }).catch((e) =>
         controlBanner(e.message, "err")
       )
+    );
+    $("control-section-layout")?.addEventListener("click", () =>
+      toggleSectionLayout().catch((e) => controlBanner(e.message, "err"))
     );
   }
 
