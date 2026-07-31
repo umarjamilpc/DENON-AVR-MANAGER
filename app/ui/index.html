@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=51" />
+  <link rel="stylesheet" href="/assets/styles.css?v=52" />
 </head>
 <body>
   <div class="shell">
@@ -64,6 +64,7 @@
 
     <nav class="tabs" id="tabs" aria-label="Views" hidden>
       <a class="tab active" id="tab-setup" href="/" data-view="setup">Setup Menu</a>
+      <a class="tab" id="tab-control" href="/" data-view="control">Control Panel</a>
       <a class="tab" id="tab-info" href="/" data-view="info">Info</a>
       <a class="tab" id="tab-settings" href="/" data-view="settings">Settings</a>
       <a class="tab" id="tab-help" href="/" data-view="help">Help</a>
@@ -97,6 +98,32 @@
           <div id="editor-empty" class="empty-state">
             <p>Select a Setup Menu item</p>
           </div>
+        </div>
+      </section>
+
+      <section id="view-control" class="view control-view" hidden>
+        <aside class="control-nav-col">
+          <p class="nav-caption">Sections</p>
+          <div id="control-section-nav" class="nav-list control-section-nav"></div>
+        </aside>
+        <div class="control-main-col">
+          <header class="control-head">
+            <div>
+              <h2>Control Panel</h2>
+              <p class="meta">Telnet protocol (Ver.02) for AVR-X1200W — telnet primary, goform fallback</p>
+            </div>
+            <div class="editor-actions">
+              <span id="control-transport" class="control-transport" title="Last transport">—</span>
+              <button type="button" id="control-refresh" class="btn-ghost">Refresh</button>
+              <button type="button" id="control-refresh-full" class="btn-ghost">Full status</button>
+            </div>
+          </header>
+          <p id="control-banner" class="banner" hidden></p>
+          <div id="control-sections" class="control-sections"></div>
+          <details class="control-log-wrap" open>
+            <summary>Response log</summary>
+            <pre id="control-log" class="control-log" aria-live="polite"></pre>
+          </details>
         </div>
       </section>
 
@@ -157,9 +184,19 @@
               <h3>Main Zone power</h3>
               <p>
                 The power button at the top toggles Main Zone between <strong>On</strong> and
-                <strong>Standby</strong> using Denon’s goform HTTP commands (no telnet).
-                Standby still keeps network control alive; a full unplug / power cut is different
-                and the app will show the AVR as unreachable.
+                <strong>Standby</strong>. Standby still keeps network control alive; a full unplug /
+                power cut is different and the app will show the AVR as unreachable.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>Control Panel</h3>
+              <p>
+                Full AVR-X1200W telnet command surface (volume, inputs, surround, channel levels,
+                Audyssey, HDMI, Zone 2, tuner, media cursor, dimmer, locks, …). Commands go over
+                TCP port 23 first; if telnet fails they fall back to
+                <code>formiPhoneAppDirect.xml</code>. Destructive actions (locks, Quick Select
+                memory, channel reset) ask for confirmation.
               </p>
             </section>
 
@@ -257,6 +294,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=51"></script>
+  <script src="/assets/app.js?v=52"></script>
 </body>
 </html>
