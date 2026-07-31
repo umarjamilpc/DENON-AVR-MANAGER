@@ -73,18 +73,21 @@ def control_catalog(request: Request) -> Dict[str, Any]:
 def control_status(
     request: Request,
     full: bool = Query(False, description="If true, run full status_queries list"),
+    section: Optional[str] = Query(
+        None, description="Limit queries/entities to one Control Panel section id"
+    ),
 ) -> Dict[str, Any]:
     ctrl = _control(request)
-    try:
-        snap = ctrl.status_snapshot(full=full)
-    except Exception as e:
-        raise HTTPException(502, f"status failed: {e}") from e
-    # Enrich with goform XML when telnet responses are sparse
+    power = None
     try:
         power = read_main_zone_power(DenonSetupClient(_default_base(request)))
-        snap["power"] = power
     except Exception:
-        snap["power"] = None
+        power = None
+    try:
+        snap = ctrl.status_snapshot(full=full, section=section, power=power)
+    except Exception as e:
+        raise HTTPException(502, f"status failed: {e}") from e
+    snap["power"] = power
     snap["host"] = host_label(_default_base(request))
     return snap
 

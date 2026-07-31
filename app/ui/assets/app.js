@@ -102,6 +102,8 @@
     powerInput: "—",
     route: { view: "setup" },
     controlCatalog: null,
+    controlSectionId: null,
+    controlEntities: {},
     controlPollTimer: null,
     controlLog: [],
     controlBusy: false,
@@ -3391,6 +3393,8 @@
     state.controlLog.unshift(entry);
     if (state.controlLog.length > 80) state.controlLog.length = 80;
     const pre = $("control-log");
+    const wrap = $("control-log-wrap");
+    if (wrap) wrap.hidden = false;
     if (!pre) return;
     pre.textContent = state.controlLog
       .map((e) => {
@@ -3416,67 +3420,98 @@
     stopControlPoll();
     state.controlPollTimer = setInterval(() => {
       if (state.route.view !== "control") return;
+      if (!state.controlSectionId) return;
       if (state.controlBusy) return;
       if (document.visibilityState === "hidden") return;
-      refreshControlStatus({ full: false, quiet: true }).catch(() => {});
+      refreshControlStatus({ quiet: true }).catch(() => {});
     }, 3000);
   }
 
-  function renderControlPanel() {
-    const nav = $("control-section-nav");
-    const body = $("control-sections");
-    if (!nav || !body || !state.controlCatalog) return;
-    const sections = state.controlCatalog.sections || [];
-    const controls = state.controlCatalog.controls || [];
-    nav.innerHTML = "";
-    body.innerHTML = "";
+  function controlEntity(id) {
+    return state.controlEntities?.[id] || null;
+  }
 
+  function renderControlNav() {
+    const nav = $("control-section-nav");
+    if (!nav || !state.controlCatalog) return;
+    const sections = state.controlCatalog.sections || [];
+    nav.innerHTML = "";
     for (const sec of sections) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = sec.label;
       btn.dataset.section = sec.id;
+      if (sec.id === state.controlSectionId) btn.classList.add("active");
       btn.addEventListener("click", () => {
-        const target = document.getElementById(`control-sec-${sec.id}`);
-        target?.scrollIntoView({ behavior: "smooth", block: "start" });
-        for (const b of nav.querySelectorAll("button")) b.classList.remove("active");
-        btn.classList.add("active");
+        selectControlSection(sec.id).catch((err) => controlBanner(err.message, "err"));
       });
       nav.appendChild(btn);
-
-      const sectionEl = document.createElement("section");
-      sectionEl.className = "control-section";
-      sectionEl.id = `control-sec-${sec.id}`;
-      const h = document.createElement("h3");
-      h.textContent = sec.label;
-      sectionEl.appendChild(h);
-      const grid = document.createElement("div");
-      grid.className = "control-grid";
-
-      const items = controls.filter((c) => c.section === sec.id);
-      for (const c of items) {
-        grid.appendChild(buildControlWidget(c));
-      }
-      sectionEl.appendChild(grid);
-      body.appendChild(sectionEl);
     }
-    nav.querySelector("button")?.classList.add("active");
+  }
+
+  async function selectControlSection(sectionId) {
+    state.controlSectionId = sectionId;
+    renderControlNav();
+    renderControlSectionPage();
+    await refreshControlStatus({ quiet: false });
+    startControlPoll();
+  }
+
+  function renderControlSectionPage() {
+    const editor = $("control-editor");
+    const empty = $("control-empty");
+    const grid = $("control-grid");
+    const title = $("control-section-title");
+    const meta = $("control-section-meta");
+    if (!state.controlCatalog || !state.controlSectionId) {
+      if (editor) editor.hidden = true;
+      if (empty) empty.hidden = false;
+      return;
+    }
+    const sec = (state.controlCatalog.sections || []).find(
+      (s) => s.id === state.controlSectionId
+    );
+    const items = (state.controlCatalog.controls || []).filter(
+      (c) => c.section === state.controlSectionId
+    );
+    if (empty) empty.hidden = true;
+    if (editor) editor.hidden = false;
+    if (title) title.textContent = sec?.label || state.controlSectionId;
+    if (meta) {
+      meta.textContent = `${items.length} controls · live status from AVR`;
+    }
+    if (!grid) return;
+    grid.innerHTML = "";
+    for (const c of items) {
+      grid.appendChild(buildControlWidget(c));
+    }
+    applyControlEntitiesToDom();
   }
 
   function buildControlWidget(c) {
     const wrap = document.createElement("div");
     wrap.className = "control-widget";
     wrap.dataset.controlId = c.id;
+
+    const head = document.createElement("div");
+    head.className = "control-label-row";
     const label = document.createElement("label");
     label.className = "control-label";
     label.textContent = c.label;
-    wrap.appendChild(label);
+    const cur = document.createElement("span");
+    cur.className = "control-current";
+    cur.dataset.role = "current";
+    cur.textContent = "—";
+    head.appendChild(label);
+    head.appendChild(cur);
+    wrap.appendChild(head);
 
     const kind = c.kind;
     if (kind === "action" || kind === "query") {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn-ghost control-btn";
+      btn.dataset.role = "action";
       btn.textContent = kind === "query" ? "Query" : "Send";
       btn.addEventListener("click", () =>
         runControlCommand({
@@ -3491,6 +3526,7 @@
       row.className = "control-enum-row";
       const sel = document.createElement("select");
       sel.className = "control-select";
+      sel.dataset.role = "select";
       for (const opt of c.options || []) {
         const o = document.createElement("option");
         o.value = opt.command;
@@ -3521,8 +3557,10 @@
       range.max = String(c.max ?? 98);
       range.step = "1";
       range.value = String(c.zero_db ?? c.min ?? 0);
+      range.dataset.role = "range";
       const val = document.createElement("span");
       val.className = "control-slider-val";
+      val.dataset.role = "range-val";
       val.textContent = range.value;
       range.addEventListener("input", () => {
         val.textContent = range.value;
@@ -3544,9 +3582,7 @@
         up.type = "button";
         up.className = "btn-ghost control-btn";
         up.textContent = "+";
-        up.addEventListener("click", () =>
-          runControlCommand({ command: c.up })
-        );
+        up.addEventListener("click", () => runControlCommand({ command: c.up }));
         row.appendChild(up);
       }
       if (c.down) {
@@ -3592,6 +3628,53 @@
     return wrap;
   }
 
+  function applyControlEntitiesToDom() {
+    const grid = $("control-grid");
+    if (!grid) return;
+    for (const wrap of grid.querySelectorAll(".control-widget")) {
+      const id = wrap.dataset.controlId;
+      const ent = controlEntity(id);
+      const cur = wrap.querySelector('[data-role="current"]');
+      const sel = wrap.querySelector('[data-role="select"]');
+      const range = wrap.querySelector('[data-role="range"]');
+      const rangeVal = wrap.querySelector('[data-role="range-val"]');
+      const action = wrap.querySelector('[data-role="action"]');
+
+      wrap.classList.toggle("is-current", Boolean(ent?.active || ent?.display));
+
+      if (cur) {
+        if (ent?.display) {
+          cur.textContent = ent.display;
+          cur.title = ent.raw || ent.command || "";
+          cur.classList.add("has-value");
+        } else if (ent?.raw) {
+          cur.textContent = ent.raw;
+          cur.classList.add("has-value");
+        } else {
+          cur.textContent = "—";
+          cur.classList.remove("has-value");
+        }
+      }
+
+      if (sel && ent?.command) {
+        const opt = [...sel.options].find((o) => o.value === ent.command);
+        if (opt) sel.value = ent.command;
+      }
+
+      if (range && ent?.value != null && !Number.isNaN(Number(ent.value))) {
+        // Don't fight the user while dragging
+        if (document.activeElement !== range) {
+          range.value = String(ent.value);
+          if (rangeVal) rangeVal.textContent = String(ent.value);
+        }
+      }
+
+      if (action) {
+        action.classList.toggle("is-active", Boolean(ent?.active));
+      }
+    }
+  }
+
   async function runControlCommand({
     id,
     command,
@@ -3627,6 +3710,7 @@
       appendControlLog(result);
       controlBanner(`OK: ${result.request}`, "ok");
       setStatus(`Control: ${result.request}`, "ok");
+      await refreshControlStatus({ quiet: true });
     } catch (err) {
       controlBanner(err.message, "err");
       setStatus(err.message, "err");
@@ -3635,33 +3719,35 @@
     }
   }
 
-  async function refreshControlStatus({ full = false, quiet = false } = {}) {
-    if (!quiet) controlBanner(full ? "Full status…" : "Refreshing…");
+  async function refreshControlStatus({ quiet = false } = {}) {
+    if (!state.controlSectionId) return;
+    if (!quiet) controlBanner("Reading AVR status…");
     try {
-      const snap = await api(`/api/control/status?full=${full ? "true" : "false"}`);
+      const q = new URLSearchParams({
+        section: state.controlSectionId,
+      });
+      const snap = await api(`/api/control/status?${q}`);
       setControlTransport(snap.transport);
+      state.controlEntities = snap.entities || {};
+      applyControlEntitiesToDom();
       if (snap.responses?.length) {
         appendControlLog({
-          request: full ? "STATUS(full)" : "STATUS",
+          request: `STATUS:${state.controlSectionId}`,
           transport: snap.transport,
           responses: snap.responses.slice(0, 40),
         });
-      } else if (snap.power) {
-        appendControlLog({
-          request: "STATUS(goform-power)",
-          transport: snap.transport || "goform",
-          responses: [
-            `power=${snap.power.power}`,
-            `input=${snap.power.input}`,
-            `vol=${snap.power.volume}`,
-            `mute=${snap.power.mute}`,
-          ],
-        });
       }
+      const n = Object.keys(state.controlEntities).length;
       if (snap.errors?.length && !quiet) {
-        controlBanner(`Status partial: ${snap.errors.length} query error(s)`, "warn");
+        controlBanner(
+          `Status partial (${n} values, ${snap.errors.length} query error(s))`,
+          "warn"
+        );
       } else if (!quiet) {
-        controlBanner("Status updated", "ok");
+        controlBanner(
+          n ? `Status updated · ${n} current values` : "Status updated",
+          "ok"
+        );
       }
     } catch (err) {
       if (!quiet) controlBanner(err.message, "err");
@@ -3676,10 +3762,16 @@
     try {
       if (force || !state.controlCatalog) {
         state.controlCatalog = await api("/api/control/catalog");
-        renderControlPanel();
       }
-      await refreshControlStatus({ full: false });
-      startControlPoll();
+      renderControlNav();
+      const sections = state.controlCatalog.sections || [];
+      const first = state.controlSectionId || sections[0]?.id;
+      if (first) {
+        await selectControlSection(first);
+      } else {
+        $("control-editor") && ($("control-editor").hidden = true);
+        $("control-empty") && ($("control-empty").hidden = false);
+      }
     } catch (err) {
       controlBanner(err.message, "err");
     }
@@ -3687,10 +3779,9 @@
 
   function wireControlPanel() {
     $("control-refresh")?.addEventListener("click", () =>
-      refreshControlStatus({ full: false }).catch((e) => controlBanner(e.message, "err"))
-    );
-    $("control-refresh-full")?.addEventListener("click", () =>
-      refreshControlStatus({ full: true }).catch((e) => controlBanner(e.message, "err"))
+      refreshControlStatus({ quiet: false }).catch((e) =>
+        controlBanner(e.message, "err")
+      )
     );
   }
 

@@ -2479,5 +2479,82 @@
     "ECO?",
     "Z2?",
     "Z2MU?"
-  ]
+  ],
+  "section_queries": {
+    "power": [
+      "PW?",
+      "ZM?"
+    ],
+    "volume": [
+      "MV?",
+      "MU?"
+    ],
+    "input": [
+      "SI?",
+      "SD?",
+      "DC?",
+      "SV?"
+    ],
+    "surround": [
+      "MS?",
+      "MSQUICK ?"
+    ],
+    "channel": [
+      "CV?"
+    ],
+    "tone": [
+      "PSTONE CTRL ?",
+      "PSBAS ?",
+      "PSTRE ?",
+      "PSDIL ?",
+      "PSSWL ?",
+      "PSCINEMA EQ. ?",
+      "PSLOM ?",
+      "PSDRC ?",
+      "PSDIC ?",
+      "PSLFE ?",
+      "PSEFF ?",
+      "PSDEL ?"
+    ],
+    "audyssey": [
+      "PSMULTEQ: ?",
+      "PSDYNEQ ?",
+      "PSREFLEV ?",
+      "PSDYNVOL ?",
+      "PSGEQ ?",
+      "PSHEQ ?",
+      "PSDSX ?"
+    ],
+    "video": [
+      "VSASP ?",
+      "VSSC ?",
+      "VSSCH ?",
+      "VSAUDIO ?",
+      "VSVPM ?"
+    ],
+    "timers": [
+      "SLP?",
+      "STBY?",
+      "ECO?"
+    ],
+    "zone2": [
+      "Z2MU?",
+      "Z2?",
+      "Z2SLP?",
+      "Z2STBY?",
+      "Z2CV?"
+    ],
+    "tuner": [
+      "TMAN?",
+      "TFAN?",
+      "TPAN?"
+    ],
+    "system": [
+      "MNMEN?",
+      "MNZST?",
+      "DIM ?",
+      "TR?",
+      "UGIDN"
+    ]
+  }
 }

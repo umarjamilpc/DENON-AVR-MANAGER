@@ -31,7 +31,8 @@ _CONFIRM_REQUIRED_PREFIXES = (
     "TPANMEM",
 )
 
-_CMD_RE = re.compile(r"^[A-Z0-9 /:._+\-]{2,40}$", re.I)
+# Allow request queries (COMMAND?) and typical Denon parameter chars.
+_CMD_RE = re.compile(r"^[A-Z0-9 /:._+\-?]{2,40}$", re.I)
 
 
 class ControlBlockedError(ValueError):
@@ -210,6 +211,315 @@ def validate_command(
     )
 
 
+def _mv_token_to_parts(token: str) -> Optional[Tuple[int, str, float]]:
+    """Parse MV405 / MV80 → (int_for_slider, raw_token, db)."""
+    t = token.upper()
+    if t.startswith("MV"):
+        t = t[2:]
+    if not t.isdigit():
+        return None
+    if len(t) == 3 and t.endswith("5"):
+        whole = int(t[:2])
+        db = whole + 0.5 - 80
+        return whole, token.upper() if token.upper().startswith("MV") else f"MV{t}", db
+    whole = int(t)
+    db = float(whole - 80)
+    return whole, f"MV{t}", db
+
+
+def _db_str_to_mv(vol: str) -> Optional[Tuple[int, str, float]]:
+    s = (vol or "").strip()
+    if not s or s in {"---", "MIN"}:
+        return 0, "MV00", -80.0
+    try:
+        db = float(s)
+    except ValueError:
+        return None
+    abs_v = 80.0 + db
+    whole = int(abs_v)
+    frac = abs_v - whole
+    if abs(frac - 0.5) < 0.01:
+        return whole, f"MV{whole}5", db
+    return whole, f"MV{whole:02d}" if whole < 100 else f"MV{whole}", db
+
+
+def _level_display(value: int, zero_db: Optional[int]) -> str:
+    if zero_db is None:
+        return str(value)
+    return f"{value - int(zero_db):+d} dB ({value})"
+
+
+def _match_enum_line(line: str, options: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    u = line.strip().upper()
+    # Longest command match wins (MSDOLBY ATMOS vs MS)
+    ranked = sorted(
+        options,
+        key=lambda o: len(str(o.get("command") or "")),
+        reverse=True,
+    )
+    for opt in ranked:
+        cmd = str(opt.get("command") or "").upper()
+        if u == cmd or u.startswith(cmd):
+            return {"command": opt.get("command"), "label": opt.get("label"), "raw": line.strip()}
+    return None
+
+
+def queries_for_section(section_id: Optional[str], *, full: bool = False) -> List[str]:
+    protocol = load_telnet_protocol()
+    if full and not section_id:
+        return list(protocol.get("status_queries") or [])
+    if not section_id:
+        return list(
+            protocol.get("status_queries_lite") or protocol.get("status_queries") or []
+        )
+
+    # Prefer explicit section query lists when present
+    per = (protocol.get("section_queries") or {}).get(section_id)
+    if per:
+        return list(per)
+
+    seen: Set[str] = set()
+    out: List[str] = []
+    for c in load_telnet_commands():
+        if c.get("section") != section_id:
+            continue
+        q = c.get("query")
+        if q:
+            qq = str(q).strip()
+            key = qq.upper()
+            if key not in seen:
+                seen.add(key)
+                out.append(qq)
+    # Always include lite power/volume anchors when querying any section
+    for q in ("PW?", "MV?", "MU?", "SI?"):
+        if q.upper() not in seen and section_id in {
+            "power",
+            "volume",
+            "input",
+            "surround",
+        }:
+            seen.add(q.upper())
+            out.insert(0, q)
+    return out
+
+
+def parse_entities(
+    responses: List[str],
+    *,
+    power: Optional[Dict[str, Any]] = None,
+    section_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Map telnet response lines (+ optional goform power) to control_id → state."""
+    lines = [
+        ln.strip()
+        for ln in responses
+        if ln and str(ln).strip() and not str(ln).upper().startswith("MVMAX")
+    ]
+    controls = load_telnet_commands()
+    if section_id:
+        controls = [c for c in controls if c.get("section") == section_id]
+
+    entities: Dict[str, Any] = {}
+
+    for c in controls:
+        cid = str(c.get("id") or "")
+        kind = c.get("kind")
+        if not cid or kind in {"raw"}:
+            continue
+
+        if kind == "enum":
+            options = list(c.get("options") or [])
+            hit = None
+            for ln in lines:
+                hit = _match_enum_line(ln, options)
+                if hit:
+                    break
+            if hit:
+                entities[cid] = {
+                    "kind": "enum",
+                    "raw": hit["raw"],
+                    "command": hit["command"],
+                    "label": hit["label"],
+                    "display": hit["label"],
+                }
+            continue
+
+        if kind == "slider":
+            prefix = str(c.get("prefix") or "").upper()
+            space = bool(c.get("space_before_value"))
+            half = bool(c.get("half_step"))
+            for ln in lines:
+                u = ln.upper().split()[0] if not space else ln.upper()
+                if prefix == "MV":
+                    if not u.startswith("MV") or u.startswith("MVMAX"):
+                        continue
+                    parts = _mv_token_to_parts(u)
+                    if not parts:
+                        continue
+                    num, raw, db = parts
+                    entities[cid] = {
+                        "kind": "slider",
+                        "raw": raw,
+                        "value": num,
+                        "display": f"{db:g} dB ({raw})",
+                    }
+                    break
+                if space:
+                    if not ln.upper().startswith(prefix + " "):
+                        continue
+                    rest = ln.upper()[len(prefix) + 1 :].strip().split()[0]
+                    if not rest.isdigit():
+                        continue
+                    num = int(rest)
+                    entities[cid] = {
+                        "kind": "slider",
+                        "raw": ln.strip(),
+                        "value": num,
+                        "display": _level_display(num, c.get("zero_db")),
+                    }
+                    break
+                if not u.startswith(prefix):
+                    continue
+                rest = u[len(prefix) :]
+                if not rest.isdigit():
+                    continue
+                # Z2 volume is Z2 + digits only (Z280), not Z2ON / Z2BD
+                if prefix == "Z2" and not rest.isdigit():
+                    continue
+                if half and len(rest) == 3 and rest.endswith("5"):
+                    num = int(rest[:2])
+                else:
+                    num = int(rest)
+                entities[cid] = {
+                    "kind": "slider",
+                    "raw": ln.strip(),
+                    "value": num,
+                    "display": _level_display(num, c.get("zero_db")),
+                }
+                break
+            continue
+
+        if kind in {"action", "query"}:
+            cmd = str(c.get("command") or c.get("query") or "").upper().rstrip("?")
+            # Highlight which discrete action matches current state (PWON vs PWSTANDBY)
+            for ln in lines:
+                u = ln.upper()
+                if u == cmd or (cmd and u.startswith(cmd) and kind == "query"):
+                    entities[cid] = {
+                        "kind": kind,
+                        "raw": ln,
+                        "active": u == cmd or u.startswith(cmd.rstrip("?")),
+                        "display": ln,
+                    }
+                    break
+            # Power special-case: mark active button
+            if cid == "pw_on":
+                for ln in lines:
+                    if ln.upper() in {"PWON", "PW ON"}:
+                        entities[cid] = {
+                            "kind": "action",
+                            "raw": ln,
+                            "active": True,
+                            "display": "On",
+                        }
+            if cid == "pw_standby":
+                for ln in lines:
+                    if "STANDBY" in ln.upper():
+                        entities[cid] = {
+                            "kind": "action",
+                            "raw": ln,
+                            "active": True,
+                            "display": "Standby",
+                        }
+            if cid == "mu_on":
+                for ln in lines:
+                    if ln.upper() == "MUON":
+                        entities[cid] = {
+                            "kind": "action",
+                            "raw": ln,
+                            "active": True,
+                            "display": "Muted",
+                        }
+            if cid == "mu_off":
+                for ln in lines:
+                    if ln.upper() == "MUOFF":
+                        entities[cid] = {
+                            "kind": "action",
+                            "raw": ln,
+                            "active": True,
+                            "display": "Unmuted",
+                        }
+
+    # Goform power enrichment / override gaps
+    if power:
+        pwr = (power.get("power") or "").lower()
+        if "pw_on" not in entities and pwr == "on":
+            entities["pw_on"] = {
+                "kind": "action",
+                "raw": "PWON",
+                "active": True,
+                "display": "On",
+                "source": "goform",
+            }
+        if "pw_standby" not in entities and pwr == "standby":
+            entities["pw_standby"] = {
+                "kind": "action",
+                "raw": "PWSTANDBY",
+                "active": True,
+                "display": "Standby",
+                "source": "goform",
+            }
+        if "mv_set" not in entities and power.get("volume") not in (None, ""):
+            parts = _db_str_to_mv(str(power.get("volume")))
+            if parts:
+                num, raw, db = parts
+                entities["mv_set"] = {
+                    "kind": "slider",
+                    "raw": raw,
+                    "value": num,
+                    "display": f"{db:g} dB ({raw})",
+                    "source": "goform",
+                }
+        mute = (power.get("mute") or "").lower()
+        if mute in {"on", "off"}:
+            if mute == "on":
+                entities["mu_on"] = {
+                    "kind": "action",
+                    "raw": "MUON",
+                    "active": True,
+                    "display": "Muted",
+                    "source": "goform",
+                }
+            else:
+                entities["mu_off"] = {
+                    "kind": "action",
+                    "raw": "MUOFF",
+                    "active": True,
+                    "display": "Unmuted",
+                    "source": "goform",
+                }
+        inp = (power.get("input") or "").strip()
+        if inp and "si_select" not in entities:
+            # Fuzzy match friendly name to SI options
+            for c in load_telnet_commands():
+                if c.get("id") != "si_select":
+                    continue
+                for opt in c.get("options") or []:
+                    label = str(opt.get("label") or "")
+                    if label.lower() == inp.lower() or inp.lower() in label.lower():
+                        entities["si_select"] = {
+                            "kind": "enum",
+                            "raw": opt.get("command"),
+                            "command": opt.get("command"),
+                            "label": label,
+                            "display": label,
+                            "source": "goform",
+                        }
+                        break
+
+    return entities
+
+
 class DenonControl:
     def __init__(self, http: DenonSetupClient, telnet_host: Optional[str] = None):
         self.http = http
@@ -231,14 +541,13 @@ class DenonControl:
         cmd = validate_command(command, confirm=confirm, allow_raw=allow_raw)
         pref = (force_transport or "").strip().lower()
 
-        try_telnet = pref == "telnet" or (
-            pref != "goform" and not self._prefer_goform
-        )
-
-        if try_telnet:
+        # Always try telnet first unless explicitly forced to goform.
+        # Do not permanently stick to goform after one failure (status needs telnet).
+        if pref != "goform":
             try:
                 result = self.telnet.send(cmd)
                 result["ok"] = True
+                self._prefer_goform = False
                 return result
             except DenonTelnetError as e:
                 if pref == "telnet":
@@ -246,7 +555,6 @@ class DenonControl:
                 goform = self._send_goform(cmd)
                 goform["telnet_error"] = str(e)
                 goform["ok"] = True
-                self._prefer_goform = True
                 return goform
 
         result = self._send_goform(cmd)
@@ -286,17 +594,11 @@ class DenonControl:
         self,
         *,
         full: bool = False,
+        section: Optional[str] = None,
         max_queries: Optional[int] = None,
+        power: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        protocol = load_telnet_protocol()
-        if full:
-            queries = list(protocol.get("status_queries") or [])
-        else:
-            queries = list(
-                protocol.get("status_queries_lite")
-                or protocol.get("status_queries")
-                or []
-            )
+        queries = queries_for_section(section, full=full)
         if max_queries is not None:
             queries = queries[: max(0, int(max_queries))]
 
@@ -308,7 +610,15 @@ class DenonControl:
         for q in queries:
             cmd = str(q).strip()
             try:
-                result = self.send(cmd, allow_raw=True)
+                # Prefer telnet for status so we get response lines
+                result = self.send(cmd, allow_raw=True, force_transport="telnet")
+            except DenonTelnetError as e:
+                try:
+                    result = self.send(cmd, allow_raw=True, force_transport="goform")
+                    result["telnet_error"] = str(e)
+                except Exception as e2:
+                    errors.append(f"{cmd}: {e2}")
+                    continue
             except Exception as e:
                 errors.append(f"{cmd}: {e}")
                 continue
@@ -317,12 +627,15 @@ class DenonControl:
             lines.extend(resp)
             by_query[cmd] = resp
 
+        entities = parse_entities(lines, power=power, section_id=section)
+
         return {
             "ok": True,
-            "transport": transport_used
-            or ("goform" if self._prefer_goform else "unknown"),
+            "section": section,
+            "transport": transport_used or "unknown",
             "responses": lines,
             "by_query": by_query,
+            "entities": entities,
             "errors": errors,
             "queried": queries,
         }

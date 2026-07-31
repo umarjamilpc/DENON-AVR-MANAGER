@@ -1549,10 +1549,46 @@ body.eq-progress-open {
   border-radius: var(--radius-sm);
   background: var(--surface-solid);
 }
-.control-label {
-  font-size: 0.78rem;
-  font-weight: 500;
+.control-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.control-current {
+  font-family: var(--mono);
+  font-size: 0.72rem;
   color: var(--muted);
+  text-align: right;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.control-current.has-value {
+  color: var(--accent-ink);
+  font-weight: 500;
+}
+.control-widget.is-current {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.control-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.control-editor {
+  display: block;
+}
+.control-view.workspace {
+  display: grid;
+  grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
+}
+.control-main-col.editor-col {
+  min-width: 0;
+}
+.control-grid {
+  margin-top: 0.25rem;
 }
 .control-btn {
   font-size: 0.8rem;
