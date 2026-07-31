@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>DENON AVR MANAGER</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=60" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=62" />
+  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=62" />
+  <link rel="stylesheet" href="/assets/styles.css?v=62" />
 </head>
 <body>
   <div class="shell">
@@ -115,6 +114,43 @@
             </label>
           </div>
           <div id="dashboard-picker-list" class="dashboard-picker-list"></div>
+        </form>
+      </dialog>
+
+      <dialog id="dashboard-icon-picker" class="dashboard-picker dashboard-icon-picker">
+        <form method="dialog" class="dashboard-picker-form">
+          <header class="dashboard-picker-head">
+            <h3>Choose icon</h3>
+            <button type="submit" value="cancel" class="btn-ghost">Close</button>
+          </header>
+          <div class="dashboard-picker-toolbar">
+            <label class="dashboard-picker-search">
+              Search MDI
+              <input type="search" id="icon-picker-search" placeholder="power, volume…" />
+            </label>
+            <label>
+              Or type ref
+              <input type="text" id="icon-picker-manual" placeholder="mdi:power" />
+            </label>
+            <div class="icon-picker-upload-row">
+              <label class="btn-ghost icon-upload-btn">
+                Upload file
+                <input type="file" id="icon-picker-file" accept="image/*,.svg" hidden />
+              </label>
+              <label>
+                From URL
+                <span class="icon-url-row">
+                  <input type="url" id="icon-picker-url" placeholder="https://…" />
+                  <button type="button" id="icon-picker-url-btn" class="btn-ghost">Fetch</button>
+                </span>
+              </label>
+            </div>
+          </div>
+          <p id="icon-picker-status" class="meta" hidden></p>
+          <div id="icon-picker-list" class="dashboard-picker-list icon-picker-grid"></div>
+          <footer class="dashboard-picker-foot">
+            <button type="button" id="icon-picker-apply" class="btn-primary">Use selected</button>
+          </footer>
         </form>
       </dialog>
 
@@ -366,6 +402,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=60"></script>
+  <script src="/assets/app.js?v=62"></script>
 </body>
 </html>

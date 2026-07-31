@@ -711,45 +711,51 @@ def parse_entities(
                 ent["display"] = "Standby"
             entities[cid] = ent
 
-    # Goform power enrichment / override gaps
+    # Goform power enrichment — always sync power/mute so stale telnet cache
+    # cannot leave Dashboard toggles showing Standby while the AVR is On.
     if power:
         pwr = (power.get("power") or "").lower()
         if pwr == "on":
-            if "pw_power" not in entities:
-                entities["pw_power"] = {
-                    "kind": "toggle",
-                    "value": True,
-                    "on": True,
-                    "raw": "PWON",
-                    "display": "On",
-                    "source": "goform",
-                }
-            if "pw_on" not in entities:
-                entities["pw_on"] = {
-                    "kind": "action",
-                    "raw": "PWON",
-                    "active": True,
-                    "display": "On",
-                    "source": "goform",
-                }
+            entities["pw_power"] = {
+                **(entities.get("pw_power") or {}),
+                "kind": "toggle",
+                "value": True,
+                "on": True,
+                "raw": "PWON",
+                "display": "On",
+                "source": "goform",
+                "inactive": False,
+            }
+            entities["pw_on"] = {
+                **(entities.get("pw_on") or {}),
+                "kind": "action",
+                "raw": "PWON",
+                "active": True,
+                "display": "On",
+                "source": "goform",
+            }
+            if "pw_standby" in entities:
+                entities["pw_standby"]["active"] = False
         elif pwr == "standby":
-            if "pw_power" not in entities:
-                entities["pw_power"] = {
-                    "kind": "toggle",
-                    "value": False,
-                    "on": False,
-                    "raw": "PWSTANDBY",
-                    "display": "Standby",
-                    "source": "goform",
-                }
-            if "pw_standby" not in entities:
-                entities["pw_standby"] = {
-                    "kind": "action",
-                    "raw": "PWSTANDBY",
-                    "active": True,
-                    "display": "Standby",
-                    "source": "goform",
-                }
+            entities["pw_power"] = {
+                **(entities.get("pw_power") or {}),
+                "kind": "toggle",
+                "value": False,
+                "on": False,
+                "raw": "PWSTANDBY",
+                "display": "Standby",
+                "source": "goform",
+            }
+            entities["pw_standby"] = {
+                **(entities.get("pw_standby") or {}),
+                "kind": "action",
+                "raw": "PWSTANDBY",
+                "active": True,
+                "display": "Standby",
+                "source": "goform",
+            }
+            if "pw_on" in entities:
+                entities["pw_on"]["active"] = False
         if (
             "mv_master" not in entities
             and "mv_set" not in entities
@@ -769,31 +775,38 @@ def parse_entities(
                 entities["mv_set"] = {**vol_ent, "kind": "slider"}
         mute = (power.get("mute") or "").lower()
         if mute in {"on", "off"}:
-            if "mu_mute" not in entities:
-                entities["mu_mute"] = {
-                    "kind": "toggle",
-                    "value": mute == "on",
-                    "on": mute == "on",
-                    "raw": "MUON" if mute == "on" else "MUOFF",
-                    "display": "Muted" if mute == "on" else "Unmuted",
-                    "source": "goform",
-                }
-            if mute == "on" and "mu_on" not in entities:
+            entities["mu_mute"] = {
+                **(entities.get("mu_mute") or {}),
+                "kind": "toggle",
+                "value": mute == "on",
+                "on": mute == "on",
+                "raw": "MUON" if mute == "on" else "MUOFF",
+                "display": "Muted" if mute == "on" else "Unmuted",
+                "source": "goform",
+                "inactive": False,
+            }
+            if mute == "on":
                 entities["mu_on"] = {
+                    **(entities.get("mu_on") or {}),
                     "kind": "action",
                     "raw": "MUON",
                     "active": True,
                     "display": "Mute",
                     "source": "goform",
                 }
-            if mute == "off" and "mu_off" not in entities:
+                if "mu_off" in entities:
+                    entities["mu_off"]["active"] = False
+            else:
                 entities["mu_off"] = {
+                    **(entities.get("mu_off") or {}),
                     "kind": "action",
                     "raw": "MUOFF",
                     "active": True,
                     "display": "Unmute",
                     "source": "goform",
                 }
+                if "mu_on" in entities:
+                    entities["mu_on"]["active"] = False
         inp = (power.get("input") or "").strip()
         if inp and "si_select" not in entities:
             for c in load_telnet_commands(layout):

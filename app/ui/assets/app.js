@@ -114,6 +114,9 @@
     dashboardEdit: false,
     dashboardCatalog: null,
     dashboardDrag: null,
+    dashboardIcons: null,
+    dashboardIconTarget: null,
+    dashboardStatusReady: false,
     appSettings: {
       poll_enabled: true,
       poll_interval_sec: 5,
@@ -3903,6 +3906,17 @@
         toggle.classList.toggle("is-off", ent && !on && !inactive);
         toggle.setAttribute("aria-pressed", on ? "true" : "false");
       }
+      const iconHost =
+        wrap.querySelector('[data-role="dash-icon"]') ||
+        wrap.closest?.(".dashboard-widget")?.querySelector('[data-role="dash-icon"]');
+      if (iconHost) {
+        const on =
+          wrap.dataset.kind === "toggle"
+            ? ent?.on === true || ent?.value === true
+            : Boolean(ent && !inactive && (ent.on === true || ent.active || ent.value));
+        iconHost.classList.toggle("is-on", on);
+        iconHost.classList.toggle("is-off", !on);
+      }
       if (stepVal) {
         stepVal.textContent = ent?.display || (ent?.value != null ? String(ent.value) : "—");
       }
@@ -4129,6 +4143,16 @@
 
   /* ---------- Dashboard (customisable favourites) ---------- */
 
+  const DASH_DEFAULT_ICONS = {
+    pw_power: { on: "mdi:power", off: "mdi:power-standby" },
+    zm_main: { on: "mdi:amplifier", off: "mdi:amplifier-off" },
+    z2_power: { on: "mdi:speaker", off: "mdi:speaker-off" },
+    mu_mute: { on: "mdi:volume-off", off: "mdi:volume-high" },
+    si_select: { on: "mdi:import", off: "mdi:import" },
+    ms_select: { on: "mdi:surround-sound", off: "mdi:surround-sound" },
+    mv_master: { on: "mdi:volume-high", off: "mdi:volume-medium" },
+  };
+
   function dashboardBanner(text, kind) {
     const el = $("dashboard-banner");
     if (!el) return;
@@ -4157,32 +4181,125 @@
     renderDashboard();
   }
 
+  function dashIconRef(ref) {
+    const raw = String(ref || "").trim();
+    if (!raw) return null;
+    if (raw.startsWith("custom:")) {
+      const id = raw.slice(7);
+      const hit = (state.dashboardIcons?.custom || []).find((c) => c.id === id);
+      if (hit) return { type: "custom", url: hit.url, ref: hit.ref };
+      return { type: "custom", url: "", ref: raw };
+    }
+    let name = raw;
+    if (name.startsWith("mdi:")) name = name.slice(4);
+    if (!name.startsWith("mdi-")) name = `mdi-${name}`;
+    return { type: "mdi", class: name, ref: `mdi:${name.replace(/^mdi-/, "")}` };
+  }
+
+  function renderIconNode(resolved, layer) {
+    const span = document.createElement("span");
+    span.className = "dash-icon-layer";
+    span.dataset.layer = layer;
+    if (!resolved) {
+      span.innerHTML = `<i class="mdi mdi-tune" aria-hidden="true"></i>`;
+      return span;
+    }
+    if (resolved.type === "custom" && resolved.url) {
+      const img = document.createElement("img");
+      img.src = resolved.url;
+      img.alt = "";
+      img.className = "dash-icon-img";
+      span.appendChild(img);
+    } else {
+      const i = document.createElement("i");
+      i.className = `mdi ${resolved.class || "mdi-tune"}`;
+      i.setAttribute("aria-hidden", "true");
+      span.appendChild(i);
+    }
+    return span;
+  }
+
+  function buildDashIconHost(w) {
+    const host = document.createElement("div");
+    host.className = "dash-icon is-off";
+    host.dataset.role = "dash-icon";
+    const defaults = DASH_DEFAULT_ICONS[w.control_id] || {
+      on: "mdi:tune",
+      off: "mdi:tune",
+    };
+    const onRef = w.icon_on || defaults.on;
+    const offRef = w.icon_off || defaults.off;
+    host.appendChild(
+      renderIconNode(w.icon_on_resolved || dashIconRef(onRef), "on")
+    );
+    host.appendChild(
+      renderIconNode(w.icon_off_resolved || dashIconRef(offRef), "off")
+    );
+    return host;
+  }
+
+  async function ensureDashboardIcons({ force = false } = {}) {
+    if (!force && state.dashboardIcons) return state.dashboardIcons;
+    state.dashboardIcons = await api("/api/dashboard/icons");
+    return state.dashboardIcons;
+  }
+
   async function loadDashboard({ force = false } = {}) {
     if (!state.connected) {
       dashboardBanner("Connect to AVR first", "warn");
       return;
     }
     try {
+      dashboardBanner("Loading AVR status…");
+      // Match Control Panel: wait for startup preload so first paint is correct.
+      try {
+        const preload = await api("/api/control/preload");
+        if (preload.status === "pending" || preload.status === "running") {
+          await waitForControlPreload();
+        }
+      } catch (_) {
+        /* ignore */
+      }
       if (force || !state.dashboard) {
         state.dashboard = await api("/api/dashboard");
       }
       if (force || !state.dashboardCatalog) {
         state.dashboardCatalog = await api("/api/dashboard/catalog");
       }
-      await refreshDashboardStatus({ quiet: true });
+      await ensureDashboardIcons({ force });
+      // After preload, cache + goform power sync is enough; Refresh forces live query.
+      await refreshDashboardStatus({ quiet: true, refresh: force });
+      state.dashboardStatusReady = true;
       renderDashboard();
+      dashboardBanner("");
     } catch (err) {
       dashboardBanner(err.message, "err");
     }
   }
 
-  async function refreshDashboardStatus({ quiet = false } = {}) {
+  async function refreshDashboardStatus({ quiet = false, refresh = false } = {}) {
     try {
-      const snap = await api("/api/control/status?refresh=false&layout=more");
+      const q = refresh ? "refresh=true" : "refresh=false";
+      const snap = await api(`/api/control/status?${q}&layout=more`);
       state.controlEntities = {
         ...(state.controlEntities || {}),
         ...(snap.entities || {}),
       };
+      // Prefer live goform power when present (header already uses /api/power).
+      const pwr = (snap.power?.power || "").toLowerCase();
+      if (pwr === "on" || pwr === "standby") {
+        const on = pwr === "on";
+        state.controlEntities.pw_power = {
+          ...(state.controlEntities.pw_power || {}),
+          kind: "toggle",
+          value: on,
+          on,
+          raw: on ? "PWON" : "PWSTANDBY",
+          display: on ? "On" : "Standby",
+          source: "goform",
+          inactive: false,
+        };
+      }
       applyDashboardEntities();
       if (!quiet) dashboardBanner("Dashboard updated", "ok");
     } catch (err) {
@@ -4194,6 +4311,28 @@
     const root = $("dashboard-sections");
     if (!root) return;
     applyControlEntitiesToDom();
+    // Dual-layer icons live on the shell, outside .control-widget.
+    for (const shell of root.querySelectorAll(".dashboard-widget")) {
+      const id = shell.dataset.controlId;
+      const ent = controlEntity(id);
+      const icon = shell.querySelector('[data-role="dash-icon"]');
+      if (!icon) continue;
+      const kind = shell.querySelector(".control-widget")?.dataset.kind;
+      let on = false;
+      if (kind === "toggle") {
+        on = ent?.on === true || ent?.value === true;
+      } else {
+        on = Boolean(
+          ent &&
+            !ent.inactive &&
+            (ent.on === true || ent.active || ent.display || ent.raw)
+        );
+      }
+      icon.classList.toggle("is-on", on);
+      icon.classList.toggle("is-off", !on);
+      shell.classList.toggle("is-entity-on", on);
+      shell.classList.toggle("is-entity-off", !on);
+    }
   }
 
   function dashboardPayloadFromDom() {
@@ -4212,6 +4351,10 @@
           control_id: wEl.dataset.controlId,
           control_layout: wEl.dataset.controlLayout || "less",
           sort_order: widgets.length,
+          shape: wEl.dataset.shape || "rectangle",
+          size: wEl.dataset.size || "md",
+          icon_on: wEl.dataset.iconOn || "",
+          icon_off: wEl.dataset.iconOff || "",
         });
       }
       sections.push({
@@ -4219,6 +4362,8 @@
         title,
         sort_order: sections.length,
         collapsed: secEl.classList.contains("is-collapsed"),
+        shape: secEl.dataset.shape || "rectangle",
+        size: secEl.dataset.size || "full",
         widgets,
       });
     }
@@ -4234,6 +4379,26 @@
     renderDashboard();
   }
 
+  function patchWidgetFields(widgetId, fields) {
+    return api(`/api/dashboard/widgets/${widgetId}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }).then((d) => {
+      state.dashboard = d;
+      renderDashboard();
+    });
+  }
+
+  function patchSectionFields(sectionId, fields) {
+    return api(`/api/dashboard/sections/${sectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }).then((d) => {
+      state.dashboard = d;
+      renderDashboard();
+    });
+  }
+
   function renderDashboard() {
     const root = $("dashboard-sections");
     const empty = $("dashboard-empty");
@@ -4243,7 +4408,7 @@
     if (meta) {
       const n = sections.reduce((a, s) => a + (s.widgets?.length || 0), 0);
       meta.textContent = state.dashboardEdit
-        ? `Editing · ${sections.length} sections · ${n} widgets · drag to reorder`
+        ? `Editing · ${sections.length} sections · ${n} widgets · resize, shape & icons`
         : `${sections.length} sections · ${n} widgets · stored in SQLite`;
     }
     root.innerHTML = "";
@@ -4258,14 +4423,50 @@
     applyDashboardEntities();
   }
 
+  function buildSizeSelect(options, value, onChange) {
+    const sel = document.createElement("select");
+    sel.className = "dash-style-select";
+    sel.title = "Size";
+    for (const [val, label] of options) {
+      const o = document.createElement("option");
+      o.value = val;
+      o.textContent = label;
+      if (val === value) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener("change", () => onChange(sel.value));
+    sel.addEventListener("mousedown", (e) => e.stopPropagation());
+    sel.addEventListener("click", (e) => e.stopPropagation());
+    return sel;
+  }
+
+  function buildShapeSelect(value, onChange) {
+    return buildSizeSelect(
+      [
+        ["rectangle", "Rectangle"],
+        ["square", "Square"],
+      ],
+      value || "rectangle",
+      onChange
+    );
+  }
+
   function buildDashboardSection(sec) {
     const wrap = document.createElement("section");
-    wrap.className = "dashboard-section";
+    const shape = sec.shape || "rectangle";
+    const size = sec.size || "full";
+    wrap.className = `dashboard-section shape-${shape} size-${size}`;
     wrap.dataset.sectionId = sec.id;
+    wrap.dataset.shape = shape;
+    wrap.dataset.size = size;
     if (sec.collapsed) wrap.classList.add("is-collapsed");
     if (state.dashboardEdit) {
       wrap.draggable = true;
       wrap.addEventListener("dragstart", (ev) => {
+        if (ev.target.closest("select,button,input,a,[contenteditable]")) {
+          ev.preventDefault();
+          return;
+        }
         state.dashboardDrag = { type: "section", id: sec.id };
         wrap.classList.add("is-dragging");
         ev.dataTransfer.effectAllowed = "move";
@@ -4303,20 +4504,36 @@
       title.addEventListener("blur", () => {
         const t = title.textContent.trim() || "Section";
         title.textContent = t;
-        api(`/api/dashboard/sections/${sec.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ title: t }),
-        })
-          .then((d) => {
-            state.dashboard = d;
-          })
-          .catch((e) => dashboardBanner(e.message, "err"));
+        patchSectionFields(sec.id, { title: t }).catch((e) =>
+          dashboardBanner(e.message, "err")
+        );
       });
     }
     head.appendChild(title);
     if (state.dashboardEdit) {
       const actions = document.createElement("div");
       actions.className = "dashboard-section-actions";
+      actions.appendChild(
+        buildSizeSelect(
+          [
+            ["full", "Full"],
+            ["half", "Half"],
+            ["third", "Third"],
+          ],
+          size,
+          (v) =>
+            patchSectionFields(sec.id, { size: v }).catch((e) =>
+              dashboardBanner(e.message, "err")
+            )
+        )
+      );
+      actions.appendChild(
+        buildShapeSelect(shape, (v) =>
+          patchSectionFields(sec.id, { shape: v }).catch((e) =>
+            dashboardBanner(e.message, "err")
+          )
+        )
+      );
       const addBtn = document.createElement("button");
       addBtn.type = "button";
       addBtn.className = "btn-ghost";
@@ -4342,7 +4559,7 @@
     wrap.appendChild(head);
 
     const grid = document.createElement("div");
-    grid.className = "dashboard-grid control-grid";
+    grid.className = "dashboard-grid";
     grid.dataset.sectionId = sec.id;
     if (state.dashboardEdit) {
       grid.addEventListener("dragover", (ev) => {
@@ -4381,13 +4598,26 @@
   function buildDashboardWidget(w) {
     const control = w.control;
     const shell = document.createElement("div");
-    shell.className = "dashboard-widget";
+    const shape = w.shape || "rectangle";
+    const size = w.size || "md";
+    shell.className = `dashboard-widget shape-${shape} size-${size}`;
     shell.dataset.widgetId = w.id;
     shell.dataset.controlId = w.control_id;
     shell.dataset.controlLayout = w.control_layout || "less";
+    shell.dataset.shape = shape;
+    shell.dataset.size = size;
+    shell.dataset.iconOn = w.icon_on || "";
+    shell.dataset.iconOff = w.icon_off || "";
+
+    shell.appendChild(buildDashIconHost(w));
+
     if (state.dashboardEdit) {
       shell.draggable = true;
       shell.addEventListener("dragstart", (ev) => {
+        if (ev.target.closest("select,button,input,a")) {
+          ev.preventDefault();
+          return;
+        }
         state.dashboardDrag = { type: "widget", id: w.id };
         shell.classList.add("is-dragging");
         ev.dataTransfer.effectAllowed = "move";
@@ -4418,6 +4648,51 @@
           persistDashboardFromDom().catch((e) => dashboardBanner(e.message, "err"));
         }
       });
+
+      const toolbar = document.createElement("div");
+      toolbar.className = "dashboard-widget-toolbar";
+      toolbar.appendChild(
+        buildSizeSelect(
+          [
+            ["sm", "S"],
+            ["md", "M"],
+            ["lg", "L"],
+            ["xl", "XL"],
+          ],
+          size,
+          (v) =>
+            patchWidgetFields(w.id, { size: v }).catch((e) =>
+              dashboardBanner(e.message, "err")
+            )
+        )
+      );
+      toolbar.appendChild(
+        buildShapeSelect(shape, (v) =>
+          patchWidgetFields(w.id, { shape: v }).catch((e) =>
+            dashboardBanner(e.message, "err")
+          )
+        )
+      );
+      const iconOnBtn = document.createElement("button");
+      iconOnBtn.type = "button";
+      iconOnBtn.className = "btn-ghost dash-icon-btn";
+      iconOnBtn.textContent = "On icon";
+      iconOnBtn.title = "Icon when On";
+      iconOnBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openIconPicker({ widgetId: w.id, layer: "on", current: w.icon_on });
+      });
+      const iconOffBtn = document.createElement("button");
+      iconOffBtn.type = "button";
+      iconOffBtn.className = "btn-ghost dash-icon-btn";
+      iconOffBtn.textContent = "Off icon";
+      iconOffBtn.title = "Icon when Off";
+      iconOffBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openIconPicker({ widgetId: w.id, layer: "off", current: w.icon_off });
+      });
+      toolbar.appendChild(iconOnBtn);
+      toolbar.appendChild(iconOffBtn);
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "dashboard-widget-remove";
@@ -4432,6 +4707,7 @@
           })
           .catch((e) => dashboardBanner(e.message, "err"));
       });
+      shell.appendChild(toolbar);
       shell.appendChild(remove);
     }
     if (control) {
@@ -4491,12 +4767,18 @@
       btn.addEventListener("click", () => {
         const sectionId = $("dashboard-picker-section")?.value;
         if (!sectionId) return;
+        const defaults = DASH_DEFAULT_ICONS[c.id] || {
+          on: "mdi:tune",
+          off: "mdi:tune",
+        };
         api("/api/dashboard/widgets", {
           method: "POST",
           body: JSON.stringify({
             section_id: sectionId,
             control_id: c.id,
             control_layout: layout,
+            icon_on: defaults.on,
+            icon_off: defaults.off,
           }),
         })
           .then((d) => {
@@ -4510,6 +4792,188 @@
     }
     if (!controls.length) {
       list.innerHTML = "<p class='meta'>No matching controls</p>";
+    }
+  }
+
+  function setIconPickerStatus(text, kind) {
+    const el = $("icon-picker-status");
+    if (!el) return;
+    if (!text) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.classList.toggle("err", kind === "err");
+  }
+
+  async function openIconPicker({ widgetId, layer, current }) {
+    await ensureDashboardIcons({ force: true });
+    state.dashboardIconTarget = {
+      widgetId,
+      layer,
+      selected: current || "",
+    };
+    const dlg = $("dashboard-icon-picker");
+    const search = $("icon-picker-search");
+    const manual = $("icon-picker-manual");
+    if (search) search.value = "";
+    if (manual) manual.value = current || "";
+    setIconPickerStatus(`Pick ${layer === "on" ? "On" : "Off"} icon`);
+    renderIconPickerList();
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "open");
+  }
+
+  function renderIconPickerList() {
+    const list = $("icon-picker-list");
+    if (!list) return;
+    const q = ($("icon-picker-search")?.value || "").trim().toLowerCase();
+    const selected = state.dashboardIconTarget?.selected || "";
+    list.innerHTML = "";
+
+    const custom = state.dashboardIcons?.custom || [];
+    for (const c of custom) {
+      if (q && !String(c.name || "").toLowerCase().includes(q)) continue;
+      list.appendChild(
+        buildIconPickerItem({
+          ref: c.ref,
+          label: c.name,
+          preview: { type: "custom", url: c.url },
+          selected: selected === c.ref,
+        })
+      );
+    }
+
+    const suggestions = state.dashboardIcons?.mdi_suggestions || [];
+    for (const ref of suggestions) {
+      const name = ref.replace(/^mdi:/, "");
+      if (q && !name.includes(q) && !ref.includes(q)) continue;
+      list.appendChild(
+        buildIconPickerItem({
+          ref,
+          label: name,
+          preview: dashIconRef(ref),
+          selected: selected === ref,
+        })
+      );
+    }
+
+    if (q && /^[a-z0-9-]+$/i.test(q) && !suggestions.some((r) => r.includes(q))) {
+      const ref = q.startsWith("mdi:") ? q : `mdi:${q}`;
+      list.appendChild(
+        buildIconPickerItem({
+          ref,
+          label: `Use ${ref}`,
+          preview: dashIconRef(ref),
+          selected: selected === ref,
+        })
+      );
+    }
+  }
+
+  function buildIconPickerItem({ ref, label, preview, selected }) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "icon-picker-item" + (selected ? " is-selected" : "");
+    btn.dataset.ref = ref;
+    const previewEl = document.createElement("span");
+    previewEl.className = "icon-picker-preview";
+    if (preview?.type === "custom" && preview.url) {
+      const img = document.createElement("img");
+      img.src = preview.url;
+      img.alt = "";
+      previewEl.appendChild(img);
+    } else {
+      const i = document.createElement("i");
+      i.className = `mdi ${preview?.class || "mdi-tune"}`;
+      previewEl.appendChild(i);
+    }
+    const text = document.createElement("span");
+    text.textContent = label;
+    btn.appendChild(previewEl);
+    btn.appendChild(text);
+    btn.addEventListener("click", () => {
+      if (state.dashboardIconTarget) {
+        state.dashboardIconTarget.selected = ref;
+      }
+      if ($("icon-picker-manual")) $("icon-picker-manual").value = ref;
+      renderIconPickerList();
+    });
+    return btn;
+  }
+
+  async function applyIconPickerSelection() {
+    const target = state.dashboardIconTarget;
+    if (!target?.widgetId) return;
+    let ref =
+      ($("icon-picker-manual")?.value || "").trim() || target.selected || "";
+    if (!ref) {
+      setIconPickerStatus("Select or type an icon ref", "err");
+      return;
+    }
+    if (!ref.startsWith("mdi:") && !ref.startsWith("custom:")) {
+      ref = `mdi:${ref.replace(/^mdi-/, "")}`;
+    }
+    const fields =
+      target.layer === "on" ? { icon_on: ref } : { icon_off: ref };
+    try {
+      await patchWidgetFields(target.widgetId, fields);
+      const dlg = $("dashboard-icon-picker");
+      if (dlg?.open) dlg.close();
+      dashboardBanner("Icon updated", "ok");
+    } catch (e) {
+      setIconPickerStatus(e.message, "err");
+    }
+  }
+
+  async function uploadIconFile(file) {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("name", file.name.replace(/\.[^.]+$/, "") || "icon");
+    setIconPickerStatus("Uploading…");
+    try {
+      const res = await fetch("/api/dashboard/icons/upload", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      await ensureDashboardIcons({ force: true });
+      if (state.dashboardIconTarget) {
+        state.dashboardIconTarget.selected = data.icon.ref;
+      }
+      if ($("icon-picker-manual")) $("icon-picker-manual").value = data.icon.ref;
+      renderIconPickerList();
+      setIconPickerStatus(`Stored ${data.icon.name} locally`);
+    } catch (e) {
+      setIconPickerStatus(e.message, "err");
+    }
+  }
+
+  async function fetchIconFromUrl() {
+    const url = ($("icon-picker-url")?.value || "").trim();
+    if (!url) {
+      setIconPickerStatus("Enter a URL", "err");
+      return;
+    }
+    setIconPickerStatus("Fetching…");
+    try {
+      const data = await api("/api/dashboard/icons/from-url", {
+        method: "POST",
+        body: JSON.stringify({ url }),
+      });
+      await ensureDashboardIcons({ force: true });
+      if (state.dashboardIconTarget) {
+        state.dashboardIconTarget.selected = data.icon.ref;
+      }
+      if ($("icon-picker-manual")) $("icon-picker-manual").value = data.icon.ref;
+      renderIconPickerList();
+      setIconPickerStatus(`Stored ${data.icon.name} locally`);
+    } catch (e) {
+      setIconPickerStatus(e.message, "err");
     }
   }
 
@@ -4533,6 +4997,17 @@
     $("dashboard-refresh")?.addEventListener("click", () =>
       loadDashboard({ force: true }).catch((e) => dashboardBanner(e.message, "err"))
     );
+    $("icon-picker-search")?.addEventListener("input", () => renderIconPickerList());
+    $("icon-picker-apply")?.addEventListener("click", () =>
+      applyIconPickerSelection()
+    );
+    $("icon-picker-file")?.addEventListener("change", (ev) => {
+      const file = ev.target.files?.[0];
+      uploadIconFile(file).finally(() => {
+        ev.target.value = "";
+      });
+    });
+    $("icon-picker-url-btn")?.addEventListener("click", () => fetchIconFromUrl());
   }
 
   initTheme();
