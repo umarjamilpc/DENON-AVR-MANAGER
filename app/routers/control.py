@@ -20,6 +20,7 @@ from ..denon_control import (
 from ..denon_power import read_main_zone_power
 from ..denon_telnet import DenonTelnetError
 from ..host_utils import host_label
+from ..protocol_loader import CONTROL_LAYOUT_GROUPED, CONTROL_LAYOUTS
 
 router = APIRouter(tags=["control"])
 
@@ -31,6 +32,15 @@ def _default_base(request: Request) -> str:
 def _model() -> str:
     m = str(load_settings().get("avr_model") or "AVR-X1200W")
     return m if m in SUPPORTED_MODELS else "AVR-X1200W"
+
+
+def _layout(override: Optional[str] = None) -> str:
+    if override:
+        lay = str(override).strip().lower()
+        if lay in CONTROL_LAYOUTS:
+            return lay
+    lay = str(load_settings().get("control_grouping") or CONTROL_LAYOUT_GROUPED).strip().lower()
+    return lay if lay in CONTROL_LAYOUTS else CONTROL_LAYOUT_GROUPED
 
 
 def _control(request: Request) -> DenonControl:
@@ -65,6 +75,9 @@ class CommandBody(BaseModel):
     section: Optional[str] = Field(
         None, description="Section id — return updated entities for this section"
     )
+    layout: Optional[str] = Field(
+        None, description="grouped | ungrouped — section UI override of Settings"
+    )
 
 
 class QueryBody(BaseModel):
@@ -73,16 +86,24 @@ class QueryBody(BaseModel):
 
 
 @router.get("/control/catalog")
-def control_catalog(request: Request) -> Dict[str, Any]:
+def control_catalog(
+    request: Request,
+    layout: Optional[str] = Query(
+        None,
+        description="Override Settings layout for this request: grouped | ungrouped",
+    ),
+) -> Dict[str, Any]:
     ctrl = _control(request)
     settings = load_settings()
     data = ctrl.catalog(
         model=_model(),
         show_zone2=bool(settings.get("show_zone2")),
         show_zone3=bool(settings.get("show_zone3")),
+        layout=_layout(layout),
     )
     data["host"] = host_label(_default_base(request))
     data["preload"] = getattr(request.app.state, "control_preload", None)
+    data["settings_layout"] = _layout()
     return data
 
 
@@ -109,6 +130,10 @@ def control_status(
             "If false (default), return the in-memory preload/event cache only."
         ),
     ),
+    layout: Optional[str] = Query(
+        None,
+        description="Override Settings layout for this request: grouped | ungrouped",
+    ),
 ) -> Dict[str, Any]:
     ctrl = _control(request)
     power = None
@@ -116,6 +141,7 @@ def control_status(
         power = read_main_zone_power(DenonSetupClient(_default_base(request)))
     except Exception:
         power = None
+    lay = _layout(layout)
     try:
         snap = ctrl.status_snapshot(
             full=full,
@@ -123,12 +149,15 @@ def control_status(
             power=power,
             refresh=refresh,
             model=_model(),
+            layout=lay,
         )
     except Exception as e:
         raise HTTPException(502, f"status failed: {e}") from e
     snap["power"] = power
     snap["host"] = host_label(_default_base(request))
     snap["model"] = _model()
+    snap["layout"] = lay
+    snap["settings_layout"] = _layout()
     snap["preload"] = getattr(request.app.state, "control_preload", None)
     return snap
 
@@ -136,6 +165,8 @@ def control_status(
 @router.post("/control/command")
 def control_command(request: Request, body: CommandBody) -> Dict[str, Any]:
     ctrl = _control(request)
+    # Prefer explicit layout on the body when the section UI overrode Settings
+    layout = _layout(body.layout)
     try:
         if body.id:
             cmd = resolve_command_from_id(body.id, body.value)
@@ -157,10 +188,11 @@ def control_command(request: Request, body: CommandBody) -> Dict[str, Any]:
             power = None
         lines = list(result.get("responses") or []) + ctrl.telnet.cached_lines()
         result["entities"] = parse_entities(
-            lines, power=power, section_id=body.section
+            lines, power=power, section_id=body.section, layout=layout
         )
         result["host"] = host_label(_default_base(request))
         result["model"] = _model()
+        result["layout"] = layout
         return result
     except ControlConfirmRequired as e:
         raise HTTPException(400, str(e)) from e

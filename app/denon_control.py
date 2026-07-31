@@ -10,7 +10,13 @@ from urllib.parse import quote
 from .denon_client import DenonSetupClient
 from .denon_telnet import DenonTelnetError, get_telnet_hub, host_from_base
 from .osd_labels import channel_osd, osd_label
-from .protocol_loader import load_telnet_commands, load_telnet_protocol
+from .protocol_loader import (
+    CONTROL_LAYOUT_GROUPED,
+    CONTROL_LAYOUT_UNGROUPED,
+    CONTROL_LAYOUTS,
+    load_telnet_commands,
+    load_telnet_protocol,
+)
 
 SUPPORTED_MODELS = (
     "AVR-X1200W",
@@ -150,12 +156,13 @@ def _build_allowlist(
             exact.add(str(c["query"]).upper())
         if kind in {"slider", "stepper"} and c.get("prefix"):
             sliders.append(c)
-    # Status queries from protocol are always allowed
-    proto = load_telnet_protocol()
-    for q in proto.get("status_queries") or []:
-        exact.add(str(q).upper())
-    for q in proto.get("status_queries_lite") or []:
-        exact.add(str(q).upper())
+    # Status queries from both layouts are always allowed
+    for lay in CONTROL_LAYOUTS:
+        proto = load_telnet_protocol(lay)
+        for q in proto.get("status_queries") or []:
+            exact.add(str(q).upper())
+        for q in proto.get("status_queries_lite") or []:
+            exact.add(str(q).upper())
     return exact, sliders
 
 
@@ -353,8 +360,13 @@ def _match_enum_line(line: str, options: List[Dict[str, Any]]) -> Optional[Dict[
     return None
 
 
-def queries_for_section(section_id: Optional[str], *, full: bool = False) -> List[str]:
-    protocol = load_telnet_protocol()
+def queries_for_section(
+    section_id: Optional[str],
+    *,
+    full: bool = False,
+    layout: str = CONTROL_LAYOUT_GROUPED,
+) -> List[str]:
+    protocol = load_telnet_protocol(layout)
     if full and not section_id:
         return list(protocol.get("status_queries") or [])
     if not section_id:
@@ -369,7 +381,7 @@ def queries_for_section(section_id: Optional[str], *, full: bool = False) -> Lis
 
     seen: Set[str] = set()
     out: List[str] = []
-    for c in load_telnet_commands():
+    for c in load_telnet_commands(layout):
         if c.get("section") != section_id:
             continue
         q = c.get("query")
@@ -379,18 +391,18 @@ def queries_for_section(section_id: Optional[str], *, full: bool = False) -> Lis
             if key not in seen:
                 seen.add(key)
                 out.append(qq)
-        # Always include lite power/volume anchors when querying any section
-        for q in ("PW?", "MV?", "MU?", "SI?"):
-            if q.upper() not in seen and section_id in {
-                "main",
-                "power",
-                "volume",
-                "input",
-                "surround",
-            }:
-                seen.add(q.upper())
-                out.insert(0, q)
-        return out
+    # Always include lite power/volume anchors when querying any section
+    for q in ("PW?", "MV?", "MU?", "SI?"):
+        if q.upper() not in seen and section_id in {
+            "main",
+            "power",
+            "volume",
+            "input",
+            "surround",
+        }:
+            seen.add(q.upper())
+            out.insert(0, q)
+    return out
 
 
 def parse_entities(
@@ -398,6 +410,7 @@ def parse_entities(
     *,
     power: Optional[Dict[str, Any]] = None,
     section_id: Optional[str] = None,
+    layout: str = CONTROL_LAYOUT_GROUPED,
 ) -> Dict[str, Any]:
     """Map telnet response lines (+ optional goform power) to control_id → state."""
     lines = [
@@ -405,7 +418,7 @@ def parse_entities(
         for ln in responses
         if ln and str(ln).strip() and not str(ln).upper().startswith("MVMAX")
     ]
-    controls = load_telnet_commands()
+    controls = load_telnet_commands(layout)
     if section_id:
         controls = [c for c in controls if c.get("section") == section_id]
 
@@ -696,8 +709,8 @@ def parse_entities(
     # Goform power enrichment / override gaps
     if power:
         pwr = (power.get("power") or "").lower()
-        if "pw_power" not in entities:
-            if pwr == "on":
+        if pwr == "on":
+            if "pw_power" not in entities:
                 entities["pw_power"] = {
                     "kind": "toggle",
                     "value": True,
@@ -706,7 +719,16 @@ def parse_entities(
                     "display": "On",
                     "source": "goform",
                 }
-            elif pwr == "standby":
+            if "pw_on" not in entities:
+                entities["pw_on"] = {
+                    "kind": "action",
+                    "raw": "PWON",
+                    "active": True,
+                    "display": "On",
+                    "source": "goform",
+                }
+        elif pwr == "standby":
+            if "pw_power" not in entities:
                 entities["pw_power"] = {
                     "kind": "toggle",
                     "value": False,
@@ -715,33 +737,61 @@ def parse_entities(
                     "display": "Standby",
                     "source": "goform",
                 }
-        if "mv_master" not in entities and "mv_set" not in entities and power.get("volume") not in (
-            None,
-            "",
+            if "pw_standby" not in entities:
+                entities["pw_standby"] = {
+                    "kind": "action",
+                    "raw": "PWSTANDBY",
+                    "active": True,
+                    "display": "Standby",
+                    "source": "goform",
+                }
+        if (
+            "mv_master" not in entities
+            and "mv_set" not in entities
+            and power.get("volume") not in (None, "")
         ):
             parts = _db_str_to_mv(str(power.get("volume")))
             if parts:
                 num, raw, db = parts
-                entities["mv_master"] = {
+                vol_ent = {
                     "kind": "stepper",
                     "raw": raw,
                     "value": num,
                     "display": f"{db:g} dB",
                     "source": "goform",
                 }
+                entities["mv_master"] = vol_ent
+                entities["mv_set"] = {**vol_ent, "kind": "slider"}
         mute = (power.get("mute") or "").lower()
-        if mute in {"on", "off"} and "mu_mute" not in entities:
-            entities["mu_mute"] = {
-                "kind": "toggle",
-                "value": mute == "on",
-                "on": mute == "on",
-                "raw": "MUON" if mute == "on" else "MUOFF",
-                "display": "Muted" if mute == "on" else "Unmuted",
-                "source": "goform",
-            }
+        if mute in {"on", "off"}:
+            if "mu_mute" not in entities:
+                entities["mu_mute"] = {
+                    "kind": "toggle",
+                    "value": mute == "on",
+                    "on": mute == "on",
+                    "raw": "MUON" if mute == "on" else "MUOFF",
+                    "display": "Muted" if mute == "on" else "Unmuted",
+                    "source": "goform",
+                }
+            if mute == "on" and "mu_on" not in entities:
+                entities["mu_on"] = {
+                    "kind": "action",
+                    "raw": "MUON",
+                    "active": True,
+                    "display": "Mute",
+                    "source": "goform",
+                }
+            if mute == "off" and "mu_off" not in entities:
+                entities["mu_off"] = {
+                    "kind": "action",
+                    "raw": "MUOFF",
+                    "active": True,
+                    "display": "Unmute",
+                    "source": "goform",
+                }
         inp = (power.get("input") or "").strip()
         if inp and "si_select" not in entities:
-            for c in load_telnet_commands():
+            for c in load_telnet_commands(layout):
                 if c.get("id") != "si_select":
                     continue
                 for opt in c.get("options") or []:
@@ -837,20 +887,31 @@ class DenonControl:
         power: Optional[Dict[str, Any]] = None,
         refresh: bool = True,
         model: Optional[str] = None,
+        layout: str = CONTROL_LAYOUT_GROUPED,
     ) -> Dict[str, Any]:
+        layout = (
+            layout
+            if layout in CONTROL_LAYOUTS
+            else CONTROL_LAYOUT_GROUPED
+        )
         if not refresh:
             lines = self.telnet.cached_lines()
-            entities = parse_entities(lines, power=power, section_id=section)
+            entities = parse_entities(
+                lines, power=power, section_id=section, layout=layout
+            )
             if model:
                 allowed = {
                     str(c.get("id"))
-                    for c in filter_controls_for_model(load_telnet_commands(), model)
+                    for c in filter_controls_for_model(
+                        load_telnet_commands(layout), model
+                    )
                 }
                 entities = {k: v for k, v in entities.items() if k in allowed}
             cache = self.telnet.snapshot_cache()
             return {
                 "ok": True,
                 "section": section,
+                "layout": layout,
                 "transport": "cache",
                 "from_cache": True,
                 "responses": lines,
@@ -864,7 +925,7 @@ class DenonControl:
                 },
             }
 
-        queries = queries_for_section(section, full=full)
+        queries = queries_for_section(section, full=full, layout=layout)
         if max_queries is not None:
             queries = queries[: max(0, int(max_queries))]
 
@@ -897,11 +958,13 @@ class DenonControl:
             if ln not in lines:
                 lines.append(ln)
 
-        entities = parse_entities(lines, power=power, section_id=section)
+        entities = parse_entities(
+            lines, power=power, section_id=section, layout=layout
+        )
         if model:
             allowed = {
                 str(c.get("id"))
-                for c in filter_controls_for_model(load_telnet_commands(), model)
+                for c in filter_controls_for_model(load_telnet_commands(layout), model)
             }
             entities = {k: v for k, v in entities.items() if k in allowed}
 
@@ -909,6 +972,7 @@ class DenonControl:
         return {
             "ok": True,
             "section": section,
+            "layout": layout,
             "transport": transport_used or "unknown",
             "from_cache": False,
             "responses": lines,
@@ -928,8 +992,14 @@ class DenonControl:
         *,
         show_zone2: bool = False,
         show_zone3: bool = False,
+        layout: str = CONTROL_LAYOUT_GROUPED,
     ) -> Dict[str, Any]:
-        protocol = load_telnet_protocol()
+        layout = (
+            layout
+            if layout in CONTROL_LAYOUTS
+            else CONTROL_LAYOUT_GROUPED
+        )
+        protocol = load_telnet_protocol(layout)
         model_name = model or "AVR-X1200W"
         raw_controls = filter_controls_for_model(
             list(protocol.get("controls") or []), model_name
@@ -937,10 +1007,12 @@ class DenonControl:
         controls: List[Dict[str, Any]] = []
         for c in raw_controls:
             sec = c.get("section")
-            if sec == "zone2" and not show_zone2:
-                continue
-            if sec == "zone3" and not show_zone3:
-                continue
+            # Zone opt-in only applies to the grouped (streamlined) layout
+            if layout == CONTROL_LAYOUT_GROUPED:
+                if sec == "zone2" and not show_zone2:
+                    continue
+                if sec == "zone3" and not show_zone3:
+                    continue
             filtered = filter_control_options(c, model_name)
             if filtered is not None:
                 controls.append(filtered)
@@ -953,6 +1025,8 @@ class DenonControl:
         return {
             "model": model_name,
             "models": list(SUPPORTED_MODELS),
+            "layout": layout,
+            "layouts": list(CONTROL_LAYOUTS),
             "protocol_version": protocol.get("protocol_version"),
             "sections": sections,
             "controls": controls,
@@ -968,10 +1042,12 @@ class DenonControl:
         self, *, model: Optional[str] = None, power: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Query full status_queries once into the shared telnet cache (startup)."""
+        # Use the larger of the two query lists so both layouts have cache coverage
         return self.status_snapshot(
             full=True,
             section=None,
             power=power,
             refresh=True,
             model=model,
+            layout=CONTROL_LAYOUT_UNGROUPED,
         )

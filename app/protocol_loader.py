@@ -9,6 +9,10 @@ from .host_utils import rewrite_endpoint, rewrite_url
 
 PROTOCOL_DIR = Path(__file__).resolve().parents[1] / "protocol"
 
+CONTROL_LAYOUT_GROUPED = "grouped"
+CONTROL_LAYOUT_UNGROUPED = "ungrouped"
+CONTROL_LAYOUTS = (CONTROL_LAYOUT_GROUPED, CONTROL_LAYOUT_UNGROUPED)
+
 
 @lru_cache
 def load_endpoints() -> List[Dict[str, Any]]:
@@ -39,22 +43,51 @@ def load_catalog() -> List[Dict[str, Any]]:
 
 
 @lru_cache
-def load_telnet_protocol() -> Dict[str, Any]:
-    """AVR-X1200W telnet command catalog (Control Panel)."""
-    path = PROTOCOL_DIR / "telnet_commands.json"
+def load_telnet_protocol(
+    layout: str = CONTROL_LAYOUT_GROUPED,
+) -> Dict[str, Any]:
+    """AVR telnet command catalog for Control Panel (grouped or ungrouped)."""
+    layout = (layout or CONTROL_LAYOUT_GROUPED).strip().lower()
+    if layout not in CONTROL_LAYOUTS:
+        layout = CONTROL_LAYOUT_GROUPED
+    path = (
+        PROTOCOL_DIR / "telnet_commands.json"
+        if layout == CONTROL_LAYOUT_GROUPED
+        else PROTOCOL_DIR / "telnet_commands_ungrouped.json"
+    )
     if not path.exists():
-        return {
-            "model": "AVR-X1200W",
-            "sections": [],
-            "controls": [],
-            "status_queries": [],
-            "blocked_commands": [],
-        }
-    return json.loads(path.read_text(encoding="utf-8"))
+        # Fall back to the other layout if one file is missing
+        alt = PROTOCOL_DIR / "telnet_commands.json"
+        if alt.exists():
+            path = alt
+        else:
+            return {
+                "model": "AVR-X1200W",
+                "sections": [],
+                "controls": [],
+                "status_queries": [],
+                "blocked_commands": [],
+                "layout": layout,
+            }
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["layout"] = layout
+    return data
 
 
-def load_telnet_commands() -> List[Dict[str, Any]]:
-    return list(load_telnet_protocol().get("controls") or [])
+def load_telnet_commands(layout: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Controls for one layout, or the union of both (for command allowlists)."""
+    if layout is None:
+        seen: set[str] = set()
+        out: List[Dict[str, Any]] = []
+        for lay in CONTROL_LAYOUTS:
+            for c in load_telnet_protocol(lay).get("controls") or []:
+                cid = str(c.get("id") or "")
+                if not cid or cid in seen:
+                    continue
+                seen.add(cid)
+                out.append(c)
+        return out
+    return list(load_telnet_protocol(layout).get("controls") or [])
 
 
 def get_endpoint(endpoint_id_value: str, base: Optional[str] = None) -> Dict[str, Any]:
