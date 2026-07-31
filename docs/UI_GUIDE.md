@@ -34,9 +34,9 @@ This UI mirrors that. Hover for the reason.
 Top bar **Realtime | Save** toggle (also in Settings → Edit mode):
 
 - **Realtime** — changes apply to the AVR as you edit (original behavior).
-- **Save** — edit locally, then press **Save / Set**. Soft-refresh pauses while dirty or focused so typing is not wiped.
+- **Save** — edit locally, then use the **header Save icon** (replaces Reload). That writes to the AVR and refreshes the page. Duplicate **Set** buttons are hidden; **Set Defaults** / **Curve Copy** stay separate.
 
-Network pages always require explicit Save. Manual EQ still uses **Set**.
+Network pages still use their own Save/Connect controls. Soft-refresh pauses while dirty or focused so typing is not wiped.
 
 Menu grey-outs continue to refresh on their own poll (~15s), independent of edit mode.
 
