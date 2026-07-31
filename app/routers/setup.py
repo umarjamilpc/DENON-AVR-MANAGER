@@ -38,7 +38,7 @@ from ..firmware_upload import local_upload_status, upload_local_firmware
 from ..field_labels import attach_field_labels
 from ..field_layout import layout_fields, menu_inactive_flags
 from ..information_page import build_information_editor_fields
-from ..host_utils import rewrite_url, scrub_host_urls
+from ..host_utils import host_label, rewrite_url, scrub_host_urls
 from ..info import fetch_info_dashboard
 from ..protocol_loader import get_endpoint, prefer_read_url
 from ..menu_tree import build_menu
@@ -360,6 +360,7 @@ def get_connection(request: Request) -> Dict[str, Any]:
     return {
         "configured": True,
         "reachable": reachable,
+        "avr_host": host_label(base),
         "probe": {
             "reachable": probe.get("reachable"),
             "error": probe.get("error"),

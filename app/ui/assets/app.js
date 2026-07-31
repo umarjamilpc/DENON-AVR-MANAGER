@@ -293,7 +293,14 @@
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $("connect-status");
-  const footHost = $("foot-host");
+
+  function setAvrHostLabel(host) {
+    const el = $("avr-host");
+    if (!el) return;
+    const label = cleanText(host) || "—";
+    el.textContent = `AVR ${label}`;
+    el.title = "DENON_HOST from docker-compose / environment";
+  }
 
   async function api(path, opts = {}) {
     const res = await fetch(path, {
@@ -339,7 +346,7 @@
     });
   }
 
-  /** Show when we last talked to the AVR / when UI values changed from a remote read. */
+  /** Show when we last polled / talked to the AVR. */
   function markAvrSyncTime(opts = {}) {
     const iso = opts.at || new Date().toISOString();
     const changed = Boolean(opts.changed);
@@ -357,15 +364,10 @@
           : `Last AVR check: ${clock}`;
       }
     }
-    const foot = $("foot-sync");
-    if (foot) {
-      foot.classList.toggle("is-hidden", !show);
-      if (show) {
-        const upd = state.lastAvrUpdateAt
-          ? formatSyncClock(state.lastAvrUpdateAt)
-          : "—";
-        foot.textContent = `Checked ${clock} · Updated ${upd}`;
-      }
+    const poll = $("poll-stamp");
+    if (poll) {
+      poll.classList.toggle("is-hidden", !show);
+      if (show) poll.textContent = `Poll ${clock}`;
     }
   }
 
@@ -620,13 +622,13 @@
     setStatus("Connecting to configured AVR…");
     try {
       const data = await api("/api/connection");
+      setAvrHostLabel(data.avr_host);
       if (!data.reachable) {
         setStatus(
           `AVR not reachable. Check DENON_HOST. ${data.probe?.error || ""}`,
           "err"
         );
         state.connected = false;
-        footHost.textContent = "Host from DENON_HOST";
         applyPowerUi({ power: "unknown", zone: "MAIN ZONE", input: "—" });
         stopRemotePolling();
         await showView("settings", { loadInfo: false });
@@ -634,7 +636,6 @@
       }
       setStatus("Connected · live updates", "ok");
       state.connected = true;
-      footHost.textContent = "Host from DENON_HOST";
       await refreshPower().catch(() => {});
       await loadMenu();
       await showView("setup", { loadInfo: false });

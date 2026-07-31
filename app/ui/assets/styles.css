@@ -116,6 +116,23 @@ body {
   color: var(--muted);
   font-size: 0.8rem;
 }
+.top-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  margin-top: 0.4rem;
+  align-items: center;
+}
+.top-meta-item {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+.top-meta-item.sync-stamp.is-hidden {
+  display: none !important;
+}
 .topbar-actions {
   display: flex;
   gap: 0.45rem;
@@ -615,9 +632,6 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-size: 0.72rem;
   font-family: var(--mono);
 }
-.foot .sync-stamp {
-  margin-top: 0;
-}
 .editor-actions { display: flex; gap: 0.4rem; flex-shrink: 0; align-items: center; }
 .editor-save-btn {
   min-width: 4.75rem;
@@ -971,18 +985,6 @@ body.eq-progress-open {
   font-size: 0.82rem;
   color: var(--muted);
   min-height: 1.1em;
-}
-
-.foot {
-  margin-top: 1.15rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  color: var(--muted);
-  font-size: 0.78rem;
-  border-top: 1px solid var(--line);
-  padding-top: 0.7rem;
 }
 
 .info-all {
