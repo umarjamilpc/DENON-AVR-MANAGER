@@ -119,29 +119,33 @@ body {
 .top-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem 1.75rem;
+  gap: 0.5rem 2rem;
   margin-top: 0.55rem;
-  align-items: baseline;
+  align-items: center;
 }
 .top-meta-row {
   display: grid;
-  grid-template-columns: 2.75rem minmax(0, auto);
-  column-gap: 0.55rem;
-  align-items: baseline;
+  grid-template-columns: 3.25rem auto;
+  column-gap: 0.5rem;
+  align-items: center;
+  min-height: 1.35rem;
+}
+.top-meta-label,
+.top-meta .top-meta-value,
+.top-meta .top-meta-value.sync-stamp {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  letter-spacing: 0.01em;
 }
 .top-meta-label {
   font-family: var(--font);
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: 0.02em;
 }
-.top-meta-value {
+.top-meta .top-meta-value,
+.top-meta .top-meta-value.sync-stamp {
   font-family: var(--mono);
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
 }
 .top-meta-row:has(.sync-stamp.is-hidden) {
