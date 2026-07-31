@@ -173,13 +173,6 @@ body {
   color: var(--warn);
   background: var(--warn-bg);
 }
-.page-save-toolbar {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  margin-bottom: 0.65rem;
-}
 .assign-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -313,14 +306,19 @@ html[data-theme="system"] .power-bar {
 }
 .live-hint {
   margin: 0;
-  padding: 0.55rem 0.85rem;
-  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--accent-soft);
   color: var(--accent-ink);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   align-self: flex-start;
+  max-width: 100%;
+}
+.live-hint.is-save-mode {
+  color: var(--warn);
+  background: var(--warn-bg);
 }
 .connect-form {
   display: flex;
@@ -560,7 +558,49 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .foot .sync-stamp {
   margin-top: 0;
 }
-.editor-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.editor-actions { display: flex; gap: 0.4rem; flex-shrink: 0; align-items: center; }
+.icon-btn {
+  appearance: none;
+  width: 2.35rem;
+  height: 2.35rem;
+  min-width: 2.35rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-solid);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 160ms var(--ease), border-color 160ms var(--ease), color 160ms var(--ease), transform 120ms var(--ease);
+}
+.icon-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.icon-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.icon-btn.is-save-mode {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.icon-btn.is-save-mode:hover:not(:disabled) {
+  filter: brightness(1.06);
+  color: var(--on-accent);
+  background: var(--accent);
+}
+.icon-btn-svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+}
+.page-save-toolbar { display: none !important; }
 .empty-state {
   display: grid;
   place-items: center;

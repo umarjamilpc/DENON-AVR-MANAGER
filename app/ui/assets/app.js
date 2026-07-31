@@ -162,7 +162,7 @@
     const hint = $("live-hint");
     if (hint) {
       hint.textContent = isSaveEditMode()
-        ? "Save mode — edit fields, then press Save / Set"
+        ? "Save mode — edit, then use the header Save icon"
         : "Realtime — changes apply as you edit";
       hint.classList.toggle("is-save-mode", isSaveEditMode());
     }
@@ -190,7 +190,7 @@
       await persistAppSettings({ edit_mode: next });
       setStatus(
         next === "save"
-          ? "Save mode — press Save / Set to write to the AVR"
+          ? "Save mode — use the header Save icon to write + refresh"
           : "Realtime mode — changes apply as you edit",
         "ok"
       );
@@ -210,40 +210,89 @@
     }
   }
 
-  function syncPageSaveToolbar() {
-    const panel = $("action-panel");
-    if (!panel) return;
-    const id = state.endpointId;
-    const skip =
-      !id ||
-      id === "audio_graphiceq_s_audio" ||
-      id === "inputs_inputassign_s_inputassign" ||
-      NETWORK_EXPLICIT_SAVE.has(id) ||
-      EXPLICIT_SAVE.has(id);
-    let bar = $("page-save-toolbar");
-    if (skip || !isSaveEditMode() || !state.writeAllowed) {
-      if (bar) bar.remove();
-      if (!panel.children.length) panel.hidden = true;
+  function isMergedSetLabel(text) {
+    const t = String(text || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    if (!t) return false;
+    if (/default|curve|copy|reset|upload|update|firmware|connect|engage|cancel|clear/.test(t)) {
+      return false;
+    }
+    return t === "set" || t === "apply" || t === "save" || t === "ok";
+  }
+
+  function shouldHideMergedSetButton(name, meta) {
+    if (!isSaveEditMode()) return false;
+    if (meta?.firmware_action) return false;
+    if (meta?.network_save_kind) return false;
+    const label = fieldLabel(name, meta) || meta?.value || name;
+    return isMergedSetLabel(label);
+  }
+
+  function syncEditorPrimaryBtn() {
+    const btn = $("editor-primary-btn");
+    if (!btn) return;
+    const saveMode = isSaveEditMode();
+    const iconReload = $("editor-primary-icon-reload");
+    const iconSave = $("editor-primary-icon-save");
+    if (iconReload) iconReload.hidden = saveMode;
+    if (iconSave) iconSave.hidden = !saveMode;
+    const label = saveMode ? "Save" : "Reload";
+    const title = saveMode
+      ? "Save to AVR and refresh this page"
+      : "Reload from AVR";
+    btn.setAttribute("aria-label", label);
+    btn.title = title;
+    btn.classList.toggle("is-save-mode", saveMode);
+    btn.disabled = false;
+  }
+
+  function runEditorReload() {
+    return refreshMenuAvailability({ immediate: true })
+      .catch(() => {})
+      .finally(() => {
+        if (typeof state.reloadAction === "function") state.reloadAction();
+        else {
+          const node = findMenuNode(state.selectedMenuId);
+          if (node) openMenuNode(node);
+        }
+      });
+  }
+
+  async function onEditorPrimaryClick() {
+    const btn = $("editor-primary-btn");
+    if (btn?.disabled) return;
+    if (!isSaveEditMode()) {
+      await runEditorReload();
       return;
     }
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.id = "page-save-toolbar";
-      bar.className = "page-save-toolbar";
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn-action";
-      btn.id = "page-save-btn";
-      btn.textContent = "Save";
-      btn.addEventListener("click", () => saveEndpoint({ quiet: false }));
-      bar.appendChild(btn);
-      const note = document.createElement("p");
-      note.className = "meta";
-      note.textContent = "Save mode — values stay local until you Save.";
-      bar.appendChild(note);
-      panel.hidden = false;
-      panel.prepend(bar);
+    if (!state.endpointId || !state.writeAllowed) {
+      await runEditorReload();
+      return;
     }
+    if (!settingsWritable()) {
+      setStatus("Main Zone Standby — settings locked", "warn");
+      applyStandbySettingsLock();
+      return;
+    }
+    try {
+      if (btn) btn.disabled = true;
+      const ok = await saveEndpoint({ quiet: false, fromPrimary: true });
+      if (ok) await runEditorReload();
+    } catch (err) {
+      setStatus(err.message, "err");
+    } finally {
+      if (btn) btn.disabled = false;
+      syncEditorPrimaryBtn();
+    }
+  }
+
+  function syncPageSaveToolbar() {
+    // Legacy toolbar removed — primary Save/Reload lives in the editor header.
+    const bar = $("page-save-toolbar");
+    if (bar) bar.remove();
+    syncEditorPrimaryBtn();
   }
 
   const $ = (id) => document.getElementById(id);
@@ -445,7 +494,13 @@
     }
     for (const id of ["eq-set", "eq-curve-copy", "eq-defaults"]) {
       const btn = $(id);
-      if (btn) btn.disabled = standby || !state.eqEnabled;
+      if (!btn) continue;
+      if (id === "eq-set" && isSaveEditMode()) {
+        btn.hidden = true;
+        btn.disabled = true;
+        continue;
+      }
+      btn.disabled = standby || !state.eqEnabled;
     }
     for (const id of ["eq-export", "eq-import"]) {
       const btn = $(id);
@@ -1091,10 +1146,10 @@
     $("editor-title").textContent = node.label;
     $("editor-meta").textContent = cleanText(node.note || "");
     $("editor-banner").hidden = true;
-    $("reload-btn").hidden = false;
+    $("editor-primary-btn").hidden = false;
 
     if (node.inactive && node.id !== "general_lock") {
-      $("reload-btn").hidden = true;
+      $("editor-primary-btn").hidden = true;
       $("editor-banner").hidden = false;
       $("editor-banner").textContent =
         cleanText(node.inactive_reason) ||
@@ -1111,7 +1166,7 @@
     }
 
     if (node.action === "audyssey_setup_engage") {
-      $("reload-btn").hidden = true;
+      $("editor-primary-btn").hidden = true;
       $("editor-banner").hidden = false;
       $("editor-banner").textContent =
         node.note || "Audyssey Setup wizard is never started from this API/UI.";
@@ -1126,7 +1181,7 @@
     }
 
     if (node.action === "blocked") {
-      $("reload-btn").hidden = true;
+      $("editor-primary-btn").hidden = true;
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = node.note || "This item is blocked.";
       return;
@@ -1134,7 +1189,7 @@
 
     const eid = node.endpoint_id || node.endpoint?.id;
     if (!eid) {
-      $("reload-btn").hidden = true;
+      $("editor-primary-btn").hidden = true;
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = node.note || "No page for this item.";
       return;
@@ -1172,7 +1227,7 @@
         : isNetwork
           ? "Explicit Save only — network will reset if you save changes (~60s)"
           : saveMode
-            ? "Save mode — edit fields, then press Save / Set"
+            ? "Save mode — edit, then use the header Save icon"
             : "Live updates";
       const blocked =
         menuNode?.write_allowed === false || data.schema?.write_allowed === false;
@@ -1597,6 +1652,9 @@
       }
 
       if (meta.type === "action_button") {
+        if (shouldHideMergedSetButton(name, meta)) {
+          continue;
+        }
         const wrap = document.createElement("div");
         const inactive = Boolean(meta.inactive) || Boolean(meta.disabled);
         wrap.className = "field field-action" + (inactive ? " is-inactive" : "");
@@ -1878,19 +1936,19 @@
   }
 
   async function saveEndpoint(opts = {}) {
-    if (!state.endpointId || !state.writeAllowed) return;
+    if (!state.endpointId || !state.writeAllowed) return false;
     if (!settingsWritable()) {
       setStatus("Main Zone Standby — settings locked", "warn");
       applyStandbySettingsLock();
-      return;
+      return false;
     }
-    if (state.realtimeBusy) return;
+    if (state.realtimeBusy) return false;
     if (state.endpointId === "audio_graphiceq_s_audio") {
       await saveManualEq();
-      return;
+      return true;
     }
     if (state.endpointId === "inputs_inputassign_s_inputassign") {
-      if (!isSaveEditMode()) return;
+      if (!isSaveEditMode() && !opts.fromPrimary) return false;
       state.realtimeBusy = true;
       try {
         const result = await api(
@@ -1907,14 +1965,15 @@
         if (result?.after?.fields) renderInputAssign(result.after.fields);
         else await loadInputAssign();
         markLocalWrite();
+        return true;
       } catch (err) {
         $("editor-banner").hidden = false;
         $("editor-banner").textContent = err.message;
         setStatus(err.message, "err");
+        return false;
       } finally {
         state.realtimeBusy = false;
       }
-      return;
     }
     state.realtimeBusy = true;
     try {
@@ -1928,10 +1987,12 @@
       markLocalWrite();
       await refreshSetupLockState();
       syncPageSaveToolbar();
+      return true;
     } catch (err) {
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
       setStatus(err.message, "err");
+      return false;
     } finally {
       state.realtimeBusy = false;
     }
@@ -1941,7 +2002,7 @@
     state.endpointId = null;
     state.writeAllowed = false;
     state.reloadAction = () => openSetupInfo(node);
-    $("reload-btn").hidden = false;
+    $("editor-primary-btn").hidden = false;
     $("editor-banner").hidden = true;
     $("editor-title").textContent = node.label;
     $("editor-meta").textContent = cleanText(node.note || "Read-only information");
@@ -2094,14 +2155,8 @@
     $("action-panel").innerHTML = `
       <div class="assign-toolbar">
         <button type="button" id="assign-defaults" class="btn-ghost">Set Defaults</button>
-        <button type="button" id="assign-save" class="btn-action" hidden>Save</button>
       </div>`;
     $("assign-defaults").addEventListener("click", setInputAssignDefaults);
-    const assignSave = $("assign-save");
-    if (assignSave) {
-      assignSave.hidden = !isSaveEditMode();
-      assignSave.addEventListener("click", () => saveEndpoint({ quiet: false }));
-    }
     await loadInputAssign();
   }
 
@@ -2753,16 +2808,25 @@
     const sp = $("eq-sp");
     if (ch) ch.disabled = !on;
     if (sp) sp.disabled = !on;
-    for (const id of ["eq-set", "eq-curve-copy", "eq-defaults"]) {
+    const eqSet = $("eq-set");
+    if (eqSet) {
+      // Save mode: header icon Save replaces Set.
+      eqSet.hidden = isSaveEditMode();
+      eqSet.disabled = !on || isSaveEditMode();
+    }
+    for (const id of ["eq-curve-copy", "eq-defaults"]) {
       const btn = $(id);
       if (btn) btn.disabled = !on;
     }
     const hint = $("eq-hint");
     if (hint) {
-      hint.textContent = on
-        ? "Adjust sliders, then press Set. Curve Copy / Set Defaults apply immediately."
-        : "Turn Manual EQ On to activate the band sliders.";
+      hint.textContent = !on
+        ? "Turn Manual EQ On to activate the band sliders."
+        : isSaveEditMode()
+          ? "Adjust sliders, then use the header Save. Curve Copy / Set Defaults stay separate."
+          : "Adjust sliders, then press Set. Curve Copy / Set Defaults apply immediately.";
     }
+    syncEditorPrimaryBtn();
   }
 
   function scheduleEqRealtime() {
@@ -3305,17 +3369,8 @@
   wireTabs();
   wireEditModeToggle();
   $("reconnect-btn").addEventListener("click", boot);
-  $("reload-btn").addEventListener("click", () => {
-    // Refresh greys + current page (Reload used to skip the menu scrape).
-    refreshMenuAvailability({ immediate: true })
-      .catch(() => {})
-      .finally(() => {
-        if (typeof state.reloadAction === "function") state.reloadAction();
-        else {
-          const node = findMenuNode(state.selectedMenuId);
-          if (node) openMenuNode(node);
-        }
-      });
+  $("editor-primary-btn").addEventListener("click", () => {
+    onEditorPrimaryClick().catch((err) => setStatus(err.message, "err"));
   });
   $("info-refresh").addEventListener("click", () => loadInfoDashboard(true));
   $("power-btn")?.addEventListener("click", () => togglePower());
