@@ -833,6 +833,8 @@
     const banner = $("settings-banner");
     try {
       const prevModel = state.appSettings?.avr_model;
+      const prevZ2 = state.appSettings?.show_zone2;
+      const prevZ3 = state.appSettings?.show_zone3;
       await persistAppSettings(collectSettingsForm());
       renderSettingsForm();
       if (banner) {
@@ -840,8 +842,12 @@
         banner.textContent = "Saved";
       }
       setStatus("Saved", "ok");
-      // Reload Control Panel catalog when model changes
-      if (state.appSettings?.avr_model !== prevModel) {
+      // Reload Control Panel when model or zone visibility changes
+      if (
+        state.appSettings?.avr_model !== prevModel ||
+        state.appSettings?.show_zone2 !== prevZ2 ||
+        state.appSettings?.show_zone3 !== prevZ3
+      ) {
         state.controlCatalog = null;
         state.controlSectionId = null;
       }
@@ -3471,7 +3477,8 @@
     state.controlSectionId = sectionId;
     renderControlNav();
     renderControlSectionPage();
-    await refreshControlStatus({ quiet: false, refresh: true });
+    // Prefetched at server startup — section clicks use cache only (no AVR traffic).
+    await refreshControlStatus({ quiet: true, refresh: false });
     startControlPoll();
   }
 
@@ -3497,18 +3504,20 @@
     if (title) title.textContent = sec?.label || state.controlSectionId;
     if (meta) {
       const model = state.appSettings?.avr_model || state.controlCatalog.model || "AVR";
-      meta.textContent = `${items.length} controls · ${model} · apply immediately`;
+      meta.textContent = `${items.length} · ${model}`;
     }
     if (!grid) return;
     grid.innerHTML = "";
+    grid.classList.toggle("control-grid--main", state.controlSectionId === "main");
     for (const c of items) grid.appendChild(buildControlWidget(c));
     applyControlEntitiesToDom();
   }
 
   function buildControlWidget(c) {
     const wrap = document.createElement("div");
-    wrap.className = "control-widget";
+    wrap.className = "control-widget" + (c.featured ? " is-featured" : "");
     wrap.dataset.controlId = c.id;
+    wrap.dataset.kind = c.kind || "";
     const head = document.createElement("div");
     head.className = "control-label-row";
     const label = document.createElement("label");
@@ -3522,7 +3531,128 @@
     head.appendChild(cur);
     wrap.appendChild(head);
     const kind = c.kind;
-    if (kind === "action" || kind === "query") {
+    if (kind === "toggle") {
+      const row = document.createElement("div");
+      row.className = "control-toggle-row";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "control-switch";
+      btn.dataset.role = "toggle";
+      btn.setAttribute("aria-pressed", "false");
+      const onL =
+        c.on_label ||
+        (String(c.id).includes("mute") ? "Muted" : "On");
+      const offL =
+        c.off_label ||
+        (c.id === "pw_power"
+          ? "Standby"
+          : String(c.id).includes("mute")
+            ? "Unmuted"
+            : "Off");
+      btn.innerHTML =
+        `<span class="control-switch-off">${offL}</span>` +
+        `<span class="control-switch-track" aria-hidden="true"><span class="control-switch-thumb"></span></span>` +
+        `<span class="control-switch-on">${onL}</span>`;
+      btn.addEventListener("click", () => {
+        const ent = controlEntity(c.id);
+        const currentlyOn = ent?.on === true || ent?.value === true;
+        runControlCommand({
+          id: c.id,
+          value: !currentlyOn,
+          confirm: Boolean(c.confirm),
+          confirmMessage: c.confirm_message,
+        });
+      });
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    } else if (kind === "stepper") {
+      const row = document.createElement("div");
+      row.className = "control-stepper-row";
+      const down = document.createElement("button");
+      down.type = "button";
+      down.className = "btn-ghost control-btn control-step-btn";
+      down.textContent = "−";
+      down.addEventListener("click", () => {
+        if (c.down || c.up) {
+          runControlCommand({ id: c.id, value: "down" });
+          return;
+        }
+        const ent = controlEntity(c.id);
+        const step = Number(c.step || (c.unit === "min" ? 10 : 1));
+        const lo = c.min != null ? Number(c.min) : 0;
+        let v = Number(ent?.value);
+        if (Number.isNaN(v)) v = lo;
+        runControlCommand({
+          id: c.id,
+          value: Math.max(lo, v - step),
+          confirm: Boolean(c.confirm),
+          confirmMessage: c.confirm_message,
+        });
+      });
+      const mid = document.createElement("span");
+      mid.className = "control-step-val";
+      mid.dataset.role = "step-val";
+      mid.textContent = "—";
+      const up = document.createElement("button");
+      up.type = "button";
+      up.className = "btn-ghost control-btn control-step-btn";
+      up.textContent = "+";
+      up.addEventListener("click", () => {
+        if (c.up || c.down) {
+          runControlCommand({ id: c.id, value: "up" });
+          return;
+        }
+        const ent = controlEntity(c.id);
+        const step = Number(c.step || (c.unit === "min" ? 10 : 1));
+        const hi = c.max != null ? Number(c.max) : 98;
+        let v = Number(ent?.value);
+        if (Number.isNaN(v)) v = Number(c.min || 0);
+        runControlCommand({
+          id: c.id,
+          value: Math.min(hi, v + step),
+          confirm: Boolean(c.confirm),
+          confirmMessage: c.confirm_message,
+        });
+      });
+      row.appendChild(down);
+      row.appendChild(mid);
+      row.appendChild(up);
+      wrap.appendChild(row);
+      // HA-style volume set: slider maps absolute level (0..98 ≈ −80..+18 dB)
+      if (c.volume_slider || (c.featured && c.zero_db != null)) {
+        const srow = document.createElement("div");
+        srow.className = "control-slider-row control-volume-slider";
+        const range = document.createElement("input");
+        range.type = "range";
+        range.min = String(c.min ?? 0);
+        range.max = String(c.max ?? 98);
+        range.step = "1";
+        range.value = String(c.zero_db ?? 50);
+        range.dataset.role = "range";
+        const val = document.createElement("span");
+        val.className = "control-slider-val";
+        val.dataset.role = "range-val";
+        const fmtDb = (n) => {
+          const z = Number(c.zero_db || 80);
+          return `${Number(n) - z} dB`;
+        };
+        val.textContent = fmtDb(range.value);
+        range.addEventListener("input", () => {
+          val.textContent = fmtDb(range.value);
+        });
+        range.addEventListener("change", () =>
+          runControlCommand({
+            id: c.id,
+            value: Number(range.value),
+            confirm: Boolean(c.confirm),
+            confirmMessage: c.confirm_message,
+          })
+        );
+        srow.appendChild(range);
+        srow.appendChild(val);
+        wrap.appendChild(srow);
+      }
+    } else if (kind === "action" || kind === "query") {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn-ghost control-btn";
@@ -3583,22 +3713,6 @@
           confirmMessage: c.confirm_message,
         })
       );
-      if (c.up) {
-        const up = document.createElement("button");
-        up.type = "button";
-        up.className = "btn-ghost control-btn";
-        up.textContent = "+";
-        up.addEventListener("click", () => runControlCommand({ command: c.up }));
-        row.appendChild(up);
-      }
-      if (c.down) {
-        const down = document.createElement("button");
-        down.type = "button";
-        down.className = "btn-ghost control-btn";
-        down.textContent = "−";
-        down.addEventListener("click", () => runControlCommand({ command: c.down }));
-        row.appendChild(down);
-      }
       row.appendChild(range);
       row.appendChild(val);
       wrap.appendChild(row);
@@ -3613,7 +3727,7 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn-primary control-btn";
-      btn.textContent = "Send raw";
+      btn.textContent = "Send";
       btn.addEventListener("click", () => {
         const cmd = input.value.trim();
         if (!cmd) return;
@@ -3641,12 +3755,20 @@
       const sel = wrap.querySelector('[data-role="select"]');
       const range = wrap.querySelector('[data-role="range"]');
       const rangeVal = wrap.querySelector('[data-role="range-val"]');
+      const stepVal = wrap.querySelector('[data-role="step-val"]');
+      const toggle = wrap.querySelector('[data-role="toggle"]');
       const action = wrap.querySelector('[data-role="action"]');
       const inactive = Boolean(ent?.inactive);
-      wrap.classList.toggle("is-current", Boolean(ent?.active || (ent?.display && !inactive)));
+      const hasValue = Boolean(
+        ent && !inactive && (ent.display || ent.raw || ent.value != null || ent.on != null)
+      );
+      wrap.classList.toggle("is-current", hasValue || Boolean(ent?.active));
       wrap.classList.toggle("is-inactive", inactive);
       if (cur) {
-        if (ent?.display) {
+        if (wrap.dataset.kind === "toggle" || wrap.dataset.kind === "stepper") {
+          cur.textContent = "";
+          cur.classList.remove("has-value");
+        } else if (ent?.display) {
           cur.textContent = ent.display;
           cur.title = ent.raw || ent.command || "";
           cur.classList.add("has-value");
@@ -3657,6 +3779,15 @@
           cur.textContent = "—";
           cur.classList.remove("has-value");
         }
+      }
+      if (toggle) {
+        const on = ent?.on === true || ent?.value === true;
+        toggle.classList.toggle("is-on", on);
+        toggle.classList.toggle("is-off", ent && !on && !inactive);
+        toggle.setAttribute("aria-pressed", on ? "true" : "false");
+      }
+      if (stepVal) {
+        stepVal.textContent = ent?.display || (ent?.value != null ? String(ent.value) : "—");
       }
       if (sel && ent?.command && document.activeElement !== sel) {
         const opt = [...sel.options].find((o) => o.value === ent.command);
@@ -3724,21 +3855,29 @@
     }
   }
 
-  async function refreshControlStatus({ quiet = false, refresh = true } = {}) {
+  async function refreshControlStatus({
+    quiet = false,
+    refresh = false,
+    full = false,
+  } = {}) {
     if (!state.controlSectionId) return;
     if (!quiet) controlBanner(refresh ? "Reading AVR…" : "Updating…");
     try {
       const q = new URLSearchParams({
-        section: state.controlSectionId,
         refresh: refresh ? "true" : "false",
       });
+      if (full) {
+        q.set("full", "true");
+      } else {
+        q.set("section", state.controlSectionId);
+      }
       const snap = await api(`/api/control/status?${q}`);
-      setControlTransport(snap.transport);
+      setControlTransport(snap.from_cache ? "cache" : snap.transport);
       state.controlEntities = snap.entities || {};
       applyControlEntitiesToDom();
       if (refresh && snap.responses?.length) {
         appendControlLog({
-          request: `STATUS:${state.controlSectionId}`,
+          request: full ? "STATUS:all" : `STATUS:${state.controlSectionId}`,
           transport: snap.transport,
           responses: snap.responses.slice(0, 40),
         });
@@ -3747,11 +3886,30 @@
       if (snap.errors?.length && !quiet) {
         controlBanner(`Status partial (${n} values, ${snap.errors.length} errors)`, "warn");
       } else if (!quiet) {
-        controlBanner(n ? `Status updated · ${n} current values` : "Status updated", "ok");
+        controlBanner(
+          n
+            ? `Ready · ${n} values${snap.from_cache ? " (cached)" : ""}`
+            : "Ready",
+          "ok"
+        );
       }
     } catch (err) {
       if (!quiet) controlBanner(err.message, "err");
     }
+  }
+
+  async function waitForControlPreload(maxMs = 20000) {
+    const start = Date.now();
+    while (Date.now() - start < maxMs) {
+      try {
+        const p = await api("/api/control/preload");
+        if (p.status === "ready" || p.status === "error") return p;
+      } catch (_) {
+        /* ignore */
+      }
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    return { status: "timeout" };
   }
 
   async function loadControlPanel({ force = false } = {}) {
@@ -3764,6 +3922,11 @@
         state.controlCatalog = await api("/api/control/catalog");
       }
       renderControlNav();
+      const preload = state.controlCatalog.preload || {};
+      if (preload.status === "pending" || preload.status === "running") {
+        controlBanner("Loading AVR status…");
+        await waitForControlPreload();
+      }
       const sections = state.controlCatalog.sections || [];
       const first = state.controlSectionId || sections[0]?.id;
       if (first) await selectControlSection(first);
@@ -3778,7 +3941,7 @@
 
   function wireControlPanel() {
     $("control-refresh")?.addEventListener("click", () =>
-      refreshControlStatus({ quiet: false, refresh: true }).catch((e) =>
+      refreshControlStatus({ quiet: false, refresh: true, full: true }).catch((e) =>
         controlBanner(e.message, "err")
       )
     );

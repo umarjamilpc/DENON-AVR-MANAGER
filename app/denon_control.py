@@ -46,6 +46,28 @@ def filter_controls_for_model(
     return [c for c in controls if control_supported_on_model(c, model)]
 
 
+def option_supported_on_model(opt: Dict[str, Any], model: Optional[str]) -> bool:
+    models = opt.get("models")
+    if not isinstance(models, list) or not models:
+        return True
+    short = model_short(model)
+    return short in {str(x).upper().replace("AVR-", "") for x in models}
+
+
+def filter_control_options(
+    control: Dict[str, Any], model: Optional[str]
+) -> Optional[Dict[str, Any]]:
+    """Return a control copy with model-filtered enum options, or None if empty enum."""
+    cc = dict(control)
+    opts = cc.get("options")
+    if isinstance(opts, list) and opts:
+        filtered = [o for o in opts if option_supported_on_model(o, model)]
+        cc["options"] = filtered
+        if cc.get("kind") == "enum" and not filtered:
+            return None
+    return cc
+
+
 _ALWAYS_BLOCKED = frozenset(
     {
         "RM STA",
@@ -115,6 +137,9 @@ def _build_allowlist(
             continue
         if c.get("command"):
             exact.add(str(c["command"]).upper())
+        for key in ("on_command", "off_command", "up", "down"):
+            if c.get(key):
+                exact.add(str(c[key]).upper())
         for opt in c.get("options") or []:
             if opt.get("command"):
                 exact.add(str(opt["command"]).upper())
@@ -123,7 +148,7 @@ def _build_allowlist(
                 exact.add(str(c[key]).upper())
         if c.get("query"):
             exact.add(str(c["query"]).upper())
-        if kind == "slider" and c.get("prefix"):
+        if kind in {"slider", "stepper"} and c.get("prefix"):
             sliders.append(c)
     # Status queries from protocol are always allowed
     proto = load_telnet_protocol()
@@ -188,6 +213,23 @@ def resolve_command_from_id(
         kind = c.get("kind")
         if kind in {"action", "query"}:
             return str(c.get("command") or c.get("query") or "")
+        if kind == "toggle":
+            # value: true/on/1 → on_command; false/off/0 → off_command
+            # or explicit command string
+            if value is None:
+                raise ValueError(f"control {cid} requires on/off value")
+            raw = str(value).strip()
+            raw_l = raw.lower()
+            if raw.upper() in {
+                str(c.get("on_command") or "").upper(),
+                str(c.get("off_command") or "").upper(),
+            }:
+                return raw
+            if raw_l in {"1", "true", "on", "yes"}:
+                return str(c.get("on_command") or "")
+            if raw_l in {"0", "false", "off", "no", "standby"}:
+                return str(c.get("off_command") or "")
+            raise ValueError(f"invalid toggle value for {cid}: {value!r}")
         if kind == "enum":
             if value is None:
                 raise ValueError(f"control {cid} requires a value")
@@ -196,10 +238,24 @@ def resolve_command_from_id(
                 if str(opt.get("command")) == want or str(opt.get("label")) == want:
                     return str(opt["command"])
             raise ValueError(f"invalid value for {cid}: {value!r}")
-        if kind == "slider":
+        if kind in {"slider", "stepper"}:
+            # stepper with up/down as value
+            if value is not None and str(value).strip().lower() in {"up", "down"}:
+                key = str(value).strip().lower()
+                cmd = c.get(key)
+                if not cmd:
+                    raise ValueError(f"{cid} has no {key} command")
+                return str(cmd)
+            if c.get("display_only_value") and value is None:
+                raise ValueError(f"use value=up|down for {cid}")
             if value is None:
                 raise ValueError(f"control {cid} requires a numeric value")
+            # Sleep off
+            if int(value) == 0 and c.get("off_command"):
+                return str(c["off_command"])
             prefix = str(c.get("prefix") or "")
+            if not prefix:
+                raise ValueError(f"{cid} has no prefix for direct set")
             pad = int(c.get("pad") or 2)
             try:
                 num = int(value)
@@ -323,17 +379,18 @@ def queries_for_section(section_id: Optional[str], *, full: bool = False) -> Lis
             if key not in seen:
                 seen.add(key)
                 out.append(qq)
-    # Always include lite power/volume anchors when querying any section
-    for q in ("PW?", "MV?", "MU?", "SI?"):
-        if q.upper() not in seen and section_id in {
-            "power",
-            "volume",
-            "input",
-            "surround",
-        }:
-            seen.add(q.upper())
-            out.insert(0, q)
-    return out
+        # Always include lite power/volume anchors when querying any section
+        for q in ("PW?", "MV?", "MU?", "SI?"):
+            if q.upper() not in seen and section_id in {
+                "main",
+                "power",
+                "volume",
+                "input",
+                "surround",
+            }:
+                seen.add(q.upper())
+                out.insert(0, q)
+        return out
 
 
 def parse_entities(
@@ -360,6 +417,40 @@ def parse_entities(
         if not cid or kind in {"raw"}:
             continue
 
+        if kind == "toggle":
+            on_cmd = str(c.get("on_command") or "").upper()
+            off_cmd = str(c.get("off_command") or "").upper()
+            on_vals = {str(x).upper() for x in (c.get("on_values") or [on_cmd]) if x}
+            off_vals = {str(x).upper() for x in (c.get("off_values") or [off_cmd]) if x}
+            state = None
+            raw_hit = None
+            for ln in lines:
+                u = ln.upper()
+                if u in on_vals or (on_cmd and u.startswith(on_cmd)):
+                    state = True
+                    raw_hit = ln
+                    break
+                if u in off_vals or (off_cmd and (u == off_cmd or u.startswith(off_cmd))):
+                    state = False
+                    raw_hit = ln
+                    break
+                # PWSTANDBY / Z2OFF style contained in longer status lines
+                if off_cmd and off_cmd in u.replace(" ", ""):
+                    state = False
+                    raw_hit = ln
+                    break
+            if state is not None:
+                entities[cid] = {
+                    "kind": "toggle",
+                    "raw": raw_hit,
+                    "value": state,
+                    "on": state,
+                    "command": on_cmd if state else off_cmd,
+                    "display": (c.get("on_label") if state else c.get("off_label"))
+                    or osd_label(raw_hit),
+                }
+            continue
+
         if kind == "enum":
             options = list(c.get("options") or [])
             hit = None
@@ -377,10 +468,49 @@ def parse_entities(
                 }
             continue
 
-        if kind == "slider":
+        if kind in {"slider", "stepper"}:
+            if c.get("display_only_value"):
+                q = str(c.get("query") or "").rstrip("?").upper()
+                for ln in lines:
+                    u = ln.upper()
+                    if q and u.startswith(q):
+                        entities[cid] = {
+                            "kind": kind,
+                            "raw": ln.strip(),
+                            "display": osd_label(ln) or ln.strip(),
+                        }
+                        break
+                continue
+
             prefix = str(c.get("prefix") or "").upper()
+            if not prefix:
+                continue
             space = bool(c.get("space_before_value"))
             half = bool(c.get("half_step"))
+
+            # Sleep: SLPOFF / SLP030
+            if prefix == "SLP":
+                for ln in lines:
+                    u = ln.upper().replace(" ", "")
+                    if u == "SLPOFF" or u.startswith("SLPOFF"):
+                        entities[cid] = {
+                            "kind": kind,
+                            "raw": ln.strip(),
+                            "value": 0,
+                            "display": "Off",
+                        }
+                        break
+                    if u.startswith("SLP") and u[3:].isdigit():
+                        mins = int(u[3:])
+                        entities[cid] = {
+                            "kind": kind,
+                            "raw": ln.strip(),
+                            "value": mins,
+                            "display": f"{mins} min",
+                        }
+                        break
+                continue
+
             for ln in lines:
                 u = ln.upper().split()[0] if not space else ln.upper()
                 if prefix == "MV":
@@ -391,7 +521,7 @@ def parse_entities(
                         continue
                     num, raw, db = parts
                     entities[cid] = {
-                        "kind": "slider",
+                        "kind": kind,
                         "raw": raw,
                         "value": num,
                         "display": f"{db:g} dB",
@@ -407,7 +537,7 @@ def parse_entities(
                     ch = prefix.replace("CV", "").replace("Z2CV", "")
                     label = channel_osd(ch) if prefix.startswith("CV") else c.get("label")
                     entities[cid] = {
-                        "kind": "slider",
+                        "kind": kind,
                         "raw": ln.strip(),
                         "value": num,
                         "display": f"{label}: {_level_display(num, c.get('zero_db'))}"
@@ -418,17 +548,17 @@ def parse_entities(
                 if not u.startswith(prefix):
                     continue
                 rest = u[len(prefix) :]
-                if not rest.isdigit():
+                # Z2/Z3 volume is prefix + digits only (Z280), not Z2ON / Z2BD
+                if prefix in {"Z2", "Z3"} and not rest.isdigit():
                     continue
-                # Z2 volume is Z2 + digits only (Z280), not Z2ON / Z2BD
-                if prefix == "Z2" and not rest.isdigit():
+                if not rest.isdigit():
                     continue
                 if half and len(rest) == 3 and rest.endswith("5"):
                     num = int(rest[:2])
                 else:
                     num = int(rest)
                 entities[cid] = {
-                    "kind": "slider",
+                    "kind": kind,
                     "raw": ln.strip(),
                     "value": num,
                     "display": _level_display(num, c.get("zero_db")),
@@ -488,13 +618,12 @@ def parse_entities(
                         }
 
     # Channel levels: PDF — only configured speakers reply to CV?; others are inactive
-    if section_id in {None, "channel"}:
+    if section_id in {None, "levels", "channel"}:
         active_codes: Set[str] = set()
         for ln in lines:
             u = ln.upper()
             if not u.startswith("CV") or u.startswith("CVEND") or u.startswith("CVZRL"):
                 continue
-            # CVFL 50 / CVSW 50
             body = u[2:]
             code = body.split()[0]
             if code.isdigit():
@@ -502,7 +631,10 @@ def parse_entities(
             active_codes.add(code)
         if active_codes:
             for c in controls:
-                if c.get("section") != "channel" or c.get("kind") != "slider":
+                if c.get("section") not in {"levels", "channel"} or c.get("kind") not in {
+                    "slider",
+                    "stepper",
+                }:
                     continue
                 prefix = str(c.get("prefix") or "")
                 if not prefix.upper().startswith("CV"):
@@ -524,12 +656,26 @@ def parse_entities(
             if c.get("section") != "zone2":
                 continue
             cid = str(c.get("id"))
-            if cid == "z2_on":
+            if cid in {"z2_power", "z2_on"}:
                 continue
             ent = entities.get(cid) or {"kind": c.get("kind")}
             ent["inactive"] = True
             if not ent.get("display"):
                 ent["display"] = "ZONE2 Off"
+            entities[cid] = ent
+
+    z3_off = any(ln.upper() in {"Z3OFF", "Z3 OFF"} for ln in lines)
+    if z3_off and section_id in {None, "zone3"}:
+        for c in controls:
+            if c.get("section") != "zone3":
+                continue
+            cid = str(c.get("id"))
+            if cid == "z3_power":
+                continue
+            ent = entities.get(cid) or {"kind": c.get("kind")}
+            ent["inactive"] = True
+            if not ent.get("display"):
+                ent["display"] = "ZONE3 Off"
             entities[cid] = ent
 
     # Main Zone standby → grey non-power controls
@@ -539,7 +685,7 @@ def parse_entities(
     if standby:
         for c in controls:
             cid = str(c.get("id"))
-            if cid in {"pw_on", "pw_standby", "pw_query"}:
+            if cid in {"pw_power", "pw_on", "pw_standby", "pw_query"}:
                 continue
             ent = entities.get(cid) or {"kind": c.get("kind")}
             ent["inactive"] = True
@@ -550,51 +696,49 @@ def parse_entities(
     # Goform power enrichment / override gaps
     if power:
         pwr = (power.get("power") or "").lower()
-        if "pw_on" not in entities and pwr == "on":
-            entities["pw_on"] = {
-                "kind": "action",
-                "raw": "PWON",
-                "active": True,
-                "display": osd_label("PWON"),
-                "source": "goform",
-            }
-        if "pw_standby" not in entities and pwr == "standby":
-            entities["pw_standby"] = {
-                "kind": "action",
-                "raw": "PWSTANDBY",
-                "active": True,
-                "display": osd_label("PWSTANDBY"),
-                "source": "goform",
-            }
-        if "mv_set" not in entities and power.get("volume") not in (None, ""):
+        if "pw_power" not in entities:
+            if pwr == "on":
+                entities["pw_power"] = {
+                    "kind": "toggle",
+                    "value": True,
+                    "on": True,
+                    "raw": "PWON",
+                    "display": "On",
+                    "source": "goform",
+                }
+            elif pwr == "standby":
+                entities["pw_power"] = {
+                    "kind": "toggle",
+                    "value": False,
+                    "on": False,
+                    "raw": "PWSTANDBY",
+                    "display": "Standby",
+                    "source": "goform",
+                }
+        if "mv_master" not in entities and "mv_set" not in entities and power.get("volume") not in (
+            None,
+            "",
+        ):
             parts = _db_str_to_mv(str(power.get("volume")))
             if parts:
                 num, raw, db = parts
-                entities["mv_set"] = {
-                    "kind": "slider",
+                entities["mv_master"] = {
+                    "kind": "stepper",
                     "raw": raw,
                     "value": num,
                     "display": f"{db:g} dB",
                     "source": "goform",
                 }
         mute = (power.get("mute") or "").lower()
-        if mute in {"on", "off"}:
-            if mute == "on":
-                entities["mu_on"] = {
-                    "kind": "action",
-                    "raw": "MUON",
-                    "active": True,
-                    "display": "Mute",
-                    "source": "goform",
-                }
-            else:
-                entities["mu_off"] = {
-                    "kind": "action",
-                    "raw": "MUOFF",
-                    "active": True,
-                    "display": "Unmute",
-                    "source": "goform",
-                }
+        if mute in {"on", "off"} and "mu_mute" not in entities:
+            entities["mu_mute"] = {
+                "kind": "toggle",
+                "value": mute == "on",
+                "on": mute == "on",
+                "raw": "MUON" if mute == "on" else "MUOFF",
+                "display": "Muted" if mute == "on" else "Unmuted",
+                "source": "goform",
+            }
         inp = (power.get("input") or "").strip()
         if inp and "si_select" not in entities:
             for c in load_telnet_commands():
@@ -778,25 +922,56 @@ class DenonControl:
             },
         }
 
-    def catalog(self, model: Optional[str] = None) -> Dict[str, Any]:
+    def catalog(
+        self,
+        model: Optional[str] = None,
+        *,
+        show_zone2: bool = False,
+        show_zone3: bool = False,
+    ) -> Dict[str, Any]:
         protocol = load_telnet_protocol()
-        controls = filter_controls_for_model(
-            list(protocol.get("controls") or []), model or "AVR-X1200W"
+        model_name = model or "AVR-X1200W"
+        raw_controls = filter_controls_for_model(
+            list(protocol.get("controls") or []), model_name
         )
+        controls: List[Dict[str, Any]] = []
+        for c in raw_controls:
+            sec = c.get("section")
+            if sec == "zone2" and not show_zone2:
+                continue
+            if sec == "zone3" and not show_zone3:
+                continue
+            filtered = filter_control_options(c, model_name)
+            if filtered is not None:
+                controls.append(filtered)
         section_ids = {c.get("section") for c in controls}
         sections = [
             s
             for s in (protocol.get("sections") or [])
-            if s.get("id") in section_ids or s.get("id") == "advanced"
+            if s.get("id") in section_ids
         ]
         return {
-            "model": model or "AVR-X1200W",
+            "model": model_name,
             "models": list(SUPPORTED_MODELS),
             "protocol_version": protocol.get("protocol_version"),
             "sections": sections,
             "controls": controls,
+            "show_zone2": bool(show_zone2),
+            "show_zone3": bool(show_zone3),
             "telnet_note": (
                 "Denon allows only one telnet (TCP 23) client. This manager keeps a "
                 "single shared session — close other telnet apps while it is running."
             ),
         }
+
+    def preload_all_status(
+        self, *, model: Optional[str] = None, power: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Query full status_queries once into the shared telnet cache (startup)."""
+        return self.status_snapshot(
+            full=True,
+            section=None,
+            power=power,
+            refresh=True,
+            model=model,
+        )

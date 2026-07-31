@@ -2,58 +2,60 @@
   "model": "AVR-X1200W",
   "protocol_version": "02",
   "source": "DENON-X1200W-TELNET.pdf",
+  "supported_models": [
+    "AVR-X1200W",
+    "AVR-X2200W",
+    "AVR-X3200W",
+    "AVR-X4200W"
+  ],
   "sections": [
     {
-      "id": "power",
-      "label": "Power & Main Zone"
-    },
-    {
-      "id": "volume",
-      "label": "Volume & Mute"
-    },
-    {
-      "id": "input",
-      "label": "Inputs & Signal"
-    },
-    {
-      "id": "surround",
-      "label": "Surround & Quick Select"
-    },
-    {
-      "id": "channel",
-      "label": "Channel Levels"
-    },
-    {
-      "id": "tone",
-      "label": "Tone / Dialog / Levels"
-    },
-    {
-      "id": "audyssey",
-      "label": "Audyssey & EQ"
-    },
-    {
-      "id": "video",
-      "label": "Video / HDMI"
-    },
-    {
-      "id": "timers",
-      "label": "Sleep / Eco / Standby"
+      "id": "main",
+      "label": "Receiver"
     },
     {
       "id": "zone2",
       "label": "Zone 2"
     },
     {
+      "id": "zone3",
+      "label": "Zone 3"
+    },
+    {
+      "id": "sound",
+      "label": "Sound Mode"
+    },
+    {
+      "id": "input",
+      "label": "Input"
+    },
+    {
+      "id": "levels",
+      "label": "Channel Levels"
+    },
+    {
+      "id": "audio",
+      "label": "Audio"
+    },
+    {
+      "id": "video",
+      "label": "Video"
+    },
+    {
+      "id": "timers",
+      "label": "Timers"
+    },
+    {
       "id": "tuner",
       "label": "Tuner"
     },
     {
-      "id": "network",
-      "label": "Network / Media"
+      "id": "media",
+      "label": "Media"
     },
     {
       "id": "system",
-      "label": "Cursor / Menu / System"
+      "label": "System"
     },
     {
       "id": "advanced",
@@ -62,435 +64,308 @@
   ],
   "controls": [
     {
-      "id": "pw_on",
-      "section": "power",
-      "label": "Power On",
-      "kind": "action",
-      "x1200w": true,
-      "command": "PWON",
-      "confirm": false,
+      "id": "pw_power",
+      "section": "main",
+      "label": "Power",
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "pw_standby",
-      "section": "power",
-      "label": "Standby",
-      "kind": "action",
+      ],
       "x1200w": true,
-      "command": "PWSTANDBY",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "pw_query",
-      "section": "power",
-      "label": "Query Power",
-      "kind": "query",
-      "x1200w": true,
+      "featured": true,
       "query": "PW?",
+      "on_command": "PWON",
+      "off_command": "PWSTANDBY",
+      "on_label": "On",
+      "off_label": "Standby",
+      "on_values": [
+        "PWON"
+      ],
+      "off_values": [
+        "PWSTANDBY"
+      ]
+    },
+    {
+      "id": "mv_master",
+      "section": "main",
+      "label": "Volume",
+      "kind": "stepper",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "zm_on",
-      "section": "power",
-      "label": "Main Zone On",
-      "kind": "action",
+      ],
       "x1200w": true,
-      "command": "ZMON",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "zm_off",
-      "section": "power",
-      "label": "Main Zone Off",
-      "kind": "action",
-      "x1200w": true,
-      "command": "ZMOFF",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "zm_query",
-      "section": "power",
-      "label": "Query Main Zone",
-      "kind": "query",
-      "x1200w": true,
-      "query": "ZM?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mv_up",
-      "section": "volume",
-      "label": "Volume Up",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MVUP",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mv_down",
-      "section": "volume",
-      "label": "Volume Down",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MVDOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mv_set",
-      "section": "volume",
-      "label": "Master Volume",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "MV",
+      "featured": true,
       "query": "MV?",
+      "prefix": "MV",
       "min": 0,
       "max": 98,
       "pad": 2,
-      "unit": "abs",
       "zero_db": 80,
       "half_step": true,
+      "up": "MVUP",
+      "down": "MVDOWN",
+      "volume_slider": true
+    },
+    {
+      "id": "mu_mute",
+      "section": "main",
+      "label": "Mute",
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "mu_on",
-      "section": "volume",
-      "label": "Mute On",
-      "kind": "action",
+      ],
       "x1200w": true,
-      "command": "MUON",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mu_off",
-      "section": "volume",
-      "label": "Mute Off",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MUOFF",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mu_query",
-      "section": "volume",
-      "label": "Query Mute",
-      "kind": "query",
-      "x1200w": true,
+      "featured": true,
       "query": "MU?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
+      "on_command": "MUON",
+      "off_command": "MUOFF",
+      "on_label": "Muted",
+      "off_label": "Unmuted",
+      "on_values": [
+        "MUON"
+      ],
+      "off_values": [
+        "MUOFF"
       ]
     },
     {
       "id": "si_select",
-      "section": "input",
-      "label": "Input Source",
+      "section": "main",
+      "label": "Source",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
+      "featured": true,
       "query": "SI?",
       "options": [
         {
           "label": "Phono",
-          "command": "SIPHONO"
+          "command": "SIPHONO",
+          "models": [
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "CD",
-          "command": "SICD"
+          "command": "SICD",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Tuner",
-          "command": "SITUNER"
+          "command": "SITUNER",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "DVD",
-          "command": "SIDVD"
+          "command": "SIDVD",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Blu-ray",
-          "command": "SIBD"
+          "command": "SIBD",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "TV Audio",
-          "command": "SITV"
+          "command": "SITV",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "CBL/SAT",
-          "command": "SISAT/CBL"
+          "command": "SISAT/CBL",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Media Player",
-          "command": "SIMPLAY"
+          "command": "SIMPLAY",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Game",
-          "command": "SIGAME"
-        },
-        {
-          "label": "HD Radio",
-          "command": "SIHDRADIO"
+          "command": "SIGAME",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Online Music",
-          "command": "SINET"
-        },
-        {
-          "label": "Pandora",
-          "command": "SIPANDORA"
-        },
-        {
-          "label": "SiriusXM",
-          "command": "SISIRIUSXM"
-        },
-        {
-          "label": "Spotify",
-          "command": "SISPOTIFY"
-        },
-        {
-          "label": "Last.fm",
-          "command": "SILASTFM"
-        },
-        {
-          "label": "Flickr",
-          "command": "SIFLICKR"
+          "command": "SINET",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Internet Radio",
-          "command": "SIIRADIO"
+          "command": "SIIRADIO",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Media Server",
-          "command": "SISERVER"
+          "command": "SISERVER",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Favorites",
-          "command": "SIFAVORITES"
+          "command": "SIFAVORITES",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "AUX1",
-          "command": "SIAUX1"
+          "command": "SIAUX1",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "AUX2",
-          "command": "SIAUX2"
+          "command": "SIAUX2",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
           "label": "Bluetooth",
-          "command": "SIBT"
+          "command": "SIBT",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
-          "label": "USB/iPod",
-          "command": "SIUSB/IPOD"
+          "label": "iPod/USB",
+          "command": "SIUSB/IPOD",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
-          "label": "USB Play",
-          "command": "SIUSB"
+          "label": "USB",
+          "command": "SIUSB",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
-          "label": "iPod Direct",
-          "command": "SIIPD"
+          "label": "Pandora",
+          "command": "SIPANDORA",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         },
         {
-          "label": "iRadio Recent",
-          "command": "SIIRP"
-        },
-        {
-          "label": "Favorites Play",
-          "command": "SIFVP"
+          "label": "SiriusXM",
+          "command": "SISIRIUSXM",
+          "models": [
+            "X1200W",
+            "X2200W",
+            "X3200W",
+            "X4200W"
+          ]
         }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "sd_mode",
-      "section": "input",
-      "label": "Digital Input Mode",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "SD?",
-      "options": [
-        {
-          "label": "Auto",
-          "command": "SDAUTO"
-        },
-        {
-          "label": "HDMI",
-          "command": "SDHDMI"
-        },
-        {
-          "label": "Digital",
-          "command": "SDDIGITAL"
-        },
-        {
-          "label": "Analog",
-          "command": "SDANALOG"
-        },
-        {
-          "label": "ARC",
-          "command": "SDARC"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "dc_mode",
-      "section": "input",
-      "label": "Decode Mode",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "DC?",
-      "options": [
-        {
-          "label": "Auto",
-          "command": "DCAUTO"
-        },
-        {
-          "label": "PCM",
-          "command": "DCPCM"
-        },
-        {
-          "label": "DTS",
-          "command": "DCDTS"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "sv_select",
-      "section": "input",
-      "label": "Video Select",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "SV?",
-      "options": [
-        {
-          "label": "CD",
-          "command": "SVCD"
-        },
-        {
-          "label": "DVD",
-          "command": "SVDVD"
-        },
-        {
-          "label": "Blu-ray",
-          "command": "SVBD"
-        },
-        {
-          "label": "TV Audio",
-          "command": "SVTV"
-        },
-        {
-          "label": "CBL/SAT",
-          "command": "SVSAT/CBL"
-        },
-        {
-          "label": "Media Player",
-          "command": "SVMPLAY"
-        },
-        {
-          "label": "Game",
-          "command": "SVGAME"
-        },
-        {
-          "label": "AUX1",
-          "command": "SVAUX1"
-        },
-        {
-          "label": "AUX2",
-          "command": "SVAUX2"
-        },
-        {
-          "label": "Video Select On",
-          "command": "SVON"
-        },
-        {
-          "label": "Video Select Off",
-          "command": "SVOFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
       ]
     },
     {
       "id": "ms_select",
-      "section": "surround",
-      "label": "Surround Mode",
+      "section": "main",
+      "label": "Sound Mode",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
+      "featured": true,
       "query": "MS?",
       "options": [
         {
@@ -534,76 +409,20 @@
           "command": "MSDOLBY ATMOS"
         },
         {
-          "label": "Dolby Digital EX",
-          "command": "MSDOLBY D EX"
-        },
-        {
-          "label": "Dolby D + DS",
-          "command": "MSDOLBY D+DS"
-        },
-        {
-          "label": "DTS Surround",
-          "command": "MSDTS SURROUND"
-        },
-        {
-          "label": "DTS ES Discrete 6.1",
-          "command": "MSDTS ES DSCRT6.1"
-        },
-        {
-          "label": "DTS ES Matrix 6.1",
-          "command": "MSDTS ES MTRX6.1"
-        },
-        {
-          "label": "DTS 96/24",
-          "command": "MSDTS96/24"
-        },
-        {
-          "label": "DTS96 ES Matrix",
-          "command": "MSDTS96 ES MTRX"
-        },
-        {
-          "label": "DTS + Neural:X",
-          "command": "MSDTS+NEURAL:X"
-        },
-        {
-          "label": "DTS ES MTRX + Neural:X",
-          "command": "MSDTS ES MTRX+NEURAL:X"
-        },
-        {
-          "label": "DTS ES Discrete + Neural:X",
-          "command": "MSDTS ES DSCRT+NEURAL:X"
-        },
-        {
-          "label": "Multi Ch In",
-          "command": "MSMULTI CH IN"
-        },
-        {
-          "label": "M Ch In + DS",
-          "command": "MSM CH IN+DS"
-        },
-        {
-          "label": "Multi Ch In 7.1",
-          "command": "MSMULTI CH IN 7.1"
-        },
-        {
-          "label": "M Ch In + Neural:X",
-          "command": "MSM CH IN+NEURAL:X"
-        },
-        {
           "label": "Dolby Digital Plus",
           "command": "MSDOLBY D+"
-        },
-        {
-          "label": "Dolby D+ + DS",
-          "command": "MSDOLBY D+ +DS"
         },
         {
           "label": "Dolby TrueHD",
           "command": "MSDOLBY HD"
         },
         {
-          "label": "Dolby HD + DS",
-          "command": "MSDOLBY HD+DS"
+          "label": "DTS Surround",
+          "command": "MSDTS SURROUND"
+        },
+        {
+          "label": "DTS:X",
+          "command": "MSDTS:X"
         },
         {
           "label": "DTS-HD",
@@ -614,32 +433,12 @@
           "command": "MSDTS HD MSTR"
         },
         {
-          "label": "DTS-HD + Neural:X",
-          "command": "MSDTS HD+NEURAL:X"
-        },
-        {
-          "label": "DTS:X",
-          "command": "MSDTS:X"
-        },
-        {
-          "label": "DTS:X Master",
-          "command": "MSDTS:X MSTR"
-        },
-        {
-          "label": "DTS Express",
-          "command": "MSDTS EXPRESS"
-        },
-        {
-          "label": "DTS ES 8ch Discrete",
-          "command": "MSDTS ES 8CH DSCRT"
-        },
-        {
           "label": "Neural:X",
           "command": "MSNEURAL:X"
         },
         {
-          "label": "Audyssey DSX",
-          "command": "MSAUDYSSEY DSX"
+          "label": "Multi Ch In",
+          "command": "MSMULTI CH IN"
         },
         {
           "label": "Multi Ch Stereo",
@@ -669,211 +468,207 @@
           "label": "Virtual",
           "command": "MSVIRTUAL"
         }
+      ]
+    },
+    {
+      "id": "ps_dyneq",
+      "section": "main",
+      "label": "Dynamic EQ",
+      "kind": "toggle",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ],
+      "x1200w": true,
+      "featured": true,
+      "query": "PSDYNEQ ?",
+      "on_command": "PSDYNEQ ON",
+      "off_command": "PSDYNEQ OFF",
+      "on_label": "On",
+      "off_label": "Off"
+    },
+    {
+      "id": "zm_power",
+      "section": "main",
+      "label": "Main Zone",
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "ZM?",
+      "on_command": "ZMON",
+      "off_command": "ZMOFF",
+      "on_label": "On",
+      "off_label": "Off",
+      "on_values": [
+        "ZMON"
+      ],
+      "off_values": [
+        "ZMOFF"
       ]
     },
     {
-      "id": "ms_left",
-      "section": "surround",
-      "label": "Balance Left",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSLEFT",
+      "id": "sd_mode",
+      "section": "input",
+      "label": "Input Mode",
+      "kind": "enum",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "SD?",
+      "options": [
+        {
+          "label": "Auto",
+          "command": "SDAUTO"
+        },
+        {
+          "label": "HDMI",
+          "command": "SDHDMI"
+        },
+        {
+          "label": "Digital",
+          "command": "SDDIGITAL"
+        },
+        {
+          "label": "Analog",
+          "command": "SDANALOG"
+        },
+        {
+          "label": "ARC",
+          "command": "SDARC"
+        }
       ]
     },
     {
-      "id": "ms_right",
-      "section": "surround",
-      "label": "Balance Right",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSRIGHT",
+      "id": "dc_mode",
+      "section": "input",
+      "label": "Decode Mode",
+      "kind": "enum",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "DC?",
+      "options": [
+        {
+          "label": "Auto",
+          "command": "DCAUTO"
+        },
+        {
+          "label": "PCM",
+          "command": "DCPCM"
+        },
+        {
+          "label": "DTS",
+          "command": "DCDTS"
+        }
       ]
     },
     {
-      "id": "quick_1",
-      "section": "surround",
-      "label": "Quick Select 1",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK1",
+      "id": "sv_video_select",
+      "section": "input",
+      "label": "Video Select",
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "SV?",
+      "on_command": "SVON",
+      "off_command": "SVOFF",
+      "on_label": "On",
+      "off_label": "Off",
+      "on_values": [
+        "SVON"
+      ],
+      "off_values": [
+        "SVOFF"
       ]
     },
     {
-      "id": "quick_1_mem",
-      "section": "surround",
-      "label": "Quick 1 Memory",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK1 MEMORY",
-      "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 1?",
+      "id": "ms_auro",
+      "section": "sound",
+      "label": "Auro Mode",
+      "kind": "enum",
       "models": [
-        "X1200W",
-        "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": false,
+      "query": "MS?",
+      "options": [
+        {
+          "label": "Auro-3D",
+          "command": "MSAURO3D"
+        },
+        {
+          "label": "Auro-2D Surround",
+          "command": "MSAURO2DSURR"
+        }
       ]
     },
     {
-      "id": "quick_2",
-      "section": "surround",
-      "label": "Quick Select 2",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK2",
+      "id": "ms_quick",
+      "section": "sound",
+      "label": "Quick Select",
+      "kind": "enum",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "quick_2_mem",
-      "section": "surround",
-      "label": "Quick 2 Memory",
-      "kind": "action",
+      ],
       "x1200w": true,
-      "command": "MSQUICK2 MEMORY",
-      "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 2?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "quick_3",
-      "section": "surround",
-      "label": "Quick Select 3",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK3",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "quick_3_mem",
-      "section": "surround",
-      "label": "Quick 3 Memory",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK3 MEMORY",
-      "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 3?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "quick_4",
-      "section": "surround",
-      "label": "Quick Select 4",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK4",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "quick_4_mem",
-      "section": "surround",
-      "label": "Quick 4 Memory",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK4 MEMORY",
-      "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 4?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "quick_5",
-      "section": "surround",
-      "label": "Quick Select 5",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK5",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "quick_5_mem",
-      "section": "surround",
-      "label": "Quick 5 Memory",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MSQUICK5 MEMORY",
-      "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 5?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "quick_query",
-      "section": "surround",
-      "label": "Query Quick Select",
-      "kind": "query",
-      "x1200w": true,
-      "query": "MSQUICK ?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
+      "options": [
+        {
+          "label": "Quick Select 1",
+          "command": "MSQUICK1"
+        },
+        {
+          "label": "Quick Select 2",
+          "command": "MSQUICK2"
+        },
+        {
+          "label": "Quick Select 3",
+          "command": "MSQUICK3"
+        },
+        {
+          "label": "Quick Select 4",
+          "command": "MSQUICK4"
+        },
+        {
+          "label": "Quick Select 5",
+          "command": "MSQUICK5"
+        }
       ]
     },
     {
       "id": "cv_fl",
-      "section": "channel",
+      "section": "levels",
       "label": "Front L",
       "kind": "slider",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "prefix": "CVFL",
       "query": "CV?",
@@ -881,21 +676,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVFL UP",
-      "down": "CVFL DOWN",
       "space_before_value": true,
+      "up": "CVFL UP",
+      "down": "CVFL DOWN"
+    },
+    {
+      "id": "cv_fr",
+      "section": "levels",
+      "label": "Front R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_fr",
-      "section": "channel",
-      "label": "Front R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVFR",
       "query": "CV?",
@@ -903,21 +698,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVFR UP",
-      "down": "CVFR DOWN",
       "space_before_value": true,
+      "up": "CVFR UP",
+      "down": "CVFR DOWN"
+    },
+    {
+      "id": "cv_c",
+      "section": "levels",
+      "label": "Center",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_c",
-      "section": "channel",
-      "label": "Center",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVC",
       "query": "CV?",
@@ -925,21 +720,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVC UP",
-      "down": "CVC DOWN",
       "space_before_value": true,
+      "up": "CVC UP",
+      "down": "CVC DOWN"
+    },
+    {
+      "id": "cv_sw",
+      "section": "levels",
+      "label": "Subwoofer",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sw",
-      "section": "channel",
-      "label": "Subwoofer",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSW",
       "query": "CV?",
@@ -947,21 +742,42 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSW UP",
-      "down": "CVSW DOWN",
       "space_before_value": true,
+      "up": "CVSW UP",
+      "down": "CVSW DOWN"
+    },
+    {
+      "id": "cv_sw2",
+      "section": "levels",
+      "label": "Subwoofer 2",
+      "kind": "slider",
+      "models": [
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": false,
+      "prefix": "CVSW2",
+      "query": "CV?",
+      "min": 38,
+      "max": 62,
+      "pad": 2,
+      "zero_db": 50,
+      "space_before_value": true,
+      "up": "CVSW2 UP",
+      "down": "CVSW2 DOWN"
+    },
+    {
+      "id": "cv_sl",
+      "section": "levels",
+      "label": "Surround L",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sl",
-      "section": "channel",
-      "label": "Surround L",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSL",
       "query": "CV?",
@@ -969,21 +785,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSL UP",
-      "down": "CVSL DOWN",
       "space_before_value": true,
+      "up": "CVSL UP",
+      "down": "CVSL DOWN"
+    },
+    {
+      "id": "cv_sr",
+      "section": "levels",
+      "label": "Surround R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sr",
-      "section": "channel",
-      "label": "Surround R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSR",
       "query": "CV?",
@@ -991,21 +807,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSR UP",
-      "down": "CVSR DOWN",
       "space_before_value": true,
+      "up": "CVSR UP",
+      "down": "CVSR DOWN"
+    },
+    {
+      "id": "cv_sbl",
+      "section": "levels",
+      "label": "Surround Back L",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sbl",
-      "section": "channel",
-      "label": "Surround Back L",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSBL",
       "query": "CV?",
@@ -1013,21 +829,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSBL UP",
-      "down": "CVSBL DOWN",
       "space_before_value": true,
+      "up": "CVSBL UP",
+      "down": "CVSBL DOWN"
+    },
+    {
+      "id": "cv_sbr",
+      "section": "levels",
+      "label": "Surround Back R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sbr",
-      "section": "channel",
-      "label": "Surround Back R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSBR",
       "query": "CV?",
@@ -1035,21 +851,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSBR UP",
-      "down": "CVSBR DOWN",
       "space_before_value": true,
+      "up": "CVSBR UP",
+      "down": "CVSBR DOWN"
+    },
+    {
+      "id": "cv_sb",
+      "section": "levels",
+      "label": "Surround Back",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sb",
-      "section": "channel",
-      "label": "Surround Back",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSB",
       "query": "CV?",
@@ -1057,21 +873,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSB UP",
-      "down": "CVSB DOWN",
       "space_before_value": true,
+      "up": "CVSB UP",
+      "down": "CVSB DOWN"
+    },
+    {
+      "id": "cv_fhl",
+      "section": "levels",
+      "label": "Front Height L",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_fhl",
-      "section": "channel",
-      "label": "Front Height L",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVFHL",
       "query": "CV?",
@@ -1079,21 +895,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVFHL UP",
-      "down": "CVFHL DOWN",
       "space_before_value": true,
+      "up": "CVFHL UP",
+      "down": "CVFHL DOWN"
+    },
+    {
+      "id": "cv_fhr",
+      "section": "levels",
+      "label": "Front Height R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_fhr",
-      "section": "channel",
-      "label": "Front Height R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVFHR",
       "query": "CV?",
@@ -1101,21 +917,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVFHR UP",
-      "down": "CVFHR DOWN",
       "space_before_value": true,
+      "up": "CVFHR UP",
+      "down": "CVFHR DOWN"
+    },
+    {
+      "id": "cv_tfl",
+      "section": "levels",
+      "label": "Top Front L",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_tfl",
-      "section": "channel",
-      "label": "Top Front L",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVTFL",
       "query": "CV?",
@@ -1123,21 +939,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVTFL UP",
-      "down": "CVTFL DOWN",
       "space_before_value": true,
+      "up": "CVTFL UP",
+      "down": "CVTFL DOWN"
+    },
+    {
+      "id": "cv_tfr",
+      "section": "levels",
+      "label": "Top Front R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_tfr",
-      "section": "channel",
-      "label": "Top Front R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVTFR",
       "query": "CV?",
@@ -1145,21 +961,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVTFR UP",
-      "down": "CVTFR DOWN",
       "space_before_value": true,
+      "up": "CVTFR UP",
+      "down": "CVTFR DOWN"
+    },
+    {
+      "id": "cv_tml",
+      "section": "levels",
+      "label": "Top Middle L",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_tml",
-      "section": "channel",
-      "label": "Top Middle L",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVTML",
       "query": "CV?",
@@ -1167,21 +983,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVTML UP",
-      "down": "CVTML DOWN",
       "space_before_value": true,
+      "up": "CVTML UP",
+      "down": "CVTML DOWN"
+    },
+    {
+      "id": "cv_tmr",
+      "section": "levels",
+      "label": "Top Middle R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_tmr",
-      "section": "channel",
-      "label": "Top Middle R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVTMR",
       "query": "CV?",
@@ -1189,21 +1005,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVTMR UP",
-      "down": "CVTMR DOWN",
       "space_before_value": true,
+      "up": "CVTMR UP",
+      "down": "CVTMR DOWN"
+    },
+    {
+      "id": "cv_fdl",
+      "section": "levels",
+      "label": "Front Dolby L",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_fdl",
-      "section": "channel",
-      "label": "Front Dolby L",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVFDL",
       "query": "CV?",
@@ -1211,21 +1027,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVFDL UP",
-      "down": "CVFDL DOWN",
       "space_before_value": true,
+      "up": "CVFDL UP",
+      "down": "CVFDL DOWN"
+    },
+    {
+      "id": "cv_fdr",
+      "section": "levels",
+      "label": "Front Dolby R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_fdr",
-      "section": "channel",
-      "label": "Front Dolby R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVFDR",
       "query": "CV?",
@@ -1233,21 +1049,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVFDR UP",
-      "down": "CVFDR DOWN",
       "space_before_value": true,
+      "up": "CVFDR UP",
+      "down": "CVFDR DOWN"
+    },
+    {
+      "id": "cv_sdl",
+      "section": "levels",
+      "label": "Surround Dolby L",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sdl",
-      "section": "channel",
-      "label": "Surround Dolby L",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSDL",
       "query": "CV?",
@@ -1255,21 +1071,21 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSDL UP",
-      "down": "CVSDL DOWN",
       "space_before_value": true,
+      "up": "CVSDL UP",
+      "down": "CVSDL DOWN"
+    },
+    {
+      "id": "cv_sdr",
+      "section": "levels",
+      "label": "Surround Dolby R",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "cv_sdr",
-      "section": "channel",
-      "label": "Surround Dolby R",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "CVSDR",
       "query": "CV?",
@@ -1277,75 +1093,39 @@
       "max": 62,
       "pad": 2,
       "zero_db": 50,
-      "up": "CVSDR UP",
-      "down": "CVSDR DOWN",
       "space_before_value": true,
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "cv_reset",
-      "section": "channel",
-      "label": "Reset Channel Levels",
-      "kind": "action",
-      "x1200w": true,
-      "command": "CVZRL",
-      "confirm": true,
-      "confirm_message": "Reset all channel levels to factory defaults?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "cv_query",
-      "section": "channel",
-      "label": "Query Channel Levels",
-      "kind": "query",
-      "x1200w": true,
-      "query": "CV?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
+      "up": "CVSDR UP",
+      "down": "CVSDR DOWN"
     },
     {
       "id": "ps_tone",
-      "section": "tone",
+      "section": "audio",
       "label": "Tone Control",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSTONE CTRL ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSTONE CTRL ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSTONE CTRL OFF"
-        }
-      ],
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "query": "PSTONE CTRL ?",
+      "on_command": "PSTONE CTRL ON",
+      "off_command": "PSTONE CTRL OFF",
+      "on_label": "On",
+      "off_label": "Off"
     },
     {
       "id": "ps_bas",
-      "section": "tone",
+      "section": "audio",
       "label": "Bass",
       "kind": "slider",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "prefix": "PSBAS",
       "query": "PSBAS ?",
@@ -1355,19 +1135,19 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "PSBAS UP",
-      "down": "PSBAS DOWN",
+      "down": "PSBAS DOWN"
+    },
+    {
+      "id": "ps_tre",
+      "section": "audio",
+      "label": "Treble",
+      "kind": "slider",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "ps_tre",
-      "section": "tone",
-      "label": "Treble",
-      "kind": "slider",
+      ],
       "x1200w": true,
       "prefix": "PSTRE",
       "query": "PSTRE ?",
@@ -1377,159 +1157,119 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "PSTRE UP",
-      "down": "PSTRE DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_dil_en",
-      "section": "tone",
-      "label": "Dialog Level",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSDIL ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSDIL ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSDIL OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_dil",
-      "section": "tone",
-      "label": "Dialog Level Adjust",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "PSDIL",
-      "query": "PSDIL ?",
-      "min": 38,
-      "max": 62,
-      "pad": 2,
-      "zero_db": 50,
-      "space_before_value": true,
-      "up": "PSDIL UP",
-      "down": "PSDIL DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_swl_en",
-      "section": "tone",
-      "label": "Subwoofer Level Adj",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSSWL ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSSWL ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSSWL OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_swl",
-      "section": "tone",
-      "label": "Subwoofer Level",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "PSSWL",
-      "query": "PSSWL ?",
-      "min": 38,
-      "max": 62,
-      "pad": 2,
-      "zero_db": 50,
-      "space_before_value": true,
-      "up": "PSSWL UP",
-      "down": "PSSWL DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
+      "down": "PSTRE DOWN"
     },
     {
       "id": "ps_cinema_eq",
-      "section": "tone",
+      "section": "audio",
       "label": "Cinema EQ",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSCINEMA EQ. ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSCINEMA EQ.ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSCINEMA EQ.OFF"
-        }
-      ],
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "PSCINEMA EQ. ?",
+      "on_command": "PSCINEMA EQ.ON",
+      "off_command": "PSCINEMA EQ.OFF",
+      "on_label": "On",
+      "off_label": "Off"
+    },
+    {
+      "id": "ps_multeq",
+      "section": "audio",
+      "label": "MultEQ XT",
+      "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "query": "PSMULTEQ: ?",
+      "options": [
+        {
+          "label": "Audyssey",
+          "command": "PSMULTEQ:AUDYSSEY"
+        },
+        {
+          "label": "Bypass L/R",
+          "command": "PSMULTEQ:BYP.LR"
+        },
+        {
+          "label": "Flat",
+          "command": "PSMULTEQ:FLAT"
+        },
+        {
+          "label": "Off",
+          "command": "PSMULTEQ:OFF"
+        }
       ]
     },
     {
-      "id": "ps_lom",
-      "section": "tone",
-      "label": "Loudness Management",
+      "id": "ps_dynvol",
+      "section": "audio",
+      "label": "Dynamic Volume",
       "kind": "enum",
-      "x1200w": true,
-      "query": "PSLOM ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSLOM ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSLOM OFF"
-        }
-      ],
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "PSDYNVOL ?",
+      "options": [
+        {
+          "label": "Heavy",
+          "command": "PSDYNVOL HEV"
+        },
+        {
+          "label": "Medium",
+          "command": "PSDYNVOL MED"
+        },
+        {
+          "label": "Light",
+          "command": "PSDYNVOL LIT"
+        },
+        {
+          "label": "Off",
+          "command": "PSDYNVOL OFF"
+        }
       ]
+    },
+    {
+      "id": "ps_geq",
+      "section": "audio",
+      "label": "Graphic EQ",
+      "kind": "toggle",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "query": "PSGEQ ?",
+      "on_command": "PSGEQ ON",
+      "off_command": "PSGEQ OFF",
+      "on_label": "On",
+      "off_label": "Off"
     },
     {
       "id": "ps_drc",
-      "section": "tone",
+      "section": "audio",
       "label": "Dynamic Compression",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "query": "PSDRC ?",
       "options": [
@@ -1553,41 +1293,19 @@
           "label": "Off",
           "command": "PSDRC OFF"
         }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_dic",
-      "section": "tone",
-      "label": "Dialog Control",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "PSDIC",
-      "query": "PSDIC ?",
-      "min": 0,
-      "max": 6,
-      "pad": 2,
-      "zero_db": 0,
-      "space_before_value": true,
-      "up": "PSDIC UP",
-      "down": "PSDIC DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
       ]
     },
     {
       "id": "ps_lfe",
-      "section": "tone",
+      "section": "audio",
       "label": "LFE",
       "kind": "slider",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "prefix": "PSLFE",
       "query": "PSLFE ?",
@@ -1596,373 +1314,19 @@
       "pad": 2,
       "space_before_value": true,
       "up": "PSLFE UP",
-      "down": "PSLFE DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_eff",
-      "section": "tone",
-      "label": "Effect Level",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "PSEFF",
-      "query": "PSEFF ?",
-      "min": 1,
-      "max": 15,
-      "pad": 2,
-      "space_before_value": true,
-      "up": "PSEFF UP",
-      "down": "PSEFF DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_del",
-      "section": "tone",
-      "label": "Audio Delay (ms)",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "PSDEL",
-      "query": "PSDEL ?",
-      "min": 0,
-      "max": 300,
-      "pad": 3,
-      "space_before_value": true,
-      "up": "PSDEL UP",
-      "down": "PSDEL DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_multeq",
-      "section": "audyssey",
-      "label": "MultEQ",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSMULTEQ: ?",
-      "options": [
-        {
-          "label": "Audyssey",
-          "command": "PSMULTEQ:AUDYSSEY"
-        },
-        {
-          "label": "L/R Bypass",
-          "command": "PSMULTEQ:BYP.LR"
-        },
-        {
-          "label": "Flat",
-          "command": "PSMULTEQ:FLAT"
-        },
-        {
-          "label": "Off",
-          "command": "PSMULTEQ:OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_dyneq",
-      "section": "audyssey",
-      "label": "Dynamic EQ",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSDYNEQ ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSDYNEQ ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSDYNEQ OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_reflev",
-      "section": "audyssey",
-      "label": "Reference Level Offset",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSREFLEV ?",
-      "options": [
-        {
-          "label": "0 dB",
-          "command": "PSREFLEV 0"
-        },
-        {
-          "label": "5 dB",
-          "command": "PSREFLEV 5"
-        },
-        {
-          "label": "10 dB",
-          "command": "PSREFLEV 10"
-        },
-        {
-          "label": "15 dB",
-          "command": "PSREFLEV 15"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_dynvol",
-      "section": "audyssey",
-      "label": "Dynamic Volume",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSDYNVOL ?",
-      "options": [
-        {
-          "label": "Heavy",
-          "command": "PSDYNVOL HEV"
-        },
-        {
-          "label": "Medium",
-          "command": "PSDYNVOL MED"
-        },
-        {
-          "label": "Light",
-          "command": "PSDYNVOL LIT"
-        },
-        {
-          "label": "Off",
-          "command": "PSDYNVOL OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_geq",
-      "section": "audyssey",
-      "label": "Graphic EQ",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSGEQ ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSGEQ ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSGEQ OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_heq",
-      "section": "audyssey",
-      "label": "Headphone EQ",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSHEQ ?",
-      "options": [
-        {
-          "label": "On",
-          "command": "PSHEQ ON"
-        },
-        {
-          "label": "Off",
-          "command": "PSHEQ OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ps_dsx",
-      "section": "audyssey",
-      "label": "Audyssey DSX",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "PSDSX ?",
-      "options": [
-        {
-          "label": "Height & Wide",
-          "command": "PSDSX ONHW"
-        },
-        {
-          "label": "Height",
-          "command": "PSDSX ONH"
-        },
-        {
-          "label": "Wide",
-          "command": "PSDSX ONW"
-        },
-        {
-          "label": "Off",
-          "command": "PSDSX OFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "vs_asp",
-      "section": "video",
-      "label": "Aspect",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "VSASP ?",
-      "options": [
-        {
-          "label": "4:3",
-          "command": "VSASPNRM"
-        },
-        {
-          "label": "16:9",
-          "command": "VSASPFUL"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "vs_sc",
-      "section": "video",
-      "label": "Resolution",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "VSSC ?",
-      "options": [
-        {
-          "label": "480p/576p",
-          "command": "VSSC48P"
-        },
-        {
-          "label": "1080i",
-          "command": "VSSC10I"
-        },
-        {
-          "label": "720p",
-          "command": "VSSC72P"
-        },
-        {
-          "label": "1080p",
-          "command": "VSSC10P"
-        },
-        {
-          "label": "1080p24",
-          "command": "VSSC10P24"
-        },
-        {
-          "label": "4K",
-          "command": "VSSC4K"
-        },
-        {
-          "label": "Auto",
-          "command": "VSSCAUTO"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "vs_sch",
-      "section": "video",
-      "label": "HDMI Resolution",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "VSSCH ?",
-      "options": [
-        {
-          "label": "480p/576p",
-          "command": "VSSCH48P"
-        },
-        {
-          "label": "1080i",
-          "command": "VSSCH10I"
-        },
-        {
-          "label": "720p",
-          "command": "VSSCH72P"
-        },
-        {
-          "label": "1080p",
-          "command": "VSSCH10P"
-        },
-        {
-          "label": "1080p24",
-          "command": "VSSCH10P24"
-        },
-        {
-          "label": "4K",
-          "command": "VSSCH4K"
-        },
-        {
-          "label": "Auto",
-          "command": "VSSCHAUTO"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
+      "down": "PSLFE DOWN"
     },
     {
       "id": "vs_audio",
       "section": "video",
       "label": "HDMI Audio Out",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "query": "VSAUDIO ?",
       "options": [
@@ -1974,19 +1338,83 @@
           "label": "TV",
           "command": "VSAUDIO TV"
         }
-      ],
+      ]
+    },
+    {
+      "id": "vs_asp",
+      "section": "video",
+      "label": "Aspect",
+      "kind": "enum",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "VSASP ?",
+      "options": [
+        {
+          "label": "4:3",
+          "command": "VSASPNRM"
+        },
+        {
+          "label": "16:9",
+          "command": "VSASPFUL"
+        }
+      ]
+    },
+    {
+      "id": "vs_sc",
+      "section": "video",
+      "label": "Resolution",
+      "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "query": "VSSC ?",
+      "options": [
+        {
+          "label": "Auto",
+          "command": "VSSCAUTO"
+        },
+        {
+          "label": "4K",
+          "command": "VSSC4K"
+        },
+        {
+          "label": "1080p",
+          "command": "VSSC10P"
+        },
+        {
+          "label": "1080i",
+          "command": "VSSC10I"
+        },
+        {
+          "label": "720p",
+          "command": "VSSC72P"
+        },
+        {
+          "label": "480p/576p",
+          "command": "VSSC48P"
+        }
       ]
     },
     {
       "id": "vs_vpm",
       "section": "video",
-      "label": "Video Processing",
+      "label": "Video Mode",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "query": "VSVPM ?",
       "options": [
@@ -2002,51 +1430,67 @@
           "label": "Movie",
           "command": "VSVPMMOVI"
         }
+      ]
+    },
+    {
+      "id": "slp_timer",
+      "section": "timers",
+      "label": "Sleep Timer",
+      "kind": "stepper",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "slp_off",
-      "section": "timers",
-      "label": "Sleep Off",
-      "kind": "action",
       "x1200w": true,
-      "command": "SLPOFF",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "slp_set",
-      "section": "timers",
-      "label": "Sleep Timer (min)",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "SLP",
       "query": "SLP?",
-      "min": 1,
+      "prefix": "SLP",
+      "min": 0,
       "max": 120,
       "pad": 3,
+      "off_command": "SLPOFF",
+      "unit": "min"
+    },
+    {
+      "id": "eco_mode",
+      "section": "timers",
+      "label": "ECO Mode",
+      "kind": "enum",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": true,
+      "query": "ECO?",
+      "options": [
+        {
+          "label": "On",
+          "command": "ECOON"
+        },
+        {
+          "label": "Auto",
+          "command": "ECOAUTO"
+        },
+        {
+          "label": "Off",
+          "command": "ECOOFF"
+        }
       ]
     },
     {
-      "id": "stby",
+      "id": "stby_auto",
       "section": "timers",
       "label": "Auto Standby",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "query": "STBY?",
       "options": [
@@ -2066,99 +1510,49 @@
           "label": "Off",
           "command": "STBYOFF"
         }
+      ]
+    },
+    {
+      "id": "z2_power",
+      "section": "zone2",
+      "label": "ZONE2 Power",
+      "kind": "toggle",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "eco",
-      "section": "timers",
-      "label": "ECO Mode",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "ECO?",
-      "options": [
-        {
-          "label": "On",
-          "command": "ECOON"
-        },
-        {
-          "label": "Auto",
-          "command": "ECOAUTO"
-        },
-        {
-          "label": "Off",
-          "command": "ECOOFF"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_on",
-      "section": "zone2",
-      "label": "Zone2 On",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2ON",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_off",
-      "section": "zone2",
-      "label": "Zone2 Off",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2OFF",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_query",
-      "section": "zone2",
-      "label": "Query Zone2",
-      "kind": "query",
       "x1200w": true,
       "query": "Z2?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
+      "on_command": "Z2ON",
+      "off_command": "Z2OFF",
+      "on_label": "On",
+      "off_label": "Off",
+      "on_values": [
+        "Z2ON"
+      ],
+      "off_values": [
+        "Z2OFF"
       ]
     },
     {
       "id": "z2_input",
       "section": "zone2",
-      "label": "Zone2 Input",
+      "label": "ZONE2 Source",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "query": "Z2?",
       "options": [
         {
           "label": "Source",
           "command": "Z2SOURCE"
-        },
-        {
-          "label": "Phono",
-          "command": "Z2PHONO"
         },
         {
           "label": "CD",
@@ -2177,7 +1571,7 @@
           "command": "Z2BD"
         },
         {
-          "label": "TV",
+          "label": "TV Audio",
           "command": "Z2TV"
         },
         {
@@ -2221,259 +1615,200 @@
           "command": "Z2BT"
         },
         {
-          "label": "USB/iPod",
+          "label": "iPod/USB",
           "command": "Z2USB/IPOD"
-        },
-        {
-          "label": "USB Play",
-          "command": "Z2USB"
-        },
-        {
-          "label": "iPod Direct",
-          "command": "Z2IPD"
-        },
-        {
-          "label": "iRadio Recent",
-          "command": "Z2IRP"
-        },
-        {
-          "label": "Favorites Play",
-          "command": "Z2FVP"
         }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
       ]
     },
     {
       "id": "z2_vol",
       "section": "zone2",
-      "label": "Zone2 Volume",
-      "kind": "slider",
+      "label": "ZONE2 Volume",
+      "kind": "stepper",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
-      "prefix": "Z2",
       "query": "Z2?",
+      "prefix": "Z2",
       "min": 0,
       "max": 98,
       "pad": 2,
       "zero_db": 80,
-      "up": "Z2UP",
-      "down": "Z2DOWN",
       "half_step": true,
+      "up": "Z2UP",
+      "down": "Z2DOWN"
+    },
+    {
+      "id": "z2_mute",
+      "section": "zone2",
+      "label": "ZONE2 Mute",
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "z2_mu_on",
-      "section": "zone2",
-      "label": "Zone2 Mute On",
-      "kind": "action",
+      ],
       "x1200w": true,
-      "command": "Z2MUON",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
+      "query": "Z2MU?",
+      "on_command": "Z2MUON",
+      "off_command": "Z2MUOFF",
+      "on_label": "Muted",
+      "off_label": "Unmuted",
+      "on_values": [
+        "Z2MUON"
+      ],
+      "off_values": [
+        "Z2MUOFF"
       ]
     },
     {
-      "id": "z2_mu_off",
-      "section": "zone2",
-      "label": "Zone2 Mute Off",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2MUOFF",
+      "id": "z3_power",
+      "section": "zone3",
+      "label": "ZONE3 Power",
+      "kind": "toggle",
       "models": [
-        "X1200W",
-        "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": false,
+      "query": "Z3?",
+      "on_command": "Z3ON",
+      "off_command": "Z3OFF",
+      "on_label": "On",
+      "off_label": "Off",
+      "on_values": [
+        "Z3ON"
+      ],
+      "off_values": [
+        "Z3OFF"
       ]
     },
     {
-      "id": "z2_slp_off",
-      "section": "zone2",
-      "label": "Zone2 Sleep Off",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2SLPOFF",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_slp",
-      "section": "zone2",
-      "label": "Zone2 Sleep (min)",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "Z2SLP",
-      "query": "Z2SLP?",
-      "min": 1,
-      "max": 120,
-      "pad": 3,
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_stby",
-      "section": "zone2",
-      "label": "Zone2 Auto Standby",
+      "id": "z3_input",
+      "section": "zone3",
+      "label": "ZONE3 Source",
       "kind": "enum",
-      "x1200w": true,
-      "query": "Z2STBY?",
+      "models": [
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": false,
+      "query": "Z3?",
       "options": [
         {
-          "label": "2h",
-          "command": "Z2STBY2H"
+          "label": "Source",
+          "command": "Z3SOURCE"
         },
         {
-          "label": "4h",
-          "command": "Z2STBY4H"
+          "label": "CD",
+          "command": "Z3CD"
         },
         {
-          "label": "8h",
-          "command": "Z2STBY8H"
+          "label": "Tuner",
+          "command": "Z3TUNER"
         },
         {
-          "label": "Off",
-          "command": "Z2STBYOFF"
+          "label": "DVD",
+          "command": "Z3DVD"
+        },
+        {
+          "label": "Blu-ray",
+          "command": "Z3BD"
+        },
+        {
+          "label": "TV Audio",
+          "command": "Z3TV"
+        },
+        {
+          "label": "CBL/SAT",
+          "command": "Z3SAT/CBL"
+        },
+        {
+          "label": "Media Player",
+          "command": "Z3MPLAY"
+        },
+        {
+          "label": "Game",
+          "command": "Z3GAME"
+        },
+        {
+          "label": "Online Music",
+          "command": "Z3NET"
+        },
+        {
+          "label": "Internet Radio",
+          "command": "Z3IRADIO"
+        },
+        {
+          "label": "Media Server",
+          "command": "Z3SERVER"
+        },
+        {
+          "label": "Favorites",
+          "command": "Z3FAVORITES"
+        },
+        {
+          "label": "AUX1",
+          "command": "Z3AUX1"
+        },
+        {
+          "label": "AUX2",
+          "command": "Z3AUX2"
+        },
+        {
+          "label": "Bluetooth",
+          "command": "Z3BT"
+        },
+        {
+          "label": "iPod/USB",
+          "command": "Z3USB/IPOD"
         }
+      ]
+    },
+    {
+      "id": "z3_vol",
+      "section": "zone3",
+      "label": "ZONE3 Volume",
+      "kind": "stepper",
+      "models": [
+        "X3200W",
+        "X4200W"
       ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_quick_1",
-      "section": "zone2",
-      "label": "Zone2 Quick 1",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2QUICK1",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_quick_2",
-      "section": "zone2",
-      "label": "Zone2 Quick 2",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2QUICK2",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_quick_3",
-      "section": "zone2",
-      "label": "Zone2 Quick 3",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2QUICK3",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_quick_4",
-      "section": "zone2",
-      "label": "Zone2 Quick 4",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2QUICK4",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_quick_5",
-      "section": "zone2",
-      "label": "Zone2 Quick 5",
-      "kind": "action",
-      "x1200w": true,
-      "command": "Z2QUICK5",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "z2_cv_fl",
-      "section": "zone2",
-      "label": "Zone2 Front L",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "Z2CVFL",
-      "query": "Z2CV?",
-      "min": 38,
-      "max": 62,
+      "x1200w": false,
+      "query": "Z3?",
+      "prefix": "Z3",
+      "min": 0,
+      "max": 98,
       "pad": 2,
-      "zero_db": 50,
-      "space_before_value": true,
-      "up": "Z2CVFL UP",
-      "down": "Z2CVFL DOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
+      "zero_db": 80,
+      "up": "Z3UP",
+      "down": "Z3DOWN"
     },
     {
-      "id": "z2_cv_fr",
-      "section": "zone2",
-      "label": "Zone2 Front R",
-      "kind": "slider",
-      "x1200w": true,
-      "prefix": "Z2CVFR",
-      "query": "Z2CV?",
-      "min": 38,
-      "max": 62,
-      "pad": 2,
-      "zero_db": 50,
-      "space_before_value": true,
-      "up": "Z2CVFR UP",
-      "down": "Z2CVFR DOWN",
+      "id": "z3_mute",
+      "section": "zone3",
+      "label": "ZONE3 Mute",
+      "kind": "toggle",
       "models": [
-        "X1200W",
-        "X2200W",
         "X3200W",
         "X4200W"
+      ],
+      "x1200w": false,
+      "query": "Z3MU?",
+      "on_command": "Z3MUON",
+      "off_command": "Z3MUOFF",
+      "on_label": "Muted",
+      "off_label": "Unmuted",
+      "on_values": [
+        "Z3MUON"
+      ],
+      "off_values": [
+        "Z3MUOFF"
       ]
     },
     {
@@ -2481,6 +1816,12 @@
       "section": "tuner",
       "label": "Band",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "query": "TMAN?",
       "options": [
@@ -2492,737 +1833,193 @@
           "label": "FM",
           "command": "TMANFM"
         }
+      ]
+    },
+    {
+      "id": "tf_tune",
+      "section": "tuner",
+      "label": "Frequency",
+      "kind": "stepper",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "tm_mode",
-      "section": "tuner",
-      "label": "Tuning Mode",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "TMAN?",
-      "options": [
-        {
-          "label": "Auto",
-          "command": "TMANAUTO"
-        },
-        {
-          "label": "Manual",
-          "command": "TMANMANUAL"
-        }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "tf_up",
-      "section": "tuner",
-      "label": "Frequency Up",
-      "kind": "action",
-      "x1200w": true,
-      "command": "TFANUP",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "tf_down",
-      "section": "tuner",
-      "label": "Frequency Down",
-      "kind": "action",
-      "x1200w": true,
-      "command": "TFANDOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "tf_query",
-      "section": "tuner",
-      "label": "Query Frequency",
-      "kind": "query",
       "x1200w": true,
       "query": "TFAN?",
+      "up": "TFANUP",
+      "down": "TFANDOWN",
+      "display_only_value": true
+    },
+    {
+      "id": "tp_preset",
+      "section": "tuner",
+      "label": "Preset",
+      "kind": "stepper",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "tp_up",
-      "section": "tuner",
-      "label": "Preset Up",
-      "kind": "action",
-      "x1200w": true,
-      "command": "TPANUP",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "tp_down",
-      "section": "tuner",
-      "label": "Preset Down",
-      "kind": "action",
-      "x1200w": true,
-      "command": "TPANDOWN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "tp_query",
-      "section": "tuner",
-      "label": "Query Preset",
-      "kind": "query",
+      ],
       "x1200w": true,
       "query": "TPAN?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "tp_mem",
-      "section": "tuner",
-      "label": "Preset Memory",
-      "kind": "action",
-      "x1200w": true,
-      "command": "TPANMEM",
-      "confirm": true,
-      "confirm_message": "Start tuner preset memory mode?",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns90",
-      "section": "network",
-      "label": "Cursor Up",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS90",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns91",
-      "section": "network",
-      "label": "Cursor Down",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS91",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns92",
-      "section": "network",
-      "label": "Cursor Left",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS92",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns93",
-      "section": "network",
-      "label": "Cursor Right",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS93",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns94",
-      "section": "network",
-      "label": "Enter / Play-Pause",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS94",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
+      "up": "TPANUP",
+      "down": "TPANDOWN",
+      "display_only_value": true
     },
     {
       "id": "ns_ns9a",
-      "section": "network",
+      "section": "media",
       "label": "Play",
       "kind": "action",
-      "x1200w": true,
-      "command": "NS9A",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "command": "NS9A"
     },
     {
       "id": "ns_ns9b",
-      "section": "network",
+      "section": "media",
       "label": "Pause",
       "kind": "action",
-      "x1200w": true,
-      "command": "NS9B",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "command": "NS9B"
     },
     {
       "id": "ns_ns9c",
-      "section": "network",
+      "section": "media",
       "label": "Stop",
       "kind": "action",
-      "x1200w": true,
-      "command": "NS9C",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "command": "NS9C"
     },
     {
       "id": "ns_ns9d",
-      "section": "network",
+      "section": "media",
       "label": "Skip +",
       "kind": "action",
-      "x1200w": true,
-      "command": "NS9D",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "command": "NS9D"
     },
     {
       "id": "ns_ns9e",
-      "section": "network",
-      "label": "Skip -",
+      "section": "media",
+      "label": "Skip \u2212",
       "kind": "action",
-      "x1200w": true,
-      "command": "NS9E",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9f",
-      "section": "network",
-      "label": "Search +",
-      "kind": "action",
+      ],
       "x1200w": true,
-      "command": "NS9F",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
+      "command": "NS9E"
     },
     {
-      "id": "ns_ns9g",
-      "section": "network",
-      "label": "Search -",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9G",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9h",
-      "section": "network",
-      "label": "Repeat One",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9H",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9i",
-      "section": "network",
-      "label": "Repeat All",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9I",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9j",
-      "section": "network",
-      "label": "Repeat Off",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9J",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9k",
-      "section": "network",
-      "label": "Random On",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9K",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9m",
-      "section": "network",
-      "label": "Random Off",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9M",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9w",
-      "section": "network",
-      "label": "iPod Mode Toggle",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9W",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9x",
-      "section": "network",
-      "label": "Page Next",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9X",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9y",
-      "section": "network",
-      "label": "Page Prev",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9Y",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_ns9z",
-      "section": "network",
-      "label": "Search Stop",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NS9Z",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_nsrpt",
-      "section": "network",
-      "label": "Repeat Toggle",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NSRPT",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_nsrnd",
-      "section": "network",
-      "label": "Random Toggle",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NSRND",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_osd",
-      "section": "network",
-      "label": "Request OSD (ASCII)",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NSA",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_osd_utf8",
-      "section": "network",
-      "label": "Request OSD (UTF-8)",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NSE",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "ns_fav",
-      "section": "network",
-      "label": "Add Favorites",
-      "kind": "action",
-      "x1200w": true,
-      "command": "NSFV MEM",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mncup",
-      "section": "system",
-      "label": "Cursor Up",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNCUP",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mncdn",
-      "section": "system",
-      "label": "Cursor Down",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNCDN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mnclt",
-      "section": "system",
-      "label": "Cursor Left",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNCLT",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mncrt",
-      "section": "system",
-      "label": "Cursor Right",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNCRT",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mnent",
-      "section": "system",
+      "id": "ns_ns94",
+      "section": "media",
       "label": "Enter",
       "kind": "action",
-      "x1200w": true,
-      "command": "MNENT",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mnrtn",
-      "section": "system",
-      "label": "Return",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNRTN",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mnopt",
-      "section": "system",
-      "label": "Option",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNOPT",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mninf",
-      "section": "system",
-      "label": "Info",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNINF",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_mnchl",
-      "section": "system",
-      "label": "Channel Level Menu",
-      "kind": "action",
-      "x1200w": true,
-      "command": "MNCHL",
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_menu",
-      "section": "system",
-      "label": "Setup Menu",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "MNMEN?",
-      "options": [
-        {
-          "label": "On",
-          "command": "MNMEN ON"
-        },
-        {
-          "label": "Off",
-          "command": "MNMEN OFF"
-        }
       ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
-      ]
-    },
-    {
-      "id": "mn_zst",
-      "section": "system",
-      "label": "All Zone Stereo",
-      "kind": "enum",
       "x1200w": true,
-      "query": "MNZST?",
-      "options": [
-        {
-          "label": "On",
-          "command": "MNZST ON"
-        },
-        {
-          "label": "Off",
-          "command": "MNZST OFF"
-        }
-      ],
-      "confirm": true,
-      "confirm_message": "Change All Zone Stereo mode?",
+      "command": "NS94"
+    },
+    {
+      "id": "ns_ns90",
+      "section": "media",
+      "label": "Up",
+      "kind": "action",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "sy_remote",
-      "section": "system",
-      "label": "Remote Lock",
-      "kind": "enum",
+      ],
       "x1200w": true,
-      "options": [
-        {
-          "label": "On",
-          "command": "SYREMOTE LOCK ON"
-        },
-        {
-          "label": "Off",
-          "command": "SYREMOTE LOCK OFF"
-        }
-      ],
-      "confirm": true,
-      "confirm_message": "Change remote control lock?",
+      "command": "NS90"
+    },
+    {
+      "id": "ns_ns91",
+      "section": "media",
+      "label": "Down",
+      "kind": "action",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
-    },
-    {
-      "id": "sy_panel",
-      "section": "system",
-      "label": "Panel Lock",
-      "kind": "enum",
+      ],
       "x1200w": true,
-      "options": [
-        {
-          "label": "Buttons only",
-          "command": "SYPANEL LOCK ON"
-        },
-        {
-          "label": "Buttons + Volume",
-          "command": "SYPANEL+V LOCK ON"
-        },
-        {
-          "label": "Off",
-          "command": "SYPANEL LOCK OFF"
-        }
-      ],
-      "confirm": true,
-      "confirm_message": "Change front panel lock?",
+      "command": "NS91"
+    },
+    {
+      "id": "ns_ns92",
+      "section": "media",
+      "label": "Left",
+      "kind": "action",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "command": "NS92"
     },
     {
-      "id": "dim",
+      "id": "ns_ns93",
+      "section": "media",
+      "label": "Right",
+      "kind": "action",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "command": "NS93"
+    },
+    {
+      "id": "dimmer",
       "section": "system",
       "label": "Dimmer",
       "kind": "enum",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
       "x1200w": true,
       "query": "DIM ?",
       "options": [
@@ -3241,70 +2038,144 @@
         {
           "label": "Off",
           "command": "DIM OFF"
-        },
-        {
-          "label": "Cycle",
-          "command": "DIM SEL"
         }
-      ],
-      "models": [
-        "X1200W",
-        "X2200W",
-        "X3200W",
-        "X4200W"
       ]
     },
     {
-      "id": "tr1",
+      "id": "mn_menu",
       "section": "system",
-      "label": "Trigger 1",
-      "kind": "enum",
-      "x1200w": true,
-      "query": "TR?",
-      "options": [
-        {
-          "label": "On",
-          "command": "TR1 ON"
-        },
-        {
-          "label": "Off",
-          "command": "TR1 OFF"
-        }
-      ],
+      "label": "Setup Menu",
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "query": "MNMEN?",
+      "on_command": "MNMEN ON",
+      "off_command": "MNMEN OFF",
+      "on_label": "On",
+      "off_label": "Off"
     },
     {
-      "id": "ug_idn",
+      "id": "mn_zst",
       "section": "system",
-      "label": "Upgrade ID",
-      "kind": "query",
-      "x1200w": true,
-      "query": "UGIDN",
+      "label": "All Zone Stereo",
+      "kind": "toggle",
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "query": "MNZST?",
+      "on_command": "MNZST ON",
+      "off_command": "MNZST OFF",
+      "on_label": "On",
+      "off_label": "Off",
+      "confirm": true,
+      "confirm_message": "Change All Zone Stereo?"
+    },
+    {
+      "id": "mn_mncup",
+      "section": "system",
+      "label": "Cursor Up",
+      "kind": "action",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "command": "MNCUP"
+    },
+    {
+      "id": "mn_mncdn",
+      "section": "system",
+      "label": "Cursor Down",
+      "kind": "action",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "command": "MNCDN"
+    },
+    {
+      "id": "mn_mnclt",
+      "section": "system",
+      "label": "Cursor Left",
+      "kind": "action",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "command": "MNCLT"
+    },
+    {
+      "id": "mn_mncrt",
+      "section": "system",
+      "label": "Cursor Right",
+      "kind": "action",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "command": "MNCRT"
+    },
+    {
+      "id": "mn_mnent",
+      "section": "system",
+      "label": "Enter",
+      "kind": "action",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "command": "MNENT"
+    },
+    {
+      "id": "mn_mnrtn",
+      "section": "system",
+      "label": "Return",
+      "kind": "action",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ],
+      "x1200w": true,
+      "command": "MNRTN"
     },
     {
       "id": "raw_command",
       "section": "advanced",
       "label": "Raw Command",
       "kind": "raw",
-      "x1200w": true,
-      "allow_raw": true,
       "models": [
         "X1200W",
         "X2200W",
         "X3200W",
         "X4200W"
-      ]
+      ],
+      "x1200w": true,
+      "allow_raw": true
     }
   ],
   "status_queries": [
@@ -3317,34 +2188,26 @@
     "DC?",
     "SV?",
     "MS?",
-    "MSQUICK ?",
     "CV?",
     "SLP?",
     "STBY?",
     "ECO?",
     "Z2?",
     "Z2MU?",
-    "Z2SLP?",
-    "Z2STBY?",
+    "Z3?",
+    "Z3MU?",
     "PSTONE CTRL ?",
     "PSBAS ?",
     "PSTRE ?",
-    "PSDIL ?",
-    "PSSWL ?",
     "PSCINEMA EQ. ?",
-    "PSLOM ?",
     "PSMULTEQ: ?",
     "PSDYNEQ ?",
-    "PSREFLEV ?",
     "PSDYNVOL ?",
     "PSGEQ ?",
     "PSDRC ?",
     "PSLFE ?",
-    "PSEFF ?",
-    "PSDEL ?",
     "VSASP ?",
     "VSSC ?",
-    "VSSCH ?",
     "VSAUDIO ?",
     "VSVPM ?",
     "TMAN?",
@@ -3354,19 +2217,6 @@
     "MNZST?",
     "DIM ?"
   ],
-  "blocked_commands": [
-    "RM STA",
-    "RMSTA",
-    "RM END"
-  ],
-  "confirm_prefixes": [
-    "SYREMOTE LOCK",
-    "SYPANEL LOCK",
-    "SYPANEL+V LOCK",
-    "MNZST",
-    "CVZRL",
-    "TPANMEM"
-  ],
   "status_queries_lite": [
     "PW?",
     "ZM?",
@@ -3375,60 +2225,44 @@
     "SI?",
     "MS?",
     "SLP?",
-    "STBY?",
     "ECO?",
-    "Z2?",
-    "Z2MU?"
+    "Z2?"
   ],
   "section_queries": {
-    "power": [
+    "main": [
       "PW?",
-      "ZM?"
-    ],
-    "volume": [
+      "ZM?",
       "MV?",
-      "MU?"
+      "MU?",
+      "SI?",
+      "MS?",
+      "PSDYNEQ ?"
     ],
     "input": [
-      "SI?",
       "SD?",
       "DC?",
       "SV?"
     ],
-    "surround": [
-      "MS?",
-      "MSQUICK ?"
+    "sound": [
+      "MS?"
     ],
-    "channel": [
+    "levels": [
       "CV?"
     ],
-    "tone": [
+    "audio": [
       "PSTONE CTRL ?",
       "PSBAS ?",
       "PSTRE ?",
-      "PSDIL ?",
-      "PSSWL ?",
       "PSCINEMA EQ. ?",
-      "PSLOM ?",
-      "PSDRC ?",
-      "PSDIC ?",
-      "PSLFE ?",
-      "PSEFF ?",
-      "PSDEL ?"
-    ],
-    "audyssey": [
       "PSMULTEQ: ?",
-      "PSDYNEQ ?",
-      "PSREFLEV ?",
       "PSDYNVOL ?",
       "PSGEQ ?",
-      "PSHEQ ?",
-      "PSDSX ?"
+      "PSDRC ?",
+      "PSLFE ?"
     ],
     "video": [
       "VSASP ?",
       "VSSC ?",
-      "VSSCH ?",
       "VSAUDIO ?",
       "VSVPM ?"
     ],
@@ -3438,11 +2272,12 @@
       "ECO?"
     ],
     "zone2": [
-      "Z2MU?",
       "Z2?",
-      "Z2SLP?",
-      "Z2STBY?",
-      "Z2CV?"
+      "Z2MU?"
+    ],
+    "zone3": [
+      "Z3?",
+      "Z3MU?"
     ],
     "tuner": [
       "TMAN?",
@@ -3452,15 +2287,19 @@
     "system": [
       "MNMEN?",
       "MNZST?",
-      "DIM ?",
-      "TR?",
-      "UGIDN"
+      "DIM ?"
     ]
   },
-  "supported_models": [
-    "AVR-X1200W",
-    "AVR-X2200W",
-    "AVR-X3200W",
-    "AVR-X4200W"
+  "blocked_commands": [
+    "RM STA",
+    "RM END"
+  ],
+  "confirm_prefixes": [
+    "SYREMOTE LOCK",
+    "SYPANEL LOCK",
+    "SYPANEL+V LOCK",
+    "MNZST",
+    "CVZRL",
+    "TPANMEM"
   ]
 }
