@@ -12,6 +12,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from .app_settings import ensure_settings_file
 from .denon_client import DenonSetupClient
 from .host_utils import normalize_host
+from .routers import control as control_router
 from .routers import setup as setup_router
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
@@ -58,6 +59,7 @@ def create_app(host: str | None = None) -> FastAPI:
     app.state.default_host = default_host
     app.state.denon = DenonSetupClient(default_host)
     app.include_router(setup_router.router, prefix="/api")
+    app.include_router(control_router.router, prefix="/api")
 
     def spa_index():
         return FileResponse(UI_DIR / "index.html")

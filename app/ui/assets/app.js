@@ -101,6 +101,10 @@
     powerZone: "MAIN ZONE",
     powerInput: "—",
     route: { view: "setup" },
+    controlCatalog: null,
+    controlPollTimer: null,
+    controlLog: [],
+    controlBusy: false,
     appSettings: {
       poll_enabled: true,
       poll_interval_sec: 5,
@@ -424,21 +428,27 @@
 
   /* ---------- In-page views (no /ui path, no hash in the URL) ---------- */
 
-  const APP_VIEWS = new Set(["setup", "info", "settings", "help"]);
+  const APP_VIEWS = new Set(["setup", "control", "info", "settings", "help"]);
 
   function showView(view, { loadInfo = true } = {}) {
     const next = APP_VIEWS.has(view) ? view : "setup";
     const changed = state.route.view !== next;
+    const prev = state.route.view;
     state.route = { view: next };
     for (const el of document.querySelectorAll(".view")) el.hidden = true;
     const pane = $(`view-${next}`);
     if (pane) pane.hidden = false;
     $("tab-setup")?.classList.toggle("active", next === "setup");
+    $("tab-control")?.classList.toggle("active", next === "control");
     $("tab-info")?.classList.toggle("active", next === "info");
     $("tab-settings")?.classList.toggle("active", next === "settings");
     $("tab-help")?.classList.toggle("active", next === "help");
+    if (prev === "control" && next !== "control") stopControlPoll();
     if (next === "settings") {
       return loadSettingsPage();
+    }
+    if (next === "control") {
+      return loadControlPanel({ force: changed || !state.controlCatalog });
     }
     if (
       loadInfo &&
@@ -900,7 +910,7 @@
     // Longer quiet window after local EQ writes so Set / channel never fights poll.
     const quietMs = onEq ? 8000 : 2500;
     if (Date.now() - state.lastLocalWriteAt < quietMs) return;
-    if (["info", "settings", "help"].includes(state.route?.view)) return;
+    if (["info", "settings", "help", "control"].includes(state.route?.view)) return;
 
     state.pollInFlight = true;
     state.pollTick = (state.pollTick || 0) + 1;
@@ -3360,8 +3370,333 @@
     body.appendChild(frag);
   }
 
+  /* ---------- Control Panel (telnet) ---------- */
+
+  function controlBanner(text, kind) {
+    const el = $("control-banner");
+    if (!el) return;
+    if (!text) {
+      el.hidden = true;
+      el.textContent = "";
+      el.classList.remove("ok", "err", "warn");
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.classList.remove("ok", "err", "warn");
+    if (kind) el.classList.add(kind);
+  }
+
+  function appendControlLog(entry) {
+    state.controlLog.unshift(entry);
+    if (state.controlLog.length > 80) state.controlLog.length = 80;
+    const pre = $("control-log");
+    if (!pre) return;
+    pre.textContent = state.controlLog
+      .map((e) => {
+        const resp = (e.responses || []).join(" | ") || "(no response lines)";
+        return `[${e.transport || "?"}] ${e.request} → ${resp}`;
+      })
+      .join("\n");
+  }
+
+  function setControlTransport(name) {
+    const el = $("control-transport");
+    if (el) el.textContent = name ? `via ${name}` : "—";
+  }
+
+  function stopControlPoll() {
+    if (state.controlPollTimer) {
+      clearInterval(state.controlPollTimer);
+      state.controlPollTimer = null;
+    }
+  }
+
+  function startControlPoll() {
+    stopControlPoll();
+    state.controlPollTimer = setInterval(() => {
+      if (state.route.view !== "control") return;
+      if (state.controlBusy) return;
+      if (document.visibilityState === "hidden") return;
+      refreshControlStatus({ full: false, quiet: true }).catch(() => {});
+    }, 3000);
+  }
+
+  function renderControlPanel() {
+    const nav = $("control-section-nav");
+    const body = $("control-sections");
+    if (!nav || !body || !state.controlCatalog) return;
+    const sections = state.controlCatalog.sections || [];
+    const controls = state.controlCatalog.controls || [];
+    nav.innerHTML = "";
+    body.innerHTML = "";
+
+    for (const sec of sections) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = sec.label;
+      btn.dataset.section = sec.id;
+      btn.addEventListener("click", () => {
+        const target = document.getElementById(`control-sec-${sec.id}`);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+        for (const b of nav.querySelectorAll("button")) b.classList.remove("active");
+        btn.classList.add("active");
+      });
+      nav.appendChild(btn);
+
+      const sectionEl = document.createElement("section");
+      sectionEl.className = "control-section";
+      sectionEl.id = `control-sec-${sec.id}`;
+      const h = document.createElement("h3");
+      h.textContent = sec.label;
+      sectionEl.appendChild(h);
+      const grid = document.createElement("div");
+      grid.className = "control-grid";
+
+      const items = controls.filter((c) => c.section === sec.id);
+      for (const c of items) {
+        grid.appendChild(buildControlWidget(c));
+      }
+      sectionEl.appendChild(grid);
+      body.appendChild(sectionEl);
+    }
+    nav.querySelector("button")?.classList.add("active");
+  }
+
+  function buildControlWidget(c) {
+    const wrap = document.createElement("div");
+    wrap.className = "control-widget";
+    wrap.dataset.controlId = c.id;
+    const label = document.createElement("label");
+    label.className = "control-label";
+    label.textContent = c.label;
+    wrap.appendChild(label);
+
+    const kind = c.kind;
+    if (kind === "action" || kind === "query") {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-ghost control-btn";
+      btn.textContent = kind === "query" ? "Query" : "Send";
+      btn.addEventListener("click", () =>
+        runControlCommand({
+          id: c.id,
+          confirm: Boolean(c.confirm),
+          confirmMessage: c.confirm_message,
+        })
+      );
+      wrap.appendChild(btn);
+    } else if (kind === "enum") {
+      const row = document.createElement("div");
+      row.className = "control-enum-row";
+      const sel = document.createElement("select");
+      sel.className = "control-select";
+      for (const opt of c.options || []) {
+        const o = document.createElement("option");
+        o.value = opt.command;
+        o.textContent = opt.label;
+        sel.appendChild(o);
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-primary control-btn";
+      btn.textContent = "Set";
+      btn.addEventListener("click", () =>
+        runControlCommand({
+          id: c.id,
+          value: sel.value,
+          confirm: Boolean(c.confirm),
+          confirmMessage: c.confirm_message,
+        })
+      );
+      row.appendChild(sel);
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    } else if (kind === "slider") {
+      const row = document.createElement("div");
+      row.className = "control-slider-row";
+      const range = document.createElement("input");
+      range.type = "range";
+      range.min = String(c.min ?? 0);
+      range.max = String(c.max ?? 98);
+      range.step = "1";
+      range.value = String(c.zero_db ?? c.min ?? 0);
+      const val = document.createElement("span");
+      val.className = "control-slider-val";
+      val.textContent = range.value;
+      range.addEventListener("input", () => {
+        val.textContent = range.value;
+      });
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-primary control-btn";
+      btn.textContent = "Set";
+      btn.addEventListener("click", () =>
+        runControlCommand({
+          id: c.id,
+          value: Number(range.value),
+          confirm: Boolean(c.confirm),
+          confirmMessage: c.confirm_message,
+        })
+      );
+      if (c.up) {
+        const up = document.createElement("button");
+        up.type = "button";
+        up.className = "btn-ghost control-btn";
+        up.textContent = "+";
+        up.addEventListener("click", () =>
+          runControlCommand({ command: c.up })
+        );
+        row.appendChild(up);
+      }
+      if (c.down) {
+        const down = document.createElement("button");
+        down.type = "button";
+        down.className = "btn-ghost control-btn";
+        down.textContent = "−";
+        down.addEventListener("click", () =>
+          runControlCommand({ command: c.down })
+        );
+        row.appendChild(down);
+      }
+      row.appendChild(range);
+      row.appendChild(val);
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    } else if (kind === "raw") {
+      const row = document.createElement("div");
+      row.className = "control-raw-row";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "control-raw-input";
+      input.placeholder = "e.g. MV80 or MSSTEREO";
+      input.maxLength = 40;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-primary control-btn";
+      btn.textContent = "Send raw";
+      btn.addEventListener("click", () => {
+        const cmd = input.value.trim();
+        if (!cmd) return;
+        runControlCommand({
+          command: cmd,
+          allow_raw: true,
+          confirm: true,
+          confirmMessage: `Send raw command ${cmd}?`,
+        });
+      });
+      row.appendChild(input);
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    }
+    return wrap;
+  }
+
+  async function runControlCommand({
+    id,
+    command,
+    value,
+    confirm = false,
+    confirmMessage,
+    allow_raw = false,
+  }) {
+    if (confirm || confirmMessage) {
+      const msg =
+        confirmMessage ||
+        `Send command${command ? ` ${command}` : ""}?`;
+      if (!window.confirm(msg)) return;
+    }
+    state.controlBusy = true;
+    controlBanner("Sending…");
+    try {
+      const body = {
+        confirm: Boolean(confirm || confirmMessage),
+        allow_raw: Boolean(allow_raw),
+      };
+      if (id) {
+        body.id = id;
+        if (value !== undefined) body.value = value;
+      } else {
+        body.command = command;
+      }
+      const result = await api("/api/control/command", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      setControlTransport(result.transport);
+      appendControlLog(result);
+      controlBanner(`OK: ${result.request}`, "ok");
+      setStatus(`Control: ${result.request}`, "ok");
+    } catch (err) {
+      controlBanner(err.message, "err");
+      setStatus(err.message, "err");
+    } finally {
+      state.controlBusy = false;
+    }
+  }
+
+  async function refreshControlStatus({ full = false, quiet = false } = {}) {
+    if (!quiet) controlBanner(full ? "Full status…" : "Refreshing…");
+    try {
+      const snap = await api(`/api/control/status?full=${full ? "true" : "false"}`);
+      setControlTransport(snap.transport);
+      if (snap.responses?.length) {
+        appendControlLog({
+          request: full ? "STATUS(full)" : "STATUS",
+          transport: snap.transport,
+          responses: snap.responses.slice(0, 40),
+        });
+      } else if (snap.power) {
+        appendControlLog({
+          request: "STATUS(goform-power)",
+          transport: snap.transport || "goform",
+          responses: [
+            `power=${snap.power.power}`,
+            `input=${snap.power.input}`,
+            `vol=${snap.power.volume}`,
+            `mute=${snap.power.mute}`,
+          ],
+        });
+      }
+      if (snap.errors?.length && !quiet) {
+        controlBanner(`Status partial: ${snap.errors.length} query error(s)`, "warn");
+      } else if (!quiet) {
+        controlBanner("Status updated", "ok");
+      }
+    } catch (err) {
+      if (!quiet) controlBanner(err.message, "err");
+    }
+  }
+
+  async function loadControlPanel({ force = false } = {}) {
+    if (!state.connected) {
+      controlBanner("Connect to AVR first", "warn");
+      return;
+    }
+    try {
+      if (force || !state.controlCatalog) {
+        state.controlCatalog = await api("/api/control/catalog");
+        renderControlPanel();
+      }
+      await refreshControlStatus({ full: false });
+      startControlPoll();
+    } catch (err) {
+      controlBanner(err.message, "err");
+    }
+  }
+
+  function wireControlPanel() {
+    $("control-refresh")?.addEventListener("click", () =>
+      refreshControlStatus({ full: false }).catch((e) => controlBanner(e.message, "err"))
+    );
+    $("control-refresh-full")?.addEventListener("click", () =>
+      refreshControlStatus({ full: true }).catch((e) => controlBanner(e.message, "err"))
+    );
+  }
+
   initTheme();
   wireTabs();
+  wireControlPanel();
   wireEditModeToggle();
   $("reconnect-btn").addEventListener("click", boot);
   $("editor-primary-btn").addEventListener("click", () => {

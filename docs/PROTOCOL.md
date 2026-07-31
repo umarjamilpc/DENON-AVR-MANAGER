@@ -49,12 +49,28 @@ general_setuplock_s_general
 
 Derived from the submit path (`s_*.asp`). Prefer `*_s_*` write endpoints over `*_r_*` read aliases.
 
+## Telnet Control Panel (Ver.02)
+
+ASCII commands on **TCP port 23** (`COMMAND+PARAMETER+CR`). Spacing ≥50ms between commands; wait ~1s after `PWON`.
+
+| Item | Value |
+|------|--------|
+| Catalog | `protocol/telnet_commands.json` (X1200W-supported surface) |
+| Primary transport | Telnet (`app/denon_telnet.py`) |
+| Fallback | `GET /goform/formiPhoneAppDirect.xml?<COMMAND>` |
+| API | `/api/control/catalog`, `/api/control/status`, `/api/control/command`, `/api/control/query` |
+
+Blocked: remote maintenance (`RM STA` / `RM END`). Confirm required for panel/remote locks, All Zone Stereo, channel-level reset, Quick Select **memory**, tuner preset memory.
+
+Zone3 / Auro-only / HD Radio (unsupported on X1200W) are omitted from the catalog.
+
 ## Machine-readable files
 
 | File | Contents |
 |------|----------|
 | `protocol/endpoints.json` | Fields per submit URL |
 | `protocol/catalog.json` | Flattened catalog |
+| `protocol/telnet_commands.json` | Control Panel telnet catalog |
 | `protocol/protocol_map.json` | Full crawl map |
 | `protocol/manual_coverage.json` | Manual checklist data |
 

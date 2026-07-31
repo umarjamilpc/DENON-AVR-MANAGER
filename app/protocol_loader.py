@@ -38,6 +38,25 @@ def load_catalog() -> List[Dict[str, Any]]:
     return out
 
 
+@lru_cache
+def load_telnet_protocol() -> Dict[str, Any]:
+    """AVR-X1200W telnet command catalog (Control Panel)."""
+    path = PROTOCOL_DIR / "telnet_commands.json"
+    if not path.exists():
+        return {
+            "model": "AVR-X1200W",
+            "sections": [],
+            "controls": [],
+            "status_queries": [],
+            "blocked_commands": [],
+        }
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_telnet_commands() -> List[Dict[str, Any]]:
+    return list(load_telnet_protocol().get("controls") or [])
+
+
 def get_endpoint(endpoint_id_value: str, base: Optional[str] = None) -> Dict[str, Any]:
     for item in load_catalog():
         if item["id"] == endpoint_id_value:

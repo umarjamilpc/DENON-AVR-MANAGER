@@ -16,6 +16,7 @@ This project wraps that website into:
 | Piece | What you get |
 |--------|----------------|
 | **Web UI** | Clean menu that mirrors Denon’s Setup structure |
+| **Control Panel** | Full AVR-X1200W telnet surface (volume, inputs, surround, Zone 2, …) with goform fallback |
 | **HTTP API** | JSON read/write for Home Assistant, scripts, or other tools |
 | **Safety rules** | Blocks dangerous actions (Save/Load dump, Audyssey mic wizard start, etc.) |
 
@@ -121,7 +122,7 @@ Details: [docs/SAFETY.md](docs/SAFETY.md)
 | [docs/API.md](docs/API.md) | HTTP API overview |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the code is organized |
 | [docs/REVERSE_ENGINEERING.md](docs/REVERSE_ENGINEERING.md) | How the AVR web protocol was discovered |
-| [docs/PROTOCOL.md](docs/PROTOCOL.md) | SETUP URLs, forms, Manual EQ |
+| [docs/PROTOCOL.md](docs/PROTOCOL.md) | SETUP URLs, Manual EQ, telnet Control Panel |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | How to extend the app safely |
 | [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | Other models / caveats |
 | [protocol/MANUAL_COVERAGE.md](protocol/MANUAL_COVERAGE.md) | Manual vs crawl checklist |
