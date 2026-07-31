@@ -20,7 +20,7 @@ from ..denon_control import (
 from ..denon_power import read_main_zone_power
 from ..denon_telnet import DenonTelnetError
 from ..host_utils import host_label
-from ..protocol_loader import CONTROL_LAYOUT_GROUPED, CONTROL_LAYOUTS
+from ..protocol_loader import CONTROL_LAYOUT_LESS, CONTROL_LAYOUTS, normalize_layout
 
 router = APIRouter(tags=["control"])
 
@@ -36,11 +36,8 @@ def _model() -> str:
 
 def _layout(override: Optional[str] = None) -> str:
     if override:
-        lay = str(override).strip().lower()
-        if lay in CONTROL_LAYOUTS:
-            return lay
-    lay = str(load_settings().get("control_grouping") or CONTROL_LAYOUT_GROUPED).strip().lower()
-    return lay if lay in CONTROL_LAYOUTS else CONTROL_LAYOUT_GROUPED
+        return normalize_layout(override)
+    return normalize_layout(str(load_settings().get("control_grouping") or "less"))
 
 
 def _control(request: Request) -> DenonControl:
@@ -76,7 +73,7 @@ class CommandBody(BaseModel):
         None, description="Section id — return updated entities for this section"
     )
     layout: Optional[str] = Field(
-        None, description="grouped | ungrouped — section UI override of Settings"
+        None, description="less | more — section UI override of Settings"
     )
 
 
@@ -90,7 +87,7 @@ def control_catalog(
     request: Request,
     layout: Optional[str] = Query(
         None,
-        description="Override Settings layout for this request: grouped | ungrouped",
+        description="Override Settings layout for this request: less | more",
     ),
 ) -> Dict[str, Any]:
     ctrl = _control(request)
@@ -132,7 +129,7 @@ def control_status(
     ),
     layout: Optional[str] = Query(
         None,
-        description="Override Settings layout for this request: grouped | ungrouped",
+        description="Override Settings layout for this request: less | more",
     ),
 ) -> Dict[str, Any]:
     ctrl = _control(request)

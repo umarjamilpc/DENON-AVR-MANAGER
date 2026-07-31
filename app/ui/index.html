@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=58" />
+  <link rel="stylesheet" href="/assets/styles.css?v=59" />
 </head>
 <body>
   <div class="shell">
@@ -115,7 +115,7 @@
               </div>
               <div class="editor-actions">
                 <span id="control-transport" class="control-transport" title="Last transport">—</span>
-                <button type="button" id="control-section-layout" class="btn-ghost" title="Toggle grouped / ungrouped for this section only (does not change Settings)">Ungroup</button>
+                <button type="button" id="control-section-layout" class="btn-ghost" title="Show more discrete controls for this section (session only — does not change Settings)">More +</button>
                 <button type="button" id="control-refresh" class="btn-ghost">Refresh</button>
               </div>
             </header>
@@ -200,14 +200,12 @@
                 Under <strong>Settings → Control Panel layout</strong> choose:
               </p>
               <ul>
-                <li><strong>grouped</strong> — related commands share one control (toggles / −+), with a Receiver overview first.</li>
-                <li><strong>ungrouped</strong> — full discrete catalog as before (separate On / Standby, Volume Up / Down, Mute On / Off, Quick Select Memory, network keys, …).</li>
+                <li><strong>less controls</strong> — full catalog, but On/Off pairs become one toggle; dropdowns stay dropdowns.</li>
+                <li><strong>more controls</strong> — every discrete button (On and Standby separately, queries, network keys, …).</li>
               </ul>
               <p>
-                Each Control Panel section also has a <strong>Group / Ungroup</strong> button
-                (session only). It flips that section instantly without changing the
-                global Settings default — useful to inspect every discrete command in
-                the section you are viewing.
+                Each section has a <strong>More +</strong> button (session only) to peek at
+                the full discrete list for that section without changing Settings.
               </p>
               <p>
                 At server start status is preloaded into a shared cache — switching
@@ -310,6 +308,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=58"></script>
+  <script src="/assets/app.js?v=59"></script>
 </body>
 </html>

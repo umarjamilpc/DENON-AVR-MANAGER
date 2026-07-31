@@ -102,9 +102,9 @@
     powerInput: "—",
     route: { view: "setup" },
     controlCatalog: null,
-    controlCatalogByLayout: { grouped: null, ungrouped: null },
+    controlCatalogByLayout: { less: null, more: null },
     controlSectionId: null,
-    /** Per nav-section override: 'grouped' | 'ungrouped' — independent of Settings */
+    /** Per nav-section override: 'less' | 'more' — independent of Settings */
     controlSectionLayout: {},
     controlEntities: {},
     controlPollTimer: null,
@@ -121,7 +121,7 @@
       confirm_network_save: true,
       confirm_firmware_actions: true,
       avr_model: "AVR-X1200W",
-      control_grouping: "grouped",
+      control_grouping: "less controls",
       show_zone2: false,
       show_zone3: false,
     },
@@ -857,7 +857,7 @@
         state.appSettings?.control_grouping !== prevGrouping
       ) {
         state.controlCatalog = null;
-        state.controlCatalogByLayout = { grouped: null, ungrouped: null };
+        state.controlCatalogByLayout = { less: null, more: null };
         state.controlSectionId = null;
         state.controlSectionLayout = {};
       }
@@ -3407,52 +3407,40 @@
 
   /* ---------- Control Panel (telnet) ---------- */
 
-  // Map nav section → counterpart section ids in the other layout
-  const CONTROL_SECTION_ALIASES = {
-    main: ["power", "volume"],
-    power: ["main"],
-    volume: ["main"],
-    sound: ["surround"],
-    surround: ["sound"],
-    input: ["input"],
-    levels: ["channel"],
-    channel: ["levels"],
-    audio: ["tone", "audyssey"],
-    tone: ["audio"],
-    audyssey: ["audio"],
-    video: ["video"],
-    timers: ["timers"],
-    zone2: ["zone2"],
-    zone3: ["zone3"],
-    tuner: ["tuner"],
-    media: ["network"],
-    network: ["media"],
-    system: ["system"],
-    advanced: ["advanced"],
-  };
+  function normalizeControlLayout(raw) {
+    const s = String(raw || "")
+      .trim()
+      .toLowerCase()
+      .replace(/_/g, " ");
+    if (
+      s === "more" ||
+      s === "ungrouped" ||
+      s === "more controls" ||
+      s === "full"
+    ) {
+      return "more";
+    }
+    return "less";
+  }
 
   function globalControlLayout() {
-    const g = state.appSettings?.control_grouping || "grouped";
-    return g === "ungrouped" ? "ungrouped" : "grouped";
+    return normalizeControlLayout(state.appSettings?.control_grouping);
   }
 
   function sectionControlLayout(sectionId) {
     const sid = sectionId || state.controlSectionId;
     const over = sid ? state.controlSectionLayout?.[sid] : null;
-    if (over === "grouped" || over === "ungrouped") return over;
+    if (over === "less" || over === "more") return over;
     return globalControlLayout();
   }
 
-  function mappedSectionsFor(navSectionId, targetLayout) {
-    const global = globalControlLayout();
-    if (targetLayout === global) return [navSectionId];
-    const mapped = CONTROL_SECTION_ALIASES[navSectionId];
-    if (mapped?.length) return mapped;
+  function mappedSectionsFor(navSectionId, _targetLayout) {
+    // less/more share the same section ids (full catalog sections)
     return [navSectionId];
   }
 
   function catalogForLayout(layout) {
-    return state.controlCatalogByLayout?.[layout] || null;
+    return state.controlCatalogByLayout?.[normalizeControlLayout(layout)] || null;
   }
 
   function controlBanner(text, kind) {
@@ -3519,15 +3507,14 @@
     const effective = sectionControlLayout();
     const global = globalControlLayout();
     const overridden = effective !== global;
-    // Button offers the opposite of current section view
-    if (effective === "grouped") {
-      btn.textContent = "Ungroup";
+    if (effective === "less") {
+      btn.textContent = "More +";
       btn.title =
-        "Show full discrete controls for this section (session only — does not change Settings)";
+        "Show every discrete control in this section (session only — does not change Settings)";
     } else {
-      btn.textContent = "Group";
+      btn.textContent = "Less −";
       btn.title =
-        "Show grouped controls for this section (session only — does not change Settings)";
+        "Collapse On/Off pairs to toggles for this section (session only — does not change Settings)";
     }
     btn.classList.toggle("is-override", overridden);
   }
@@ -3543,7 +3530,7 @@
       const over = state.controlSectionLayout?.[sec.id];
       btn.textContent =
         over && over !== globalControlLayout()
-          ? `${sec.label} · ${over === "ungrouped" ? "all" : "group"}`
+          ? `${sec.label} · ${over === "more" ? "+" : "−"}`
           : sec.label;
       btn.dataset.section = sec.id;
       if (sec.id === state.controlSectionId) btn.classList.add("active");
@@ -3568,7 +3555,7 @@
     if (!state.controlSectionId) return;
     const sid = state.controlSectionId;
     const current = sectionControlLayout(sid);
-    const next = current === "grouped" ? "ungrouped" : "grouped";
+    const next = current === "less" ? "more" : "less";
     const global = globalControlLayout();
     if (next === global) {
       delete state.controlSectionLayout[sid];
@@ -3607,32 +3594,17 @@
       const global = globalControlLayout();
       const tag =
         layout !== global
-          ? `${layout} (this section)`
-          : layout;
+          ? `${layout === "more" ? "more" : "less"} (this section)`
+          : layout === "more"
+            ? "more controls"
+            : "less controls";
       meta.textContent = `${items.length} · ${model} · ${tag}`;
     }
     updateSectionLayoutButton();
     if (!grid) return;
     grid.innerHTML = "";
-    grid.classList.toggle(
-      "control-grid--main",
-      layout === "grouped" && sectionIds.includes("main")
-    );
-    // When multiple mapped sections (e.g. power+volume), light subsection labels
-    if (sectionIds.length > 1) {
-      for (const sid of sectionIds) {
-        const subItems = items.filter((c) => c.section === sid);
-        if (!subItems.length) continue;
-        const sub = (cat.sections || []).find((s) => s.id === sid);
-        const h = document.createElement("h3");
-        h.className = "control-subhead";
-        h.textContent = sub?.label || sid;
-        grid.appendChild(h);
-        for (const c of subItems) grid.appendChild(buildControlWidget(c));
-      }
-    } else {
-      for (const c of items) grid.appendChild(buildControlWidget(c));
-    }
+    grid.classList.remove("control-grid--main");
+    for (const c of items) grid.appendChild(buildControlWidget(c));
     applyControlEntitiesToDom();
   }
 
@@ -4058,27 +4030,27 @@
 
   async function ensureControlCatalogs({ force = false } = {}) {
     if (force) {
-      state.controlCatalogByLayout = { grouped: null, ungrouped: null };
+      state.controlCatalogByLayout = { less: null, more: null };
     }
     const jobs = [];
-    if (force || !state.controlCatalogByLayout.grouped) {
+    if (force || !state.controlCatalogByLayout.less) {
       jobs.push(
-        api("/api/control/catalog?layout=grouped").then((d) => {
-          state.controlCatalogByLayout.grouped = d;
+        api("/api/control/catalog?layout=less").then((d) => {
+          state.controlCatalogByLayout.less = d;
         })
       );
     }
-    if (force || !state.controlCatalogByLayout.ungrouped) {
+    if (force || !state.controlCatalogByLayout.more) {
       jobs.push(
-        api("/api/control/catalog?layout=ungrouped").then((d) => {
-          state.controlCatalogByLayout.ungrouped = d;
+        api("/api/control/catalog?layout=more").then((d) => {
+          state.controlCatalogByLayout.more = d;
         })
       );
     }
     if (jobs.length) await Promise.all(jobs);
     state.controlCatalog =
       state.controlCatalogByLayout[globalControlLayout()] ||
-      state.controlCatalogByLayout.grouped;
+      state.controlCatalogByLayout.less;
   }
 
   async function loadControlPanel({ force = false } = {}) {
