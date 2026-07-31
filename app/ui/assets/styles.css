@@ -559,12 +559,16 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   margin-top: 0;
 }
 .editor-actions { display: flex; gap: 0.4rem; flex-shrink: 0; align-items: center; }
+.editor-save-btn {
+  min-width: 4.5rem;
+  font-weight: 650;
+}
 .icon-btn {
   appearance: none;
   width: 2.35rem;
   height: 2.35rem;
   min-width: 2.35rem;
-  display: inline-grid;
+  display: none;
   place-items: center;
   border-radius: 10px;
   border: 1px solid var(--line);
