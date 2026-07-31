@@ -75,9 +75,24 @@ class QueryBody(BaseModel):
 @router.get("/control/catalog")
 def control_catalog(request: Request) -> Dict[str, Any]:
     ctrl = _control(request)
-    data = ctrl.catalog(model=_model())
+    settings = load_settings()
+    data = ctrl.catalog(
+        model=_model(),
+        show_zone2=bool(settings.get("show_zone2")),
+        show_zone3=bool(settings.get("show_zone3")),
+    )
     data["host"] = host_label(_default_base(request))
+    data["preload"] = getattr(request.app.state, "control_preload", None)
     return data
+
+
+@router.get("/control/preload")
+def control_preload(request: Request) -> Dict[str, Any]:
+    """Startup status preload progress (full status_queries into telnet cache)."""
+    state = getattr(request.app.state, "control_preload", None) or {
+        "status": "unknown"
+    }
+    return {"ok": True, **state}
 
 
 @router.get("/control/status")
@@ -88,10 +103,10 @@ def control_status(
         None, description="Limit queries/entities to one Control Panel section id"
     ),
     refresh: bool = Query(
-        True,
+        False,
         description=(
             "If true, query the AVR over the shared telnet session. "
-            "If false, return the in-memory event cache only (no AVR traffic)."
+            "If false (default), return the in-memory preload/event cache only."
         ),
     ),
 ) -> Dict[str, Any]:
@@ -114,6 +129,7 @@ def control_status(
     snap["power"] = power
     snap["host"] = host_label(_default_base(request))
     snap["model"] = _model()
+    snap["preload"] = getattr(request.app.state, "control_preload", None)
     return snap
 
 

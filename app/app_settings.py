@@ -20,6 +20,9 @@ DEFAULTS: Dict[str, Any] = {
     "confirm_network_save": True,
     "confirm_firmware_actions": True,
     "avr_model": "AVR-X1200W",
+    # HA denonavr-style: zones are opt-in (default off to keep Control Panel lean)
+    "show_zone2": False,
+    "show_zone3": False,
 }
 
 # UI / API schema: label + short explanation for the Settings page.
@@ -135,6 +138,24 @@ SETTING_META: List[Dict[str, Any]] = [
             "this manager holds that session while it is running."
         ),
     },
+    {
+        "key": "show_zone2",
+        "label": "Show Zone 2",
+        "type": "boolean",
+        "description": (
+            "Like Home Assistant’s denonavr zone2 option: show Zone 2 controls in "
+            "the Control Panel. Off by default to keep the panel uncluttered."
+        ),
+    },
+    {
+        "key": "show_zone3",
+        "label": "Show Zone 3",
+        "type": "boolean",
+        "description": (
+            "Like Home Assistant’s denonavr zone3 option: show Zone 3 controls when "
+            "your model supports them (e.g. X3200W / X4200W). Off by default."
+        ),
+    },
 ]
 
 
@@ -168,6 +189,10 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         out["confirm_network_save"] = bool(src["confirm_network_save"])
     if "confirm_firmware_actions" in src:
         out["confirm_firmware_actions"] = bool(src["confirm_firmware_actions"])
+    if "show_zone2" in src:
+        out["show_zone2"] = bool(src["show_zone2"])
+    if "show_zone3" in src:
+        out["show_zone3"] = bool(src["show_zone3"])
 
     # Prefer seconds; migrate older poll_interval_ms if present.
     if "poll_interval_sec" in src:
