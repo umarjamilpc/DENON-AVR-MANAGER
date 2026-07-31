@@ -21,10 +21,54 @@ def _attrs(tag_html: str) -> Dict[str, str]:
     for m in ATTR.finditer(tag_html):
         out[m.group(1).lower()] = m.group(3)
     low = tag_html.lower()
-    for b in ("checked", "selected", "disabled"):
-        if re.search(rf"\b{b}\b", low):
+    for b in ("checked", "selected", "disabled", "readonly"):
+        # Boolean HTML attrs may appear bare, ="", or =checked (no quotes).
+        if re.search(rf"""\b{b}(?:\s*=\s*(?:['"][^'"]*['"]|{b}|true|false))?\b""", low):
             out[b] = "true"
     return out
+
+
+def _set_radio_value(fields: Dict[str, Any], name: str, value: str) -> None:
+    meta = fields.get(name)
+    if not isinstance(meta, dict) or meta.get("type") != "radio":
+        return
+    meta["value"] = value
+    opts = meta.get("options")
+    if isinstance(opts, list):
+        for opt in opts:
+            if isinstance(opt, dict):
+                opt["selected"] = str(opt.get("value")) == str(value)
+
+
+def _infer_missing_radio_values(fields: Dict[str, Any]) -> None:
+    """Fill radio values Denon sometimes omits (no checked= on the input).
+
+    Network Settings is the known case: DHCP/Proxy radios often lack ``checked``,
+    while dependent text fields are ``disabled`` to reflect the live state.
+    """
+    dhcp = fields.get("radioNetworkSettingDHCP")
+    if isinstance(dhcp, dict) and dhcp.get("value") in (None, ""):
+        ip_fields = [
+            fields.get(n)
+            for n in (
+                "textNetworkSettingIPAddress",
+                "textNetworkSettingSubnetMask",
+                "textNetworkSettingGateway",
+                "textNetworkSettingPrimaryDNS",
+                "textNetworkSettingSecondaryDNS",
+            )
+        ]
+        metas = [m for m in ip_fields if isinstance(m, dict)]
+        if metas and all(bool(m.get("disabled")) for m in metas):
+            _set_radio_value(fields, "radioNetworkSettingDHCP", "ON")
+        elif metas and any(not m.get("disabled") for m in metas):
+            _set_radio_value(fields, "radioNetworkSettingDHCP", "OFF")
+
+    proxy = fields.get("radioNetworkSettingProxy_OnOff")
+    if isinstance(proxy, dict) and proxy.get("value") in (None, ""):
+        port = fields.get("textNetworkSettingProxyPort")
+        if isinstance(port, dict) and port.get("disabled"):
+            _set_radio_value(fields, "radioNetworkSettingProxy_OnOff", "OFF")
 
 
 @dataclass
@@ -426,6 +470,7 @@ class DenonSetupClient:
                 "label": "Subwoofer Level",
             }
 
+        _infer_missing_radio_values(fields)
         return ParsedForm(
             name=fa.get("name", ""),
             action=fa.get("action", ""),
@@ -434,7 +479,40 @@ class DenonSetupClient:
             title=clean_display_text(title),
         )
 
+    def _warm_setup_frames(self, read_url: str) -> None:
+        """Hit parent frames before pages that often omit radio ``checked``.
+
+        Firmware Notifications and Network DHCP/Proxy sometimes only include the
+        live selection after the left/frame shell has been requested.
+        """
+        path = urlparse(read_url if "://" in read_url else urljoin(self.base + "/", read_url.lstrip("/"))).path
+        warmers: List[str] = []
+        if "/FIRMWARE/" in path.upper():
+            warmers = [
+                "/SETUP/GENERAL/FIRMWARE/f_firmware.asp",
+                "/SETUP/GENERAL/FIRMWARE/d_left_firmware.asp",
+            ]
+        elif "/NETWORK/SETTINGS/" in path.upper():
+            warmers = [
+                "/SETUP/NETWORK/SETTINGS/f_network_setting_dhcp.asp",
+                "/SETUP/NETWORK/SETTINGS/d_left_network_setting_dhcp.asp",
+            ]
+        for w in warmers:
+            try:
+                self.get(w)
+            except RuntimeError:
+                pass
+
     def read_page(self, read_url: str) -> Dict[str, Any]:
+        path_u = (read_url or "").upper()
+        if any(
+            x in path_u
+            for x in (
+                "/FIRMWARE/",
+                "/NETWORK/SETTINGS/",
+            )
+        ):
+            self._warm_setup_frames(read_url)
         html = self.get(read_url)
         parsed = self.parse_form(html)
         action_abs = (

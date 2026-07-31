@@ -121,6 +121,21 @@
 
   const DEFAULT_APP_SETTINGS = { ...state.appSettings };
 
+  function setPageLoading(on, label) {
+    const el = $("editor-loading");
+    if (!el) return;
+    const text = el.querySelector(".editor-loading-text");
+    if (text) text.textContent = label || (on ? "Updating…" : text.textContent);
+    el.hidden = !on;
+    document.body.classList.toggle("is-page-loading", Boolean(on));
+  }
+
+  function radioOptionSelected(meta, opt, raw) {
+    if (opt && typeof opt === "object" && opt.selected) return true;
+    if (meta?.value == null || meta.value === "") return false;
+    return String(meta.value).toUpperCase() === String(raw).toUpperCase();
+  }
+
   function pollIntervalMs() {
     const n = Number(state.appSettings.poll_interval_sec);
     const sec = Number.isFinite(n) ? Math.max(2, Math.min(120, n)) : 5;
@@ -874,15 +889,20 @@
     ) {
       return;
     }
-    const data = await api(
-      `/api/endpoints/${encodeURIComponent(state.endpointId)}/state`
-    );
-    if (state.pageDirty || editorHasFocus()) return;
-    if (data.state?.fields) renderFields(data.state.fields);
-    markAvrSyncTime({
-      at: data.read_at || data.state?.read_at,
-      changed: true,
-    });
+    setPageLoading(true, "Refreshing…");
+    try {
+      const data = await api(
+        `/api/endpoints/${encodeURIComponent(state.endpointId)}/state`
+      );
+      if (state.pageDirty || editorHasFocus()) return;
+      if (data.state?.fields) renderFields(data.state.fields);
+      markAvrSyncTime({
+        at: data.read_at || data.state?.read_at,
+        changed: true,
+      });
+    } finally {
+      setPageLoading(false);
+    }
   }
 
   async function pollRemoteChanges() {
@@ -1203,6 +1223,7 @@
     $("editor-title").textContent = menuNode?.label || "Loading…";
     $("field-form").innerHTML = "";
     $("action-panel").hidden = true;
+    setPageLoading(true, "Loading…");
     try {
       const data = await api(`/api/endpoints/${encodeURIComponent(id)}/state`);
       $("editor-title").textContent =
@@ -1246,10 +1267,13 @@
             "This page is greyed out until a required setting / input is active."
         )}</p>`;
       }
+      syncEditorPrimaryBtn();
     } catch (err) {
       $("editor-title").textContent = "Error";
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
+    } finally {
+      setPageLoading(false);
     }
   }
 
@@ -1278,6 +1302,7 @@
       btn.textContent = "Applying…";
     }
     state.realtimeBusy = true;
+    setPageLoading(true, "Saving…");
     try {
       const fields = { ...collectFields(), ...(extra || {}) };
       // Keep action flags off unless explicitly set by this button.
@@ -1304,6 +1329,7 @@
       setStatus(err.message, "err");
     } finally {
       state.realtimeBusy = false;
+      setPageLoading(false);
       if (btn) {
         btn.disabled = false;
         btn.textContent = prev;
@@ -1730,7 +1756,7 @@
           inp.type = "radio";
           inp.name = name;
           inp.value = raw;
-          if (String(meta.value) === String(raw)) inp.checked = true;
+          if (radioOptionSelected(meta, opt, raw)) inp.checked = true;
           if (inactive && !isGateParent(name)) {
             inp.disabled = true;
           } else {
@@ -1964,6 +1990,8 @@
       }
     }
     state.realtimeBusy = true;
+    const showSpin = !opts.quiet;
+    if (showSpin) setPageLoading(true, "Saving…");
     try {
       const result = await api(`/api/endpoints/${encodeURIComponent(state.endpointId)}`, {
         method: "POST",
@@ -1983,6 +2011,7 @@
       return false;
     } finally {
       state.realtimeBusy = false;
+      if (showSpin) setPageLoading(false);
     }
   }
 
@@ -2365,7 +2394,12 @@
       PAGE_HELP.audio_graphiceq_s_audio ||
       "Adjusts the tonal quality for each speaker using a graphic equalizer";
     buildManualEqForm();
-    await loadManualEq();
+    setPageLoading(true, "Loading…");
+    try {
+      await loadManualEq();
+    } finally {
+      setPageLoading(false);
+    }
   }
 
   function syncEqHiddenFromValue(label, formName, v) {
