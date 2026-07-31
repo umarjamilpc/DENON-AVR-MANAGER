@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=49" />
+  <link rel="stylesheet" href="/assets/styles.css?v=50" />
 </head>
 <body>
   <div class="shell">
@@ -17,8 +17,14 @@
         <p class="brand">DENON AVR MANAGER <span id="build-badge" class="build-badge" hidden>DEV</span></p>
         <p class="tagline">Setup Menu control for your AVR</p>
         <div class="top-meta" aria-label="AVR connection">
-          <span id="avr-host" class="top-meta-item">AVR —</span>
-          <span id="poll-stamp" class="top-meta-item sync-stamp">Poll —</span>
+          <div class="top-meta-row">
+            <span class="top-meta-label">AVR</span>
+            <span id="avr-host" class="top-meta-value">—</span>
+          </div>
+          <div class="top-meta-row">
+            <span class="top-meta-label">Poll</span>
+            <span id="poll-stamp" class="top-meta-value sync-stamp">—</span>
+          </div>
         </div>
       </div>
       <div class="topbar-actions">
@@ -251,6 +257,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=49"></script>
+  <script src="/assets/app.js?v=50"></script>
 </body>
 </html>
