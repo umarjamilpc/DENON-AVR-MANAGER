@@ -1951,7 +1951,7 @@ body.eq-progress-open {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 .dashboard-section {
   grid-column: span 12;
@@ -1961,13 +1961,29 @@ body.eq-progress-open {
   padding: 0.75rem 0.85rem 0.95rem;
   box-shadow: var(--shadow);
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 .dashboard-section.size-full { grid-column: span 12; }
 .dashboard-section.size-half { grid-column: span 6; }
 .dashboard-section.size-third { grid-column: span 4; }
-.dashboard-section.shape-square {
-  aspect-ratio: 1;
-  overflow: auto;
+.dashboard-section.stack-horizontal .dashboard-grid,
+.dashboard-grid.stack-horizontal {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.55rem;
+  align-items: stretch;
+}
+.dashboard-section.stack-vertical .dashboard-grid,
+.dashboard-grid.stack-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.dashboard-section.stack-vertical .dashboard-widget {
+  grid-column: auto;
+  width: 100%;
 }
 .dashboard-section.is-dragging,
 .dashboard-widget.is-dragging {
@@ -2018,6 +2034,7 @@ body.eq-progress-open {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 0.55rem;
   margin-top: 0;
+  flex: 1;
 }
 .dashboard-section-empty {
   grid-column: 1 / -1;
@@ -2062,22 +2079,23 @@ body.eq-progress-open {
   justify-items: start;
   gap: 0.35rem;
   width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0.85rem 0.9rem 0.75rem;
   border: none;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--muted) 22%, transparent);
-  color: var(--muted);
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--dash-off-bg, color-mix(in srgb, var(--muted) 28%, transparent));
+  color: var(--dash-off-fg, var(--muted));
   cursor: pointer;
   text-align: left;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
-  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease, filter 160ms ease;
   box-shadow: none;
   min-height: 7.5rem;
 }
 .dash-card:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
 }
 .dash-card:focus-visible {
   outline: 2px solid var(--accent);
@@ -2088,18 +2106,23 @@ body.eq-progress-open {
   cursor: not-allowed;
 }
 .dashboard-widget.is-entity-on .dash-card {
-  background: color-mix(in srgb, var(--surface-solid) 88%, white);
-  color: var(--ink);
+  background: var(--dash-on-bg, #e8eef2);
+  color: var(--dash-on-fg, #1e293b);
+}
+.dashboard-widget.is-entity-off .dash-card {
+  background: var(--dash-off-bg, #3a4248);
+  color: var(--dash-off-fg, #c8d0d4);
 }
 html[data-theme="dark"] .dashboard-widget.is-entity-on .dash-card,
 html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
-  background: color-mix(in srgb, var(--surface-solid) 92%, white 8%);
-  color: #c8d0d4;
+  /* Custom --dash-on-* already applied; keep fallback readable */
+  background: var(--dash-on-bg, color-mix(in srgb, var(--surface-solid) 92%, white 8%));
+  color: var(--dash-on-fg, #c8d0d4);
 }
 @media (prefers-color-scheme: dark) {
   html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
-    background: color-mix(in srgb, var(--surface-solid) 92%, white 8%);
-    color: #c8d0d4;
+    background: var(--dash-on-bg, color-mix(in srgb, var(--surface-solid) 92%, white 8%));
+    color: var(--dash-on-fg, #c8d0d4);
   }
 }
 .dashboard-widget.is-inactive .dash-card {
@@ -2218,6 +2241,22 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   gap: 0.25rem;
   align-items: center;
   padding: 0 0.15rem;
+}
+.dash-color-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+.dash-color-field input[type="color"] {
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
 }
 .dash-icon-btn {
   font-size: 0.72rem !important;
