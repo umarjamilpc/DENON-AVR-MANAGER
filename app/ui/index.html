@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=46" />
+  <link rel="stylesheet" href="/assets/styles.css?v=47" />
 </head>
 <body>
   <div class="shell">
@@ -70,6 +70,10 @@
           <div id="endpoint-list" class="item-list"></div>
         </div>
         <div class="editor-col">
+          <div id="editor-loading" class="editor-loading" hidden aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="editor-loading-text">Updating…</span>
+          </div>
           <div id="editor" class="editor" hidden>
             <header class="editor-head">
               <div>
@@ -253,6 +257,6 @@ docker compose up -d</pre>
       <span id="foot-host"></span>
     </footer>
   </div>
-  <script src="/assets/app.js?v=46"></script>
+  <script src="/assets/app.js?v=47"></script>
 </body>
 </html>

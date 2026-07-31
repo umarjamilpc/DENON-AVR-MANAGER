@@ -544,7 +544,31 @@ def _enrich_firmware_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     }
     for name in ("radioUpdateNotification", "radioUpgradeNotification"):
         if name in fields and isinstance(fields[name], dict):
-            out[name] = fields[name]
+            meta = dict(fields[name])
+            # Ensure On/Off options always exist even if AVR HTML was sparse.
+            opts = meta.get("options")
+            if not isinstance(opts, list) or len(opts) < 2:
+                meta["options"] = [
+                    {"value": "ON", "label": "On", "selected": str(meta.get("value")) == "ON"},
+                    {"value": "OFF", "label": "Off", "selected": str(meta.get("value")) == "OFF"},
+                ]
+            else:
+                for opt in opts:
+                    if isinstance(opt, dict):
+                        opt["selected"] = str(opt.get("value")) == str(meta.get("value") or "")
+            out[name] = meta
+        else:
+            out[name] = {
+                "type": "radio",
+                "value": None,
+                "options": [
+                    {"value": "ON", "label": "On", "selected": False},
+                    {"value": "OFF", "label": "Off", "selected": False},
+                ],
+                "ui_label": (
+                    "Update" if name == "radioUpdateNotification" else "Upgrade"
+                ),
+            }
     out["_heading_fw_add_feature"] = {
         "type": "heading",
         "label": "Add New Feature",
@@ -612,6 +636,19 @@ def _enrich_network_settings_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
         "hiddenNetworkSettingDHCP_OnOff",
     ):
         out.pop(name, None)
+    # Re-run inference after strip — disabled IP/port flags are still present.
+    from .denon_client import _infer_missing_radio_values
+
+    _infer_missing_radio_values(out)
+    for name in ("radioNetworkSettingDHCP", "radioNetworkSettingProxy_OnOff"):
+        meta = out.get(name)
+        if not isinstance(meta, dict):
+            continue
+        opts = meta.get("options")
+        if isinstance(opts, list):
+            for opt in opts:
+                if isinstance(opt, dict):
+                    opt["selected"] = str(opt.get("value")) == str(meta.get("value") or "")
     out["_btn_network_settings_save"] = {
         "type": "network_save",
         "label": "Save",
