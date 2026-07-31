@@ -20,6 +20,7 @@ from .denon_control import SUPPORTED_MODELS, DenonControl
 from .denon_power import read_main_zone_power
 from .host_utils import normalize_host
 from .routers import control as control_router
+from .routers import dashboard as dashboard_router
 from .routers import setup as setup_router
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
@@ -91,7 +92,7 @@ def create_app(host: str | None = None) -> FastAPI:
     except ValueError as e:
         raise RuntimeError(f"Invalid DENON_HOST={raw!r}: {e}") from e
 
-    # Create /data/app-settings.json (or local data/) with defaults if missing.
+    # Create SQLite DB (/data/app.db) and migrate legacy JSON settings if present.
     ensure_settings_file()
 
     @asynccontextmanager
@@ -132,6 +133,7 @@ def create_app(host: str | None = None) -> FastAPI:
     app.state.control_preload = {"status": "pending", "error": None}
     app.include_router(setup_router.router, prefix="/api")
     app.include_router(control_router.router, prefix="/api")
+    app.include_router(dashboard_router.router, prefix="/api")
 
     def spa_index():
         return FileResponse(UI_DIR / "index.html")

@@ -299,6 +299,8 @@ def _build_less_protocol(more: Dict[str, Any]) -> Dict[str, Any]:
         inserted.add(tid)
 
     out = copy.deepcopy(more)
+    # Query buttons only in "more controls"
+    controls = [c for c in controls if c.get("kind") != "query"]
     out["controls"] = controls
     out["layout"] = CONTROL_LAYOUT_LESS
     return out

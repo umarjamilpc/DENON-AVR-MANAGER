@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=59" />
+  <link rel="stylesheet" href="/assets/styles.css?v=60" />
 </head>
 <body>
   <div class="shell">
@@ -63,7 +63,8 @@
     </section>
 
     <nav class="tabs" id="tabs" aria-label="Views" hidden>
-      <a class="tab active" id="tab-setup" href="/" data-view="setup">Setup Menu</a>
+      <a class="tab active" id="tab-dashboard" href="/" data-view="dashboard">Dashboard</a>
+      <a class="tab" id="tab-setup" href="/" data-view="setup">Setup Menu</a>
       <a class="tab" id="tab-control" href="/" data-view="control">Control Panel</a>
       <a class="tab" id="tab-info" href="/" data-view="info">Info</a>
       <a class="tab" id="tab-settings" href="/" data-view="settings">Settings</a>
@@ -71,6 +72,52 @@
     </nav>
 
     <main id="main" hidden>
+      <section id="view-dashboard" class="view dashboard-view">
+        <header class="dashboard-head">
+          <div>
+            <h2>Dashboard</h2>
+            <p id="dashboard-meta" class="meta">Your favourite controls — drag to rearrange</p>
+          </div>
+          <div class="editor-actions">
+            <button type="button" id="dashboard-customize" class="btn-ghost">Customize</button>
+            <button type="button" id="dashboard-add-section" class="btn-ghost" hidden>Add section</button>
+            <button type="button" id="dashboard-refresh" class="btn-ghost">Refresh</button>
+          </div>
+        </header>
+        <p id="dashboard-banner" class="banner" hidden></p>
+        <div id="dashboard-sections" class="dashboard-sections"></div>
+        <div id="dashboard-empty" class="empty-state" hidden>
+          <p>No sections yet. Press Customize → Add section, then add widgets.</p>
+        </div>
+      </section>
+
+      <dialog id="dashboard-picker" class="dashboard-picker">
+        <form method="dialog" class="dashboard-picker-form" id="dashboard-picker-form">
+          <header class="dashboard-picker-head">
+            <h3>Add control</h3>
+            <button type="submit" value="cancel" class="btn-ghost">Close</button>
+          </header>
+          <div class="dashboard-picker-toolbar">
+            <label>
+              Section
+              <select id="dashboard-picker-section"></select>
+            </label>
+            <label>
+              Catalog
+              <select id="dashboard-picker-layout">
+                <option value="less">Less controls</option>
+                <option value="more">More controls</option>
+              </select>
+            </label>
+            <label class="dashboard-picker-search">
+              Search
+              <input type="search" id="dashboard-picker-search" placeholder="Power, mute…" />
+            </label>
+          </div>
+          <div id="dashboard-picker-list" class="dashboard-picker-list"></div>
+        </form>
+      </dialog>
+
       <section id="view-setup" class="view workspace" hidden>
         <aside class="nav-col">
           <p class="nav-caption">Setup</p>
@@ -151,7 +198,8 @@
             <div>
               <h2>App Settings</h2>
               <p class="meta">
-                Saved on the Docker host (survives container restarts). Not stored in the browser.
+                Saved in SQLite on the Docker volume (<code>/data/app.db</code>).
+                Survives container restarts. Not stored in the browser.
               </p>
             </div>
             <div class="editor-actions">
@@ -191,6 +239,16 @@
                 The power button at the top toggles Main Zone between <strong>On</strong> and
                 <strong>Standby</strong>. Standby still keeps network control alive; a full unplug /
                 power cut is different and the app will show the AVR as unreachable.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>Dashboard</h3>
+              <p>
+                The home screen is a customisable dashboard. Press <strong>Customize</strong>
+                to add sections, add favourite controls from less or more catalogs, and
+                drag sections or widgets to reorder. Layout is saved in SQLite
+                (<code>/data/app.db</code>) and survives reboots.
               </p>
             </section>
 
@@ -308,6 +366,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=59"></script>
+  <script src="/assets/app.js?v=60"></script>
 </body>
 </html>

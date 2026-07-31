@@ -1778,3 +1778,189 @@ body.eq-progress-open {
     width: auto;
   }
 }
+
+/* ---------- Dashboard ---------- */
+.dashboard-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.dashboard-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.dashboard-head h2 {
+  margin: 0;
+  font-family: var(--brand);
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+.dashboard-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.dashboard-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.85rem 0.95rem;
+  box-shadow: var(--shadow);
+}
+.dashboard-section.is-dragging,
+.dashboard-widget.is-dragging {
+  opacity: 0.55;
+}
+.dashboard-section.drag-over,
+.dashboard-grid.drag-over,
+.dashboard-widget.drag-over {
+  outline: 2px dashed var(--accent);
+}
+.dashboard-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+.dashboard-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  min-width: 6rem;
+}
+.dashboard-section-title[contenteditable="true"] {
+  outline: 1px dashed var(--line);
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+.dashboard-section-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.dashboard-grid {
+  margin-top: 0;
+}
+.dashboard-section-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.dashboard-widget {
+  position: relative;
+}
+.dashboard-widget-remove {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.25rem;
+  z-index: 2;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1;
+  font-size: 1rem;
+}
+body.dashboard-editing .dashboard-section,
+body.dashboard-editing .dashboard-widget {
+  cursor: grab;
+}
+#dashboard-customize.is-active {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.dashboard-picker {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-solid);
+  color: var(--ink);
+  padding: 0;
+  width: min(36rem, 94vw);
+  max-height: 85vh;
+}
+.dashboard-picker::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.dashboard-picker-form {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+.dashboard-picker-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.dashboard-picker-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.dashboard-picker-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.dashboard-picker-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.dashboard-picker-search {
+  grid-column: 1 / -1;
+}
+.dashboard-picker-toolbar select,
+.dashboard-picker-toolbar input {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.45rem;
+}
+.dashboard-picker-list {
+  overflow: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.dashboard-picker-item {
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.dashboard-picker-item strong {
+  font-size: 0.9rem;
+}
+.dashboard-picker-item span {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.dashboard-picker-item:hover {
+  border-color: var(--accent);
+}
