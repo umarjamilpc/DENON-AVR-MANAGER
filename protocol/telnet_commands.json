@@ -68,7 +68,13 @@
       "kind": "action",
       "x1200w": true,
       "command": "PWON",
-      "confirm": false
+      "confirm": false,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "pw_standby",
@@ -76,7 +82,13 @@
       "label": "Standby",
       "kind": "action",
       "x1200w": true,
-      "command": "PWSTANDBY"
+      "command": "PWSTANDBY",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "pw_query",
@@ -84,7 +96,13 @@
       "label": "Query Power",
       "kind": "query",
       "x1200w": true,
-      "query": "PW?"
+      "query": "PW?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "zm_on",
@@ -92,7 +110,13 @@
       "label": "Main Zone On",
       "kind": "action",
       "x1200w": true,
-      "command": "ZMON"
+      "command": "ZMON",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "zm_off",
@@ -100,7 +124,13 @@
       "label": "Main Zone Off",
       "kind": "action",
       "x1200w": true,
-      "command": "ZMOFF"
+      "command": "ZMOFF",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "zm_query",
@@ -108,7 +138,13 @@
       "label": "Query Main Zone",
       "kind": "query",
       "x1200w": true,
-      "query": "ZM?"
+      "query": "ZM?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mv_up",
@@ -116,7 +152,13 @@
       "label": "Volume Up",
       "kind": "action",
       "x1200w": true,
-      "command": "MVUP"
+      "command": "MVUP",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mv_down",
@@ -124,7 +166,13 @@
       "label": "Volume Down",
       "kind": "action",
       "x1200w": true,
-      "command": "MVDOWN"
+      "command": "MVDOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mv_set",
@@ -139,7 +187,13 @@
       "pad": 2,
       "unit": "abs",
       "zero_db": 80,
-      "half_step": true
+      "half_step": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mu_on",
@@ -147,7 +201,13 @@
       "label": "Mute On",
       "kind": "action",
       "x1200w": true,
-      "command": "MUON"
+      "command": "MUON",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mu_off",
@@ -155,7 +215,13 @@
       "label": "Mute Off",
       "kind": "action",
       "x1200w": true,
-      "command": "MUOFF"
+      "command": "MUOFF",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mu_query",
@@ -163,7 +229,13 @@
       "label": "Query Mute",
       "kind": "query",
       "x1200w": true,
-      "query": "MU?"
+      "query": "MU?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "si_select",
@@ -281,6 +353,12 @@
           "label": "Favorites Play",
           "command": "SIFVP"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -311,6 +389,12 @@
           "label": "ARC",
           "command": "SDARC"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -333,6 +417,12 @@
           "label": "DTS",
           "command": "DCDTS"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -387,6 +477,12 @@
           "label": "Video Select Off",
           "command": "SVOFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -573,6 +669,12 @@
           "label": "Virtual",
           "command": "MSVIRTUAL"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -581,7 +683,13 @@
       "label": "Balance Left",
       "kind": "action",
       "x1200w": true,
-      "command": "MSLEFT"
+      "command": "MSLEFT",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ms_right",
@@ -589,7 +697,13 @@
       "label": "Balance Right",
       "kind": "action",
       "x1200w": true,
-      "command": "MSRIGHT"
+      "command": "MSRIGHT",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_1",
@@ -597,7 +711,13 @@
       "label": "Quick Select 1",
       "kind": "action",
       "x1200w": true,
-      "command": "MSQUICK1"
+      "command": "MSQUICK1",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_1_mem",
@@ -607,7 +727,13 @@
       "x1200w": true,
       "command": "MSQUICK1 MEMORY",
       "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 1?"
+      "confirm_message": "Save current settings to Quick Select 1?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_2",
@@ -615,7 +741,13 @@
       "label": "Quick Select 2",
       "kind": "action",
       "x1200w": true,
-      "command": "MSQUICK2"
+      "command": "MSQUICK2",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_2_mem",
@@ -625,7 +757,13 @@
       "x1200w": true,
       "command": "MSQUICK2 MEMORY",
       "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 2?"
+      "confirm_message": "Save current settings to Quick Select 2?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_3",
@@ -633,7 +771,13 @@
       "label": "Quick Select 3",
       "kind": "action",
       "x1200w": true,
-      "command": "MSQUICK3"
+      "command": "MSQUICK3",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_3_mem",
@@ -643,7 +787,13 @@
       "x1200w": true,
       "command": "MSQUICK3 MEMORY",
       "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 3?"
+      "confirm_message": "Save current settings to Quick Select 3?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_4",
@@ -651,7 +801,13 @@
       "label": "Quick Select 4",
       "kind": "action",
       "x1200w": true,
-      "command": "MSQUICK4"
+      "command": "MSQUICK4",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_4_mem",
@@ -661,7 +817,13 @@
       "x1200w": true,
       "command": "MSQUICK4 MEMORY",
       "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 4?"
+      "confirm_message": "Save current settings to Quick Select 4?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_5",
@@ -669,7 +831,13 @@
       "label": "Quick Select 5",
       "kind": "action",
       "x1200w": true,
-      "command": "MSQUICK5"
+      "command": "MSQUICK5",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_5_mem",
@@ -679,7 +847,13 @@
       "x1200w": true,
       "command": "MSQUICK5 MEMORY",
       "confirm": true,
-      "confirm_message": "Save current settings to Quick Select 5?"
+      "confirm_message": "Save current settings to Quick Select 5?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "quick_query",
@@ -687,7 +861,13 @@
       "label": "Query Quick Select",
       "kind": "query",
       "x1200w": true,
-      "query": "MSQUICK ?"
+      "query": "MSQUICK ?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_fl",
@@ -703,7 +883,13 @@
       "zero_db": 50,
       "up": "CVFL UP",
       "down": "CVFL DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_fr",
@@ -719,7 +905,13 @@
       "zero_db": 50,
       "up": "CVFR UP",
       "down": "CVFR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_c",
@@ -735,7 +927,13 @@
       "zero_db": 50,
       "up": "CVC UP",
       "down": "CVC DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sw",
@@ -751,7 +949,13 @@
       "zero_db": 50,
       "up": "CVSW UP",
       "down": "CVSW DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sl",
@@ -767,7 +971,13 @@
       "zero_db": 50,
       "up": "CVSL UP",
       "down": "CVSL DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sr",
@@ -783,7 +993,13 @@
       "zero_db": 50,
       "up": "CVSR UP",
       "down": "CVSR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sbl",
@@ -799,7 +1015,13 @@
       "zero_db": 50,
       "up": "CVSBL UP",
       "down": "CVSBL DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sbr",
@@ -815,7 +1037,13 @@
       "zero_db": 50,
       "up": "CVSBR UP",
       "down": "CVSBR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sb",
@@ -831,7 +1059,13 @@
       "zero_db": 50,
       "up": "CVSB UP",
       "down": "CVSB DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_fhl",
@@ -847,7 +1081,13 @@
       "zero_db": 50,
       "up": "CVFHL UP",
       "down": "CVFHL DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_fhr",
@@ -863,7 +1103,13 @@
       "zero_db": 50,
       "up": "CVFHR UP",
       "down": "CVFHR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_tfl",
@@ -879,7 +1125,13 @@
       "zero_db": 50,
       "up": "CVTFL UP",
       "down": "CVTFL DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_tfr",
@@ -895,7 +1147,13 @@
       "zero_db": 50,
       "up": "CVTFR UP",
       "down": "CVTFR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_tml",
@@ -911,7 +1169,13 @@
       "zero_db": 50,
       "up": "CVTML UP",
       "down": "CVTML DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_tmr",
@@ -927,7 +1191,13 @@
       "zero_db": 50,
       "up": "CVTMR UP",
       "down": "CVTMR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_fdl",
@@ -943,7 +1213,13 @@
       "zero_db": 50,
       "up": "CVFDL UP",
       "down": "CVFDL DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_fdr",
@@ -959,7 +1235,13 @@
       "zero_db": 50,
       "up": "CVFDR UP",
       "down": "CVFDR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sdl",
@@ -975,7 +1257,13 @@
       "zero_db": 50,
       "up": "CVSDL UP",
       "down": "CVSDL DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_sdr",
@@ -991,7 +1279,13 @@
       "zero_db": 50,
       "up": "CVSDR UP",
       "down": "CVSDR DOWN",
-      "space_before_value": true
+      "space_before_value": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_reset",
@@ -1001,7 +1295,13 @@
       "x1200w": true,
       "command": "CVZRL",
       "confirm": true,
-      "confirm_message": "Reset all channel levels to factory defaults?"
+      "confirm_message": "Reset all channel levels to factory defaults?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "cv_query",
@@ -1009,7 +1309,13 @@
       "label": "Query Channel Levels",
       "kind": "query",
       "x1200w": true,
-      "query": "CV?"
+      "query": "CV?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_tone",
@@ -1027,6 +1333,12 @@
           "label": "Off",
           "command": "PSTONE CTRL OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1043,7 +1355,13 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "PSBAS UP",
-      "down": "PSBAS DOWN"
+      "down": "PSBAS DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_tre",
@@ -1059,7 +1377,13 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "PSTRE UP",
-      "down": "PSTRE DOWN"
+      "down": "PSTRE DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_dil_en",
@@ -1077,6 +1401,12 @@
           "label": "Off",
           "command": "PSDIL OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1093,7 +1423,13 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "PSDIL UP",
-      "down": "PSDIL DOWN"
+      "down": "PSDIL DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_swl_en",
@@ -1111,6 +1447,12 @@
           "label": "Off",
           "command": "PSSWL OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1127,7 +1469,13 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "PSSWL UP",
-      "down": "PSSWL DOWN"
+      "down": "PSSWL DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_cinema_eq",
@@ -1145,6 +1493,12 @@
           "label": "Off",
           "command": "PSCINEMA EQ.OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1163,6 +1517,12 @@
           "label": "Off",
           "command": "PSLOM OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1193,6 +1553,12 @@
           "label": "Off",
           "command": "PSDRC OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1209,7 +1575,13 @@
       "zero_db": 0,
       "space_before_value": true,
       "up": "PSDIC UP",
-      "down": "PSDIC DOWN"
+      "down": "PSDIC DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_lfe",
@@ -1224,7 +1596,13 @@
       "pad": 2,
       "space_before_value": true,
       "up": "PSLFE UP",
-      "down": "PSLFE DOWN"
+      "down": "PSLFE DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_eff",
@@ -1239,7 +1617,13 @@
       "pad": 2,
       "space_before_value": true,
       "up": "PSEFF UP",
-      "down": "PSEFF DOWN"
+      "down": "PSEFF DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_del",
@@ -1254,7 +1638,13 @@
       "pad": 3,
       "space_before_value": true,
       "up": "PSDEL UP",
-      "down": "PSDEL DOWN"
+      "down": "PSDEL DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ps_multeq",
@@ -1280,6 +1670,12 @@
           "label": "Off",
           "command": "PSMULTEQ:OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1298,6 +1694,12 @@
           "label": "Off",
           "command": "PSDYNEQ OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1324,6 +1726,12 @@
           "label": "15 dB",
           "command": "PSREFLEV 15"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1350,6 +1758,12 @@
           "label": "Off",
           "command": "PSDYNVOL OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1368,6 +1782,12 @@
           "label": "Off",
           "command": "PSGEQ OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1386,6 +1806,12 @@
           "label": "Off",
           "command": "PSHEQ OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1412,6 +1838,12 @@
           "label": "Off",
           "command": "PSDSX OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1430,6 +1862,12 @@
           "label": "16:9",
           "command": "VSASPFUL"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1468,6 +1906,12 @@
           "label": "Auto",
           "command": "VSSCAUTO"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1506,6 +1950,12 @@
           "label": "Auto",
           "command": "VSSCHAUTO"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1524,6 +1974,12 @@
           "label": "TV",
           "command": "VSAUDIO TV"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1546,6 +2002,12 @@
           "label": "Movie",
           "command": "VSVPMMOVI"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1554,7 +2016,13 @@
       "label": "Sleep Off",
       "kind": "action",
       "x1200w": true,
-      "command": "SLPOFF"
+      "command": "SLPOFF",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "slp_set",
@@ -1566,7 +2034,13 @@
       "query": "SLP?",
       "min": 1,
       "max": 120,
-      "pad": 3
+      "pad": 3,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "stby",
@@ -1592,6 +2066,12 @@
           "label": "Off",
           "command": "STBYOFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1614,6 +2094,12 @@
           "label": "Off",
           "command": "ECOOFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1622,7 +2108,13 @@
       "label": "Zone2 On",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2ON"
+      "command": "Z2ON",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_off",
@@ -1630,7 +2122,13 @@
       "label": "Zone2 Off",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2OFF"
+      "command": "Z2OFF",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_query",
@@ -1638,7 +2136,13 @@
       "label": "Query Zone2",
       "kind": "query",
       "x1200w": true,
-      "query": "Z2?"
+      "query": "Z2?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_input",
@@ -1736,6 +2240,12 @@
           "label": "Favorites Play",
           "command": "Z2FVP"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1752,7 +2262,13 @@
       "zero_db": 80,
       "up": "Z2UP",
       "down": "Z2DOWN",
-      "half_step": true
+      "half_step": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_mu_on",
@@ -1760,7 +2276,13 @@
       "label": "Zone2 Mute On",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2MUON"
+      "command": "Z2MUON",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_mu_off",
@@ -1768,7 +2290,13 @@
       "label": "Zone2 Mute Off",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2MUOFF"
+      "command": "Z2MUOFF",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_slp_off",
@@ -1776,7 +2304,13 @@
       "label": "Zone2 Sleep Off",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2SLPOFF"
+      "command": "Z2SLPOFF",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_slp",
@@ -1788,7 +2322,13 @@
       "query": "Z2SLP?",
       "min": 1,
       "max": 120,
-      "pad": 3
+      "pad": 3,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_stby",
@@ -1814,6 +2354,12 @@
           "label": "Off",
           "command": "Z2STBYOFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1822,7 +2368,13 @@
       "label": "Zone2 Quick 1",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2QUICK1"
+      "command": "Z2QUICK1",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_quick_2",
@@ -1830,7 +2382,13 @@
       "label": "Zone2 Quick 2",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2QUICK2"
+      "command": "Z2QUICK2",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_quick_3",
@@ -1838,7 +2396,13 @@
       "label": "Zone2 Quick 3",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2QUICK3"
+      "command": "Z2QUICK3",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_quick_4",
@@ -1846,7 +2410,13 @@
       "label": "Zone2 Quick 4",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2QUICK4"
+      "command": "Z2QUICK4",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_quick_5",
@@ -1854,7 +2424,13 @@
       "label": "Zone2 Quick 5",
       "kind": "action",
       "x1200w": true,
-      "command": "Z2QUICK5"
+      "command": "Z2QUICK5",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_cv_fl",
@@ -1870,7 +2446,13 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "Z2CVFL UP",
-      "down": "Z2CVFL DOWN"
+      "down": "Z2CVFL DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "z2_cv_fr",
@@ -1886,7 +2468,13 @@
       "zero_db": 50,
       "space_before_value": true,
       "up": "Z2CVFR UP",
-      "down": "Z2CVFR DOWN"
+      "down": "Z2CVFR DOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "tm_band",
@@ -1904,6 +2492,12 @@
           "label": "FM",
           "command": "TMANFM"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1922,6 +2516,12 @@
           "label": "Manual",
           "command": "TMANMANUAL"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -1930,7 +2530,13 @@
       "label": "Frequency Up",
       "kind": "action",
       "x1200w": true,
-      "command": "TFANUP"
+      "command": "TFANUP",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "tf_down",
@@ -1938,7 +2544,13 @@
       "label": "Frequency Down",
       "kind": "action",
       "x1200w": true,
-      "command": "TFANDOWN"
+      "command": "TFANDOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "tf_query",
@@ -1946,7 +2558,13 @@
       "label": "Query Frequency",
       "kind": "query",
       "x1200w": true,
-      "query": "TFAN?"
+      "query": "TFAN?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "tp_up",
@@ -1954,7 +2572,13 @@
       "label": "Preset Up",
       "kind": "action",
       "x1200w": true,
-      "command": "TPANUP"
+      "command": "TPANUP",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "tp_down",
@@ -1962,7 +2586,13 @@
       "label": "Preset Down",
       "kind": "action",
       "x1200w": true,
-      "command": "TPANDOWN"
+      "command": "TPANDOWN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "tp_query",
@@ -1970,7 +2600,13 @@
       "label": "Query Preset",
       "kind": "query",
       "x1200w": true,
-      "query": "TPAN?"
+      "query": "TPAN?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "tp_mem",
@@ -1980,7 +2616,13 @@
       "x1200w": true,
       "command": "TPANMEM",
       "confirm": true,
-      "confirm_message": "Start tuner preset memory mode?"
+      "confirm_message": "Start tuner preset memory mode?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns90",
@@ -1988,7 +2630,13 @@
       "label": "Cursor Up",
       "kind": "action",
       "x1200w": true,
-      "command": "NS90"
+      "command": "NS90",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns91",
@@ -1996,7 +2644,13 @@
       "label": "Cursor Down",
       "kind": "action",
       "x1200w": true,
-      "command": "NS91"
+      "command": "NS91",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns92",
@@ -2004,7 +2658,13 @@
       "label": "Cursor Left",
       "kind": "action",
       "x1200w": true,
-      "command": "NS92"
+      "command": "NS92",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns93",
@@ -2012,7 +2672,13 @@
       "label": "Cursor Right",
       "kind": "action",
       "x1200w": true,
-      "command": "NS93"
+      "command": "NS93",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns94",
@@ -2020,7 +2686,13 @@
       "label": "Enter / Play-Pause",
       "kind": "action",
       "x1200w": true,
-      "command": "NS94"
+      "command": "NS94",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9a",
@@ -2028,7 +2700,13 @@
       "label": "Play",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9A"
+      "command": "NS9A",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9b",
@@ -2036,7 +2714,13 @@
       "label": "Pause",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9B"
+      "command": "NS9B",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9c",
@@ -2044,7 +2728,13 @@
       "label": "Stop",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9C"
+      "command": "NS9C",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9d",
@@ -2052,7 +2742,13 @@
       "label": "Skip +",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9D"
+      "command": "NS9D",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9e",
@@ -2060,7 +2756,13 @@
       "label": "Skip -",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9E"
+      "command": "NS9E",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9f",
@@ -2068,7 +2770,13 @@
       "label": "Search +",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9F"
+      "command": "NS9F",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9g",
@@ -2076,7 +2784,13 @@
       "label": "Search -",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9G"
+      "command": "NS9G",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9h",
@@ -2084,7 +2798,13 @@
       "label": "Repeat One",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9H"
+      "command": "NS9H",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9i",
@@ -2092,7 +2812,13 @@
       "label": "Repeat All",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9I"
+      "command": "NS9I",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9j",
@@ -2100,7 +2826,13 @@
       "label": "Repeat Off",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9J"
+      "command": "NS9J",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9k",
@@ -2108,7 +2840,13 @@
       "label": "Random On",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9K"
+      "command": "NS9K",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9m",
@@ -2116,7 +2854,13 @@
       "label": "Random Off",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9M"
+      "command": "NS9M",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9w",
@@ -2124,7 +2868,13 @@
       "label": "iPod Mode Toggle",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9W"
+      "command": "NS9W",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9x",
@@ -2132,7 +2882,13 @@
       "label": "Page Next",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9X"
+      "command": "NS9X",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9y",
@@ -2140,7 +2896,13 @@
       "label": "Page Prev",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9Y"
+      "command": "NS9Y",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_ns9z",
@@ -2148,7 +2910,13 @@
       "label": "Search Stop",
       "kind": "action",
       "x1200w": true,
-      "command": "NS9Z"
+      "command": "NS9Z",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_nsrpt",
@@ -2156,7 +2924,13 @@
       "label": "Repeat Toggle",
       "kind": "action",
       "x1200w": true,
-      "command": "NSRPT"
+      "command": "NSRPT",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_nsrnd",
@@ -2164,7 +2938,13 @@
       "label": "Random Toggle",
       "kind": "action",
       "x1200w": true,
-      "command": "NSRND"
+      "command": "NSRND",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_osd",
@@ -2172,7 +2952,13 @@
       "label": "Request OSD (ASCII)",
       "kind": "action",
       "x1200w": true,
-      "command": "NSA"
+      "command": "NSA",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_osd_utf8",
@@ -2180,7 +2966,13 @@
       "label": "Request OSD (UTF-8)",
       "kind": "action",
       "x1200w": true,
-      "command": "NSE"
+      "command": "NSE",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "ns_fav",
@@ -2188,7 +2980,13 @@
       "label": "Add Favorites",
       "kind": "action",
       "x1200w": true,
-      "command": "NSFV MEM"
+      "command": "NSFV MEM",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mncup",
@@ -2196,7 +2994,13 @@
       "label": "Cursor Up",
       "kind": "action",
       "x1200w": true,
-      "command": "MNCUP"
+      "command": "MNCUP",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mncdn",
@@ -2204,7 +3008,13 @@
       "label": "Cursor Down",
       "kind": "action",
       "x1200w": true,
-      "command": "MNCDN"
+      "command": "MNCDN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mnclt",
@@ -2212,7 +3022,13 @@
       "label": "Cursor Left",
       "kind": "action",
       "x1200w": true,
-      "command": "MNCLT"
+      "command": "MNCLT",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mncrt",
@@ -2220,7 +3036,13 @@
       "label": "Cursor Right",
       "kind": "action",
       "x1200w": true,
-      "command": "MNCRT"
+      "command": "MNCRT",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mnent",
@@ -2228,7 +3050,13 @@
       "label": "Enter",
       "kind": "action",
       "x1200w": true,
-      "command": "MNENT"
+      "command": "MNENT",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mnrtn",
@@ -2236,7 +3064,13 @@
       "label": "Return",
       "kind": "action",
       "x1200w": true,
-      "command": "MNRTN"
+      "command": "MNRTN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mnopt",
@@ -2244,7 +3078,13 @@
       "label": "Option",
       "kind": "action",
       "x1200w": true,
-      "command": "MNOPT"
+      "command": "MNOPT",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mninf",
@@ -2252,7 +3092,13 @@
       "label": "Info",
       "kind": "action",
       "x1200w": true,
-      "command": "MNINF"
+      "command": "MNINF",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_mnchl",
@@ -2260,7 +3106,13 @@
       "label": "Channel Level Menu",
       "kind": "action",
       "x1200w": true,
-      "command": "MNCHL"
+      "command": "MNCHL",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "mn_menu",
@@ -2278,6 +3130,12 @@
           "label": "Off",
           "command": "MNMEN OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -2298,7 +3156,13 @@
         }
       ],
       "confirm": true,
-      "confirm_message": "Change All Zone Stereo mode?"
+      "confirm_message": "Change All Zone Stereo mode?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "sy_remote",
@@ -2317,7 +3181,13 @@
         }
       ],
       "confirm": true,
-      "confirm_message": "Change remote control lock?"
+      "confirm_message": "Change remote control lock?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "sy_panel",
@@ -2340,7 +3210,13 @@
         }
       ],
       "confirm": true,
-      "confirm_message": "Change front panel lock?"
+      "confirm_message": "Change front panel lock?",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "dim",
@@ -2370,6 +3246,12 @@
           "label": "Cycle",
           "command": "DIM SEL"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -2388,6 +3270,12 @@
           "label": "Off",
           "command": "TR1 OFF"
         }
+      ],
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
       ]
     },
     {
@@ -2396,7 +3284,13 @@
       "label": "Upgrade ID",
       "kind": "query",
       "x1200w": true,
-      "query": "UGIDN"
+      "query": "UGIDN",
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     },
     {
       "id": "raw_command",
@@ -2404,7 +3298,13 @@
       "label": "Raw Command",
       "kind": "raw",
       "x1200w": true,
-      "allow_raw": true
+      "allow_raw": true,
+      "models": [
+        "X1200W",
+        "X2200W",
+        "X3200W",
+        "X4200W"
+      ]
     }
   ],
   "status_queries": [
@@ -2556,5 +3456,11 @@
       "TR?",
       "UGIDN"
     ]
-  }
+  },
+  "supported_models": [
+    "AVR-X1200W",
+    "AVR-X2200W",
+    "AVR-X3200W",
+    "AVR-X4200W"
+  ]
 }

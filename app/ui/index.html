@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=53" />
+  <link rel="stylesheet" href="/assets/styles.css?v=54" />
 </head>
 <body>
   <div class="shell">
@@ -196,11 +196,14 @@
             <section class="help-section">
               <h3>Control Panel</h3>
               <p>
-                Full AVR-X1200W telnet command surface (volume, inputs, surround, channel levels,
-                Audyssey, HDMI, Zone 2, tuner, media cursor, dimmer, locks, …). Commands go over
-                TCP port 23 first; if telnet fails they fall back to
-                <code>formiPhoneAppDirect.xml</code>. Destructive actions (locks, Quick Select
-                memory, channel reset) ask for confirmation.
+                Full AVR control via Denon protocol Ver.02. Changes apply immediately.
+                Status uses Denon OSD-style names (e.g. Blu-ray, Dolby Atmos, −39.5 dB).
+                Unused channel levels and Standby / ZONE2-Off controls are greyed out.
+              </p>
+              <p>
+                Pick your model under <strong>Settings → Denon model</strong>.
+                Denon allows only <strong>one telnet (TCP 23) client</strong> — this manager
+                keeps that shared session while it runs (other telnet apps will not connect).
               </p>
             </section>
 
@@ -298,6 +301,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=53"></script>
+  <script src="/assets/app.js?v=54"></script>
 </body>
 </html>
