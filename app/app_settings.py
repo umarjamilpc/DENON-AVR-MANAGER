@@ -19,6 +19,7 @@ DEFAULTS: Dict[str, Any] = {
     "theme": "system",
     "confirm_network_save": True,
     "confirm_firmware_actions": True,
+    "avr_model": "AVR-X1200W",
 }
 
 # UI / API schema: label + short explanation for the Settings page.
@@ -117,6 +118,23 @@ SETTING_META: List[Dict[str, Any]] = [
             "or local upload. These can reboot the AVR and take a long time."
         ),
     },
+    {
+        "key": "avr_model",
+        "label": "Denon model",
+        "type": "enum",
+        "options": [
+            "AVR-X1200W",
+            "AVR-X2200W",
+            "AVR-X3200W",
+            "AVR-X4200W",
+        ],
+        "description": (
+            "Select your receiver model so the Control Panel only shows commands "
+            "supported for that AVR (protocol Ver.02 family). Default AVR-X1200W. "
+            "Note: Denon allows only one telnet (TCP port 23) client at a time — "
+            "this manager holds that session while it is running."
+        ),
+    },
 ]
 
 
@@ -188,6 +206,20 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
     edit_mode = str(src.get("edit_mode", out.get("edit_mode", "realtime"))).strip().lower()
     out["edit_mode"] = edit_mode if edit_mode in {"realtime", "save"} else "realtime"
+
+    model = str(src.get("avr_model", out.get("avr_model", "AVR-X1200W"))).strip().upper()
+    allowed_models = {
+        "AVR-X1200W",
+        "AVR-X2200W",
+        "AVR-X3200W",
+        "AVR-X4200W",
+    }
+    if model in allowed_models:
+        out["avr_model"] = model
+    elif model.replace("AVR-", "") in {m.replace("AVR-", "") for m in allowed_models}:
+        out["avr_model"] = f"AVR-{model.replace('AVR-', '')}"
+    else:
+        out["avr_model"] = "AVR-X1200W"
     return out
 
 

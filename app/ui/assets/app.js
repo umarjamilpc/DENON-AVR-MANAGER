@@ -117,6 +117,7 @@
       theme: "system",
       confirm_network_save: true,
       confirm_firmware_actions: true,
+      avr_model: "AVR-X1200W",
     },
     buildChannel: "production",
     appSettingsMeta: [],
@@ -831,6 +832,7 @@
   async function saveSettingsPage() {
     const banner = $("settings-banner");
     try {
+      const prevModel = state.appSettings?.avr_model;
       await persistAppSettings(collectSettingsForm());
       renderSettingsForm();
       if (banner) {
@@ -838,6 +840,11 @@
         banner.textContent = "Saved";
       }
       setStatus("Saved", "ok");
+      // Reload Control Panel catalog when model changes
+      if (state.appSettings?.avr_model !== prevModel) {
+        state.controlCatalog = null;
+        state.controlSectionId = null;
+      }
     } catch (err) {
       if (banner) {
         banner.hidden = false;
@@ -912,7 +919,17 @@
     // Longer quiet window after local EQ writes so Set / channel never fights poll.
     const quietMs = onEq ? 8000 : 2500;
     if (Date.now() - state.lastLocalWriteAt < quietMs) return;
-    if (["info", "settings", "help", "control"].includes(state.route?.view)) return;
+    if (["info", "settings", "help"].includes(state.route?.view)) return;
+    if (state.route?.view === "control") {
+      // Setup poll must not fight the shared telnet session. Power uses goform HTTP only.
+      state.pollInFlight = true;
+      try {
+        if (!state.powerBusy) await refreshPower().catch(() => {});
+      } finally {
+        state.pollInFlight = false;
+      }
+      return;
+    }
 
     state.pollInFlight = true;
     state.pollTick = (state.pollTick || 0) + 1;
@@ -3418,13 +3435,14 @@
 
   function startControlPoll() {
     stopControlPoll();
+    // Cache-only poll — no AVR queries (protects the single telnet session).
     state.controlPollTimer = setInterval(() => {
       if (state.route.view !== "control") return;
       if (!state.controlSectionId) return;
       if (state.controlBusy) return;
       if (document.visibilityState === "hidden") return;
-      refreshControlStatus({ quiet: true }).catch(() => {});
-    }, 3000);
+      refreshControlStatus({ quiet: true, refresh: false }).catch(() => {});
+    }, 2000);
   }
 
   function controlEntity(id) {
@@ -3453,7 +3471,7 @@
     state.controlSectionId = sectionId;
     renderControlNav();
     renderControlSectionPage();
-    await refreshControlStatus({ quiet: false });
+    await refreshControlStatus({ quiet: false, refresh: true });
     startControlPoll();
   }
 
@@ -3478,13 +3496,12 @@
     if (editor) editor.hidden = false;
     if (title) title.textContent = sec?.label || state.controlSectionId;
     if (meta) {
-      meta.textContent = `${items.length} controls · live status from AVR`;
+      const model = state.appSettings?.avr_model || state.controlCatalog.model || "AVR";
+      meta.textContent = `${items.length} controls · ${model} · apply immediately`;
     }
     if (!grid) return;
     grid.innerHTML = "";
-    for (const c of items) {
-      grid.appendChild(buildControlWidget(c));
-    }
+    for (const c of items) grid.appendChild(buildControlWidget(c));
     applyControlEntitiesToDom();
   }
 
@@ -3492,7 +3509,6 @@
     const wrap = document.createElement("div");
     wrap.className = "control-widget";
     wrap.dataset.controlId = c.id;
-
     const head = document.createElement("div");
     head.className = "control-label-row";
     const label = document.createElement("label");
@@ -3505,7 +3521,6 @@
     head.appendChild(label);
     head.appendChild(cur);
     wrap.appendChild(head);
-
     const kind = c.kind;
     if (kind === "action" || kind === "query") {
       const btn = document.createElement("button");
@@ -3533,11 +3548,7 @@
         o.textContent = opt.label;
         sel.appendChild(o);
       }
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn-primary control-btn";
-      btn.textContent = "Set";
-      btn.addEventListener("click", () =>
+      sel.addEventListener("change", () =>
         runControlCommand({
           id: c.id,
           value: sel.value,
@@ -3546,7 +3557,6 @@
         })
       );
       row.appendChild(sel);
-      row.appendChild(btn);
       wrap.appendChild(row);
     } else if (kind === "slider") {
       const row = document.createElement("div");
@@ -3565,11 +3575,7 @@
       range.addEventListener("input", () => {
         val.textContent = range.value;
       });
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn-primary control-btn";
-      btn.textContent = "Set";
-      btn.addEventListener("click", () =>
+      range.addEventListener("change", () =>
         runControlCommand({
           id: c.id,
           value: Number(range.value),
@@ -3590,14 +3596,11 @@
         down.type = "button";
         down.className = "btn-ghost control-btn";
         down.textContent = "−";
-        down.addEventListener("click", () =>
-          runControlCommand({ command: c.down })
-        );
+        down.addEventListener("click", () => runControlCommand({ command: c.down }));
         row.appendChild(down);
       }
       row.appendChild(range);
       row.appendChild(val);
-      row.appendChild(btn);
       wrap.appendChild(row);
     } else if (kind === "raw") {
       const row = document.createElement("div");
@@ -3639,9 +3642,9 @@
       const range = wrap.querySelector('[data-role="range"]');
       const rangeVal = wrap.querySelector('[data-role="range-val"]');
       const action = wrap.querySelector('[data-role="action"]');
-
-      wrap.classList.toggle("is-current", Boolean(ent?.active || ent?.display));
-
+      const inactive = Boolean(ent?.inactive);
+      wrap.classList.toggle("is-current", Boolean(ent?.active || (ent?.display && !inactive)));
+      wrap.classList.toggle("is-inactive", inactive);
       if (cur) {
         if (ent?.display) {
           cur.textContent = ent.display;
@@ -3655,22 +3658,19 @@
           cur.classList.remove("has-value");
         }
       }
-
-      if (sel && ent?.command) {
+      if (sel && ent?.command && document.activeElement !== sel) {
         const opt = [...sel.options].find((o) => o.value === ent.command);
         if (opt) sel.value = ent.command;
       }
-
       if (range && ent?.value != null && !Number.isNaN(Number(ent.value))) {
-        // Don't fight the user while dragging
         if (document.activeElement !== range) {
           range.value = String(ent.value);
           if (rangeVal) rangeVal.textContent = String(ent.value);
         }
       }
-
-      if (action) {
-        action.classList.toggle("is-active", Boolean(ent?.active));
+      if (action) action.classList.toggle("is-active", Boolean(ent?.active));
+      for (const el of wrap.querySelectorAll("input, select, button")) {
+        el.disabled = inactive;
       }
     }
   }
@@ -3690,11 +3690,12 @@
       if (!window.confirm(msg)) return;
     }
     state.controlBusy = true;
-    controlBanner("Sending…");
+    controlBanner("Applying…");
     try {
       const body = {
         confirm: Boolean(confirm || confirmMessage),
         allow_raw: Boolean(allow_raw),
+        section: state.controlSectionId || undefined,
       };
       if (id) {
         body.id = id;
@@ -3708,9 +3709,13 @@
       });
       setControlTransport(result.transport);
       appendControlLog(result);
-      controlBanner(`OK: ${result.request}`, "ok");
+      if (result.entities && typeof result.entities === "object") {
+        state.controlEntities = { ...state.controlEntities, ...result.entities };
+        applyControlEntitiesToDom();
+      }
+      controlBanner(`Applied: ${result.request}`, "ok");
       setStatus(`Control: ${result.request}`, "ok");
-      await refreshControlStatus({ quiet: true });
+      refreshControlStatus({ quiet: true, refresh: false }).catch(() => {});
     } catch (err) {
       controlBanner(err.message, "err");
       setStatus(err.message, "err");
@@ -3719,18 +3724,19 @@
     }
   }
 
-  async function refreshControlStatus({ quiet = false } = {}) {
+  async function refreshControlStatus({ quiet = false, refresh = true } = {}) {
     if (!state.controlSectionId) return;
-    if (!quiet) controlBanner("Reading AVR status…");
+    if (!quiet) controlBanner(refresh ? "Reading AVR…" : "Updating…");
     try {
       const q = new URLSearchParams({
         section: state.controlSectionId,
+        refresh: refresh ? "true" : "false",
       });
       const snap = await api(`/api/control/status?${q}`);
       setControlTransport(snap.transport);
       state.controlEntities = snap.entities || {};
       applyControlEntitiesToDom();
-      if (snap.responses?.length) {
+      if (refresh && snap.responses?.length) {
         appendControlLog({
           request: `STATUS:${state.controlSectionId}`,
           transport: snap.transport,
@@ -3739,15 +3745,9 @@
       }
       const n = Object.keys(state.controlEntities).length;
       if (snap.errors?.length && !quiet) {
-        controlBanner(
-          `Status partial (${n} values, ${snap.errors.length} query error(s))`,
-          "warn"
-        );
+        controlBanner(`Status partial (${n} values, ${snap.errors.length} errors)`, "warn");
       } else if (!quiet) {
-        controlBanner(
-          n ? `Status updated · ${n} current values` : "Status updated",
-          "ok"
-        );
+        controlBanner(n ? `Status updated · ${n} current values` : "Status updated", "ok");
       }
     } catch (err) {
       if (!quiet) controlBanner(err.message, "err");
@@ -3766,11 +3766,10 @@
       renderControlNav();
       const sections = state.controlCatalog.sections || [];
       const first = state.controlSectionId || sections[0]?.id;
-      if (first) {
-        await selectControlSection(first);
-      } else {
-        $("control-editor") && ($("control-editor").hidden = true);
-        $("control-empty") && ($("control-empty").hidden = false);
+      if (first) await selectControlSection(first);
+      else {
+        if ($("control-editor")) $("control-editor").hidden = true;
+        if ($("control-empty")) $("control-empty").hidden = false;
       }
     } catch (err) {
       controlBanner(err.message, "err");
@@ -3779,7 +3778,7 @@
 
   function wireControlPanel() {
     $("control-refresh")?.addEventListener("click", () =>
-      refreshControlStatus({ quiet: false }).catch((e) =>
+      refreshControlStatus({ quiet: false, refresh: true }).catch((e) =>
         controlBanner(e.message, "err")
       )
     );

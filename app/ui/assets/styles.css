@@ -1572,6 +1572,14 @@ body.eq-progress-open {
 .control-widget.is-current {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
+.control-widget.is-inactive {
+  opacity: 0.45;
+  filter: grayscale(0.35);
+  pointer-events: none;
+}
+.control-widget.is-inactive .control-current {
+  color: var(--muted);
+}
 .control-btn.is-active {
   background: var(--accent-soft);
   color: var(--accent-ink);

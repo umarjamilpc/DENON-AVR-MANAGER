@@ -8,10 +8,43 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
 
 from .denon_client import DenonSetupClient
-from .denon_telnet import DenonTelnetClient, DenonTelnetError, host_from_base
+from .denon_telnet import DenonTelnetError, get_telnet_hub, host_from_base
+from .osd_labels import channel_osd, osd_label
 from .protocol_loader import load_telnet_commands, load_telnet_protocol
 
+SUPPORTED_MODELS = (
+    "AVR-X1200W",
+    "AVR-X2200W",
+    "AVR-X3200W",
+    "AVR-X4200W",
+)
+
 DIRECT = "/goform/formiPhoneAppDirect.xml"
+
+
+def model_short(model: Optional[str]) -> str:
+    m = (model or "AVR-X1200W").strip().upper()
+    if m.startswith("AVR-"):
+        m = m[4:]
+    return m
+
+
+def control_supported_on_model(control: Dict[str, Any], model: Optional[str]) -> bool:
+    short = model_short(model)
+    models = control.get("models")
+    if isinstance(models, list) and models:
+        return short in {str(x).upper().replace("AVR-", "") for x in models}
+    # Legacy flag: curated for X1200W; treat as OK for whole X*00W family unless False
+    if control.get("x1200w") is False:
+        return False
+    return short in {"X1200W", "X2200W", "X3200W", "X4200W"}
+
+
+def filter_controls_for_model(
+    controls: List[Dict[str, Any]], model: Optional[str]
+) -> List[Dict[str, Any]]:
+    return [c for c in controls if control_supported_on_model(c, model)]
+
 
 _ALWAYS_BLOCKED = frozenset(
     {
@@ -340,7 +373,7 @@ def parse_entities(
                     "raw": hit["raw"],
                     "command": hit["command"],
                     "label": hit["label"],
-                    "display": hit["label"],
+                    "display": osd_label(hit["command"]) or hit["label"],
                 }
             continue
 
@@ -361,7 +394,7 @@ def parse_entities(
                         "kind": "slider",
                         "raw": raw,
                         "value": num,
-                        "display": f"{db:g} dB ({raw})",
+                        "display": f"{db:g} dB",
                     }
                     break
                 if space:
@@ -371,11 +404,15 @@ def parse_entities(
                     if not rest.isdigit():
                         continue
                     num = int(rest)
+                    ch = prefix.replace("CV", "").replace("Z2CV", "")
+                    label = channel_osd(ch) if prefix.startswith("CV") else c.get("label")
                     entities[cid] = {
                         "kind": "slider",
                         "raw": ln.strip(),
                         "value": num,
-                        "display": _level_display(num, c.get("zero_db")),
+                        "display": f"{label}: {_level_display(num, c.get('zero_db'))}"
+                        if label
+                        else _level_display(num, c.get("zero_db")),
                     }
                     break
                 if not u.startswith(prefix):
@@ -409,7 +446,7 @@ def parse_entities(
                         "kind": kind,
                         "raw": ln,
                         "active": u == cmd or u.startswith(cmd.rstrip("?")),
-                        "display": ln,
+                        "display": osd_label(ln),
                     }
                     break
             # Power special-case: mark active button
@@ -420,7 +457,7 @@ def parse_entities(
                             "kind": "action",
                             "raw": ln,
                             "active": True,
-                            "display": "On",
+                            "display": osd_label("PWON"),
                         }
             if cid == "pw_standby":
                 for ln in lines:
@@ -429,7 +466,7 @@ def parse_entities(
                             "kind": "action",
                             "raw": ln,
                             "active": True,
-                            "display": "Standby",
+                            "display": osd_label("PWSTANDBY"),
                         }
             if cid == "mu_on":
                 for ln in lines:
@@ -438,7 +475,7 @@ def parse_entities(
                             "kind": "action",
                             "raw": ln,
                             "active": True,
-                            "display": "Muted",
+                            "display": "Mute",
                         }
             if cid == "mu_off":
                 for ln in lines:
@@ -447,8 +484,68 @@ def parse_entities(
                             "kind": "action",
                             "raw": ln,
                             "active": True,
-                            "display": "Unmuted",
+                            "display": "Unmute",
                         }
+
+    # Channel levels: PDF — only configured speakers reply to CV?; others are inactive
+    if section_id in {None, "channel"}:
+        active_codes: Set[str] = set()
+        for ln in lines:
+            u = ln.upper()
+            if not u.startswith("CV") or u.startswith("CVEND") or u.startswith("CVZRL"):
+                continue
+            # CVFL 50 / CVSW 50
+            body = u[2:]
+            code = body.split()[0]
+            if code.isdigit():
+                continue
+            active_codes.add(code)
+        if active_codes:
+            for c in controls:
+                if c.get("section") != "channel" or c.get("kind") != "slider":
+                    continue
+                prefix = str(c.get("prefix") or "")
+                if not prefix.upper().startswith("CV"):
+                    continue
+                code = prefix.upper()[2:]
+                cid = str(c.get("id"))
+                if code not in active_codes:
+                    entities[cid] = {
+                        "kind": "slider",
+                        "inactive": True,
+                        "display": f"{channel_osd(code)}: not in use",
+                        "raw": None,
+                    }
+
+    # ZONE2 off → grey most Zone2 controls
+    z2_off = any(ln.upper() in {"Z2OFF", "Z2 OFF"} for ln in lines)
+    if z2_off and section_id in {None, "zone2"}:
+        for c in controls:
+            if c.get("section") != "zone2":
+                continue
+            cid = str(c.get("id"))
+            if cid == "z2_on":
+                continue
+            ent = entities.get(cid) or {"kind": c.get("kind")}
+            ent["inactive"] = True
+            if not ent.get("display"):
+                ent["display"] = "ZONE2 Off"
+            entities[cid] = ent
+
+    # Main Zone standby → grey non-power controls
+    standby = any("STANDBY" in ln.upper() for ln in lines) or (
+        (power or {}).get("power") == "standby"
+    )
+    if standby:
+        for c in controls:
+            cid = str(c.get("id"))
+            if cid in {"pw_on", "pw_standby", "pw_query"}:
+                continue
+            ent = entities.get(cid) or {"kind": c.get("kind")}
+            ent["inactive"] = True
+            if not ent.get("display"):
+                ent["display"] = "Standby"
+            entities[cid] = ent
 
     # Goform power enrichment / override gaps
     if power:
@@ -458,7 +555,7 @@ def parse_entities(
                 "kind": "action",
                 "raw": "PWON",
                 "active": True,
-                "display": "On",
+                "display": osd_label("PWON"),
                 "source": "goform",
             }
         if "pw_standby" not in entities and pwr == "standby":
@@ -466,7 +563,7 @@ def parse_entities(
                 "kind": "action",
                 "raw": "PWSTANDBY",
                 "active": True,
-                "display": "Standby",
+                "display": osd_label("PWSTANDBY"),
                 "source": "goform",
             }
         if "mv_set" not in entities and power.get("volume") not in (None, ""):
@@ -477,7 +574,7 @@ def parse_entities(
                     "kind": "slider",
                     "raw": raw,
                     "value": num,
-                    "display": f"{db:g} dB ({raw})",
+                    "display": f"{db:g} dB",
                     "source": "goform",
                 }
         mute = (power.get("mute") or "").lower()
@@ -487,7 +584,7 @@ def parse_entities(
                     "kind": "action",
                     "raw": "MUON",
                     "active": True,
-                    "display": "Muted",
+                    "display": "Mute",
                     "source": "goform",
                 }
             else:
@@ -495,12 +592,11 @@ def parse_entities(
                     "kind": "action",
                     "raw": "MUOFF",
                     "active": True,
-                    "display": "Unmuted",
+                    "display": "Unmute",
                     "source": "goform",
                 }
         inp = (power.get("input") or "").strip()
         if inp and "si_select" not in entities:
-            # Fuzzy match friendly name to SI options
             for c in load_telnet_commands():
                 if c.get("id") != "si_select":
                     continue
@@ -512,7 +608,7 @@ def parse_entities(
                             "raw": opt.get("command"),
                             "command": opt.get("command"),
                             "label": label,
-                            "display": label,
+                            "display": osd_label(str(opt.get("command"))) or label,
                             "source": "goform",
                         }
                         break
@@ -524,11 +620,12 @@ class DenonControl:
     def __init__(self, http: DenonSetupClient, telnet_host: Optional[str] = None):
         self.http = http
         host = telnet_host or host_from_base(getattr(http, "base", "") or "")
-        self.telnet = DenonTelnetClient(host)
+        self.telnet = get_telnet_hub(host)
         self._prefer_goform = False
 
     def close(self) -> None:
-        self.telnet.close()
+        # Keep shared hub alive for the process (single AVR telnet slot).
+        pass
 
     def send(
         self,
@@ -541,13 +638,10 @@ class DenonControl:
         cmd = validate_command(command, confirm=confirm, allow_raw=allow_raw)
         pref = (force_transport or "").strip().lower()
 
-        # Always try telnet first unless explicitly forced to goform.
-        # Do not permanently stick to goform after one failure (status needs telnet).
         if pref != "goform":
             try:
                 result = self.telnet.send(cmd)
                 result["ok"] = True
-                self._prefer_goform = False
                 return result
             except DenonTelnetError as e:
                 if pref == "telnet":
@@ -597,7 +691,35 @@ class DenonControl:
         section: Optional[str] = None,
         max_queries: Optional[int] = None,
         power: Optional[Dict[str, Any]] = None,
+        refresh: bool = True,
+        model: Optional[str] = None,
     ) -> Dict[str, Any]:
+        if not refresh:
+            lines = self.telnet.cached_lines()
+            entities = parse_entities(lines, power=power, section_id=section)
+            if model:
+                allowed = {
+                    str(c.get("id"))
+                    for c in filter_controls_for_model(load_telnet_commands(), model)
+                }
+                entities = {k: v for k, v in entities.items() if k in allowed}
+            cache = self.telnet.snapshot_cache()
+            return {
+                "ok": True,
+                "section": section,
+                "transport": "cache",
+                "from_cache": True,
+                "responses": lines,
+                "by_query": {},
+                "entities": entities,
+                "errors": [],
+                "queried": [],
+                "telnet": {
+                    "connected": cache.get("connected"),
+                    "last_error": cache.get("last_error"),
+                },
+            }
+
         queries = queries_for_section(section, full=full)
         if max_queries is not None:
             queries = queries[: max(0, int(max_queries))]
@@ -610,7 +732,6 @@ class DenonControl:
         for q in queries:
             cmd = str(q).strip()
             try:
-                # Prefer telnet for status so we get response lines
                 result = self.send(cmd, allow_raw=True, force_transport="telnet")
             except DenonTelnetError as e:
                 try:
@@ -627,24 +748,55 @@ class DenonControl:
             lines.extend(resp)
             by_query[cmd] = resp
 
-        entities = parse_entities(lines, power=power, section_id=section)
+        # Merge any cached event lines
+        for ln in self.telnet.cached_lines():
+            if ln not in lines:
+                lines.append(ln)
 
+        entities = parse_entities(lines, power=power, section_id=section)
+        if model:
+            allowed = {
+                str(c.get("id"))
+                for c in filter_controls_for_model(load_telnet_commands(), model)
+            }
+            entities = {k: v for k, v in entities.items() if k in allowed}
+
+        cache = self.telnet.snapshot_cache()
         return {
             "ok": True,
             "section": section,
             "transport": transport_used or "unknown",
+            "from_cache": False,
             "responses": lines,
             "by_query": by_query,
             "entities": entities,
             "errors": errors,
             "queried": queries,
+            "telnet": {
+                "connected": cache.get("connected"),
+                "last_error": cache.get("last_error"),
+            },
         }
 
-    def catalog(self) -> Dict[str, Any]:
+    def catalog(self, model: Optional[str] = None) -> Dict[str, Any]:
         protocol = load_telnet_protocol()
+        controls = filter_controls_for_model(
+            list(protocol.get("controls") or []), model or "AVR-X1200W"
+        )
+        section_ids = {c.get("section") for c in controls}
+        sections = [
+            s
+            for s in (protocol.get("sections") or [])
+            if s.get("id") in section_ids or s.get("id") == "advanced"
+        ]
         return {
-            "model": protocol.get("model"),
+            "model": model or "AVR-X1200W",
+            "models": list(SUPPORTED_MODELS),
             "protocol_version": protocol.get("protocol_version"),
-            "sections": protocol.get("sections") or [],
-            "controls": protocol.get("controls") or [],
+            "sections": sections,
+            "controls": controls,
+            "telnet_note": (
+                "Denon allows only one telnet (TCP 23) client. This manager keeps a "
+                "single shared session — close other telnet apps while it is running."
+            ),
         }

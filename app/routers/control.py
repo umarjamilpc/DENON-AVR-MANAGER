@@ -7,11 +7,14 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from ..app_settings import load_settings
 from ..denon_client import DenonSetupClient
 from ..denon_control import (
+    SUPPORTED_MODELS,
     ControlBlockedError,
     ControlConfirmRequired,
     DenonControl,
+    parse_entities,
     resolve_command_from_id,
 )
 from ..denon_power import read_main_zone_power
@@ -23,6 +26,11 @@ router = APIRouter(tags=["control"])
 
 def _default_base(request: Request) -> str:
     return request.app.state.default_host
+
+
+def _model() -> str:
+    m = str(load_settings().get("avr_model") or "AVR-X1200W")
+    return m if m in SUPPORTED_MODELS else "AVR-X1200W"
 
 
 def _control(request: Request) -> DenonControl:
@@ -54,6 +62,9 @@ class CommandBody(BaseModel):
     transport: Optional[str] = Field(
         None, description="Force transport: telnet | goform"
     )
+    section: Optional[str] = Field(
+        None, description="Section id — return updated entities for this section"
+    )
 
 
 class QueryBody(BaseModel):
@@ -64,7 +75,7 @@ class QueryBody(BaseModel):
 @router.get("/control/catalog")
 def control_catalog(request: Request) -> Dict[str, Any]:
     ctrl = _control(request)
-    data = ctrl.catalog()
+    data = ctrl.catalog(model=_model())
     data["host"] = host_label(_default_base(request))
     return data
 
@@ -76,6 +87,13 @@ def control_status(
     section: Optional[str] = Query(
         None, description="Limit queries/entities to one Control Panel section id"
     ),
+    refresh: bool = Query(
+        True,
+        description=(
+            "If true, query the AVR over the shared telnet session. "
+            "If false, return the in-memory event cache only (no AVR traffic)."
+        ),
+    ),
 ) -> Dict[str, Any]:
     ctrl = _control(request)
     power = None
@@ -84,11 +102,18 @@ def control_status(
     except Exception:
         power = None
     try:
-        snap = ctrl.status_snapshot(full=full, section=section, power=power)
+        snap = ctrl.status_snapshot(
+            full=full,
+            section=section,
+            power=power,
+            refresh=refresh,
+            model=_model(),
+        )
     except Exception as e:
         raise HTTPException(502, f"status failed: {e}") from e
     snap["power"] = power
     snap["host"] = host_label(_default_base(request))
+    snap["model"] = _model()
     return snap
 
 
@@ -108,7 +133,18 @@ def control_command(request: Request, body: CommandBody) -> Dict[str, Any]:
             allow_raw=body.allow_raw,
             force_transport=body.transport,
         )
+        # Instant UI update from response + cache (no full re-poll)
+        power = None
+        try:
+            power = read_main_zone_power(DenonSetupClient(_default_base(request)))
+        except Exception:
+            power = None
+        lines = list(result.get("responses") or []) + ctrl.telnet.cached_lines()
+        result["entities"] = parse_entities(
+            lines, power=power, section_id=body.section
+        )
         result["host"] = host_label(_default_base(request))
+        result["model"] = _model()
         return result
     except ControlConfirmRequired as e:
         raise HTTPException(400, str(e)) from e
