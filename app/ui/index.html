@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css?v=43" />
+  <link rel="stylesheet" href="/assets/styles.css?v=44" />
 </head>
 <body>
   <div class="shell">
@@ -78,17 +78,7 @@
                 <p id="editor-meta" class="meta"></p>
               </div>
               <div class="editor-actions">
-                <button type="button" id="editor-primary-btn" class="icon-btn" aria-label="Reload" title="Reload">
-                  <svg class="icon-btn-svg" id="editor-primary-icon-reload" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M3.5 12a8.5 8.5 0 0 1 14.3-6.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                    <path d="M20.5 12a8.5 8.5 0 0 1-14.3 6.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                    <path d="M17 3.8v4.2h4.2M7 20.2v-4.2H2.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  <svg class="icon-btn-svg" id="editor-primary-icon-save" viewBox="0 0 24 24" aria-hidden="true" hidden>
-                    <path d="M5 4.5h11.2L19 7.3V19.5H5V4.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                    <path d="M8 4.5v5.2h8.2V4.5M8 19.5v-6.2h8V19.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                  </svg>
-                </button>
+                <button type="button" id="editor-primary-btn" class="btn-ghost editor-save-btn" hidden>Save</button>
               </div>
             </header>
             <p id="editor-banner" class="banner" hidden></p>
@@ -256,6 +246,6 @@ docker compose up -d</pre>
       <span id="foot-host"></span>
     </footer>
   </div>
-  <script src="/assets/app.js?v=43"></script>
+  <script src="/assets/app.js?v=44"></script>
 </body>
 </html>
