@@ -20,8 +20,8 @@ DEFAULTS: Dict[str, Any] = {
     "confirm_network_save": True,
     "confirm_firmware_actions": True,
     "avr_model": "AVR-X1200W",
-    # grouped = streamlined toggles/steppers; ungrouped = full discrete catalog
-    "control_grouping": "grouped",
+    # less controls = collapse on/off into toggles; more controls = full discrete
+    "control_grouping": "less controls",
     # HA denonavr-style: zones are opt-in (default off to keep Control Panel lean)
     "show_zone2": False,
     "show_zone3": False,
@@ -142,15 +142,14 @@ SETTING_META: List[Dict[str, Any]] = [
     },
     {
         "key": "control_grouping",
-        "label": "Control Panel layout",
+        "label": "Control Panel controls",
         "type": "enum",
-        "options": ["grouped", "ungrouped"],
+        "options": ["less controls", "more controls"],
         "description": (
-            "grouped: related commands share one control (power On/Standby toggle, "
-            "volume −/+, mute switch) with a Receiver overview. "
-            "ungrouped: show the full discrete catalog as before (separate On, "
-            "Standby, Volume Up/Down, Mute On/Off, Quick Select Memory, network "
-            "media keys, etc.)."
+            "less controls: keep the full catalog, but combine On/Off pairs into "
+            "one toggle (power, mute, zone power, …). Dropdowns stay as dropdowns. "
+            "more controls: show every discrete button (On and Standby separately, "
+            "Mute On/Off, queries, network keys, Quick Select Memory, …)."
         ),
     },
     {
@@ -158,9 +157,8 @@ SETTING_META: List[Dict[str, Any]] = [
         "label": "Show Zone 2",
         "type": "boolean",
         "description": (
-            "When layout is grouped: show Zone 2 controls (like Home Assistant’s "
-            "denonavr zone2 option). Ignored in ungrouped mode, which always shows "
-            "all sections from the full catalog."
+            "When using less controls: show Zone 2 in the nav (like Home Assistant’s "
+            "denonavr zone2 option). more controls always includes Zone 2."
         ),
     },
     {
@@ -168,8 +166,8 @@ SETTING_META: List[Dict[str, Any]] = [
         "label": "Show Zone 3",
         "type": "boolean",
         "description": (
-            "When layout is grouped: show Zone 3 controls if your model supports "
-            "them. Ignored in ungrouped mode."
+            "When using less controls: show Zone 3 if your model supports it. "
+            "more controls includes Zone 3 when the model supports it."
         ),
     },
 ]
@@ -211,11 +209,14 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         out["show_zone3"] = bool(src["show_zone3"])
 
     grouping = str(
-        src.get("control_grouping", out.get("control_grouping", "grouped"))
+        src.get("control_grouping", out.get("control_grouping", "less controls"))
     ).strip().lower()
-    out["control_grouping"] = (
-        grouping if grouping in {"grouped", "ungrouped"} else "grouped"
-    )
+    if grouping in {"grouped", "less", "less controls", "compact"}:
+        out["control_grouping"] = "less controls"
+    elif grouping in {"ungrouped", "more", "more controls", "full"}:
+        out["control_grouping"] = "more controls"
+    else:
+        out["control_grouping"] = "less controls"
 
     # Prefer seconds; migrate older poll_interval_ms if present.
     if "poll_interval_sec" in src:

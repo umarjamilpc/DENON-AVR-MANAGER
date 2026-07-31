@@ -12,10 +12,13 @@ from .denon_telnet import DenonTelnetError, get_telnet_hub, host_from_base
 from .osd_labels import channel_osd, osd_label
 from .protocol_loader import (
     CONTROL_LAYOUT_GROUPED,
+    CONTROL_LAYOUT_LESS,
+    CONTROL_LAYOUT_MORE,
     CONTROL_LAYOUT_UNGROUPED,
     CONTROL_LAYOUTS,
     load_telnet_commands,
     load_telnet_protocol,
+    normalize_layout,
 )
 
 SUPPORTED_MODELS = (
@@ -364,8 +367,9 @@ def queries_for_section(
     section_id: Optional[str],
     *,
     full: bool = False,
-    layout: str = CONTROL_LAYOUT_GROUPED,
+    layout: str = CONTROL_LAYOUT_LESS,
 ) -> List[str]:
+    layout = normalize_layout(layout)
     protocol = load_telnet_protocol(layout)
     if full and not section_id:
         return list(protocol.get("status_queries") or [])
@@ -410,9 +414,10 @@ def parse_entities(
     *,
     power: Optional[Dict[str, Any]] = None,
     section_id: Optional[str] = None,
-    layout: str = CONTROL_LAYOUT_GROUPED,
+    layout: str = CONTROL_LAYOUT_LESS,
 ) -> Dict[str, Any]:
     """Map telnet response lines (+ optional goform power) to control_id → state."""
+    layout = normalize_layout(layout)
     lines = [
         ln.strip()
         for ln in responses
@@ -887,13 +892,9 @@ class DenonControl:
         power: Optional[Dict[str, Any]] = None,
         refresh: bool = True,
         model: Optional[str] = None,
-        layout: str = CONTROL_LAYOUT_GROUPED,
+        layout: str = CONTROL_LAYOUT_LESS,
     ) -> Dict[str, Any]:
-        layout = (
-            layout
-            if layout in CONTROL_LAYOUTS
-            else CONTROL_LAYOUT_GROUPED
-        )
+        layout = normalize_layout(layout)
         if not refresh:
             lines = self.telnet.cached_lines()
             entities = parse_entities(
@@ -992,13 +993,9 @@ class DenonControl:
         *,
         show_zone2: bool = False,
         show_zone3: bool = False,
-        layout: str = CONTROL_LAYOUT_GROUPED,
+        layout: str = CONTROL_LAYOUT_LESS,
     ) -> Dict[str, Any]:
-        layout = (
-            layout
-            if layout in CONTROL_LAYOUTS
-            else CONTROL_LAYOUT_GROUPED
-        )
+        layout = normalize_layout(layout)
         protocol = load_telnet_protocol(layout)
         model_name = model or "AVR-X1200W"
         raw_controls = filter_controls_for_model(
@@ -1007,8 +1004,8 @@ class DenonControl:
         controls: List[Dict[str, Any]] = []
         for c in raw_controls:
             sec = c.get("section")
-            # Zone opt-in only applies to the grouped (streamlined) layout
-            if layout == CONTROL_LAYOUT_GROUPED:
+            # Zone opt-in only in less-controls mode (more always shows all)
+            if layout == CONTROL_LAYOUT_LESS:
                 if sec == "zone2" and not show_zone2:
                     continue
                 if sec == "zone3" and not show_zone3:
@@ -1042,12 +1039,11 @@ class DenonControl:
         self, *, model: Optional[str] = None, power: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Query full status_queries once into the shared telnet cache (startup)."""
-        # Use the larger of the two query lists so both layouts have cache coverage
         return self.status_snapshot(
             full=True,
             section=None,
             power=power,
             refresh=True,
             model=model,
-            layout=CONTROL_LAYOUT_UNGROUPED,
+            layout=CONTROL_LAYOUT_MORE,
         )
