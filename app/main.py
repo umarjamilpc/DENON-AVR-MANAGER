@@ -19,6 +19,7 @@ from .denon_client import DenonSetupClient
 from .denon_control import SUPPORTED_MODELS, DenonControl
 from .denon_power import read_main_zone_power
 from .host_utils import normalize_host
+from .icons_store import icons_dir
 from .routers import control as control_router
 from .routers import dashboard as dashboard_router
 from .routers import setup as setup_router
@@ -140,6 +141,9 @@ def create_app(host: str | None = None) -> FastAPI:
 
     if UI_DIR.is_dir():
         app.mount("/assets", StaticFiles(directory=UI_DIR / "assets"), name="assets")
+        # Custom dashboard icons stored under /data/icons (or local data/icons).
+        icons_path = icons_dir()
+        app.mount("/icons", StaticFiles(directory=icons_path), name="custom-icons")
         # Web UI at site root — no /ui path, no redirect.
         app.add_api_route(
             "/",
