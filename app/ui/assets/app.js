@@ -297,8 +297,7 @@
   function setAvrHostLabel(host) {
     const el = $("avr-host");
     if (!el) return;
-    const label = cleanText(host) || "—";
-    el.textContent = `AVR ${label}`;
+    el.textContent = cleanText(host) || "—";
     el.title = "DENON_HOST from docker-compose / environment";
   }
 
@@ -367,7 +366,7 @@
     const poll = $("poll-stamp");
     if (poll) {
       poll.classList.toggle("is-hidden", !show);
-      if (show) poll.textContent = `Poll ${clock}`;
+      if (show) poll.textContent = clock;
     }
   }
 

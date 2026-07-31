@@ -119,19 +119,33 @@ body {
 .top-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem 0.85rem;
-  margin-top: 0.4rem;
-  align-items: center;
+  gap: 0.35rem 1.75rem;
+  margin-top: 0.55rem;
+  align-items: baseline;
 }
-.top-meta-item {
+.top-meta-row {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, auto);
+  column-gap: 0.55rem;
+  align-items: baseline;
+}
+.top-meta-label {
+  font-family: var(--font);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.top-meta-value {
   font-family: var(--mono);
-  font-size: 0.74rem;
-  font-weight: 500;
-  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
   letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
 }
-.top-meta-item.sync-stamp.is-hidden {
-  display: none !important;
+.top-meta-row:has(.sync-stamp.is-hidden) {
+  display: none;
 }
 .topbar-actions {
   display: flex;
