@@ -44,7 +44,8 @@ def _infer_missing_radio_values(fields: Dict[str, Any]) -> None:
     """Fill radio values Denon sometimes omits (no checked= on the input).
 
     Network Settings is the known case: DHCP/Proxy radios often lack ``checked``,
-    while dependent text fields are ``disabled`` to reflect the live state.
+    while dependent text fields are ``disabled`` (or Port stays 00000) to reflect
+    the live state — same greying Denon's web UI shows.
     """
     dhcp = fields.get("radioNetworkSettingDHCP")
     if isinstance(dhcp, dict) and dhcp.get("value") in (None, ""):
@@ -66,8 +67,25 @@ def _infer_missing_radio_values(fields: Dict[str, Any]) -> None:
 
     proxy = fields.get("radioNetworkSettingProxy_OnOff")
     if isinstance(proxy, dict) and proxy.get("value") in (None, ""):
+        # Ensure Off / On(Address) / On(Name) options always exist.
+        opts = proxy.get("options")
+        if not isinstance(opts, list) or len(opts) < 2:
+            proxy["options"] = [
+                {"value": "OFF", "label": "Off", "selected": False},
+                {"value": "ADR", "label": "On(Address)", "selected": False},
+                {"value": "NAM", "label": "On(Name)", "selected": False},
+            ]
         port = fields.get("textNetworkSettingProxyPort")
-        if isinstance(port, dict) and port.get("disabled"):
+        if isinstance(port, dict):
+            pval = str(port.get("value") or "").strip()
+            # Denon greys Port when Proxy is Off (disabled and/or 00000).
+            if port.get("disabled") or pval in ("", "0", "00000"):
+                _set_radio_value(fields, "radioNetworkSettingProxy_OnOff", "OFF")
+            elif pval.isdigit() and int(pval) > 0 and not port.get("disabled"):
+                # Proxy is on; Address vs Name is unknown without checked — Address.
+                _set_radio_value(fields, "radioNetworkSettingProxy_OnOff", "ADR")
+        else:
+            # No port field in form — Denon default is Off.
             _set_radio_value(fields, "radioNetworkSettingProxy_OnOff", "OFF")
 
 

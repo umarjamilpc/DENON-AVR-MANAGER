@@ -121,15 +121,6 @@
 
   const DEFAULT_APP_SETTINGS = { ...state.appSettings };
 
-  function setPageLoading(on, label) {
-    const el = $("editor-loading");
-    if (!el) return;
-    const text = el.querySelector(".editor-loading-text");
-    if (text) text.textContent = label || (on ? "Updating…" : text.textContent);
-    el.hidden = !on;
-    document.body.classList.toggle("is-page-loading", Boolean(on));
-  }
-
   function radioOptionSelected(meta, opt, raw) {
     if (opt && typeof opt === "object" && opt.selected) return true;
     if (meta?.value == null || meta.value === "") return false;
@@ -889,20 +880,15 @@
     ) {
       return;
     }
-    setPageLoading(true, "Refreshing…");
-    try {
-      const data = await api(
-        `/api/endpoints/${encodeURIComponent(state.endpointId)}/state`
-      );
-      if (state.pageDirty || editorHasFocus()) return;
-      if (data.state?.fields) renderFields(data.state.fields);
-      markAvrSyncTime({
-        at: data.read_at || data.state?.read_at,
-        changed: true,
-      });
-    } finally {
-      setPageLoading(false);
-    }
+    const data = await api(
+      `/api/endpoints/${encodeURIComponent(state.endpointId)}/state`
+    );
+    if (state.pageDirty || editorHasFocus()) return;
+    if (data.state?.fields) renderFields(data.state.fields);
+    markAvrSyncTime({
+      at: data.read_at || data.state?.read_at,
+      changed: true,
+    });
   }
 
   async function pollRemoteChanges() {
@@ -1223,7 +1209,6 @@
     $("editor-title").textContent = menuNode?.label || "Loading…";
     $("field-form").innerHTML = "";
     $("action-panel").hidden = true;
-    setPageLoading(true, "Loading…");
     try {
       const data = await api(`/api/endpoints/${encodeURIComponent(id)}/state`);
       $("editor-title").textContent =
@@ -1272,8 +1257,6 @@
       $("editor-title").textContent = "Error";
       $("editor-banner").hidden = false;
       $("editor-banner").textContent = err.message;
-    } finally {
-      setPageLoading(false);
     }
   }
 
@@ -1302,7 +1285,6 @@
       btn.textContent = "Applying…";
     }
     state.realtimeBusy = true;
-    setPageLoading(true, "Saving…");
     try {
       const fields = { ...collectFields(), ...(extra || {}) };
       // Keep action flags off unless explicitly set by this button.
@@ -1329,7 +1311,6 @@
       setStatus(err.message, "err");
     } finally {
       state.realtimeBusy = false;
-      setPageLoading(false);
       if (btn) {
         btn.disabled = false;
         btn.textContent = prev;
@@ -1990,8 +1971,6 @@
       }
     }
     state.realtimeBusy = true;
-    const showSpin = !opts.quiet;
-    if (showSpin) setPageLoading(true, "Saving…");
     try {
       const result = await api(`/api/endpoints/${encodeURIComponent(state.endpointId)}`, {
         method: "POST",
@@ -2011,7 +1990,6 @@
       return false;
     } finally {
       state.realtimeBusy = false;
-      if (showSpin) setPageLoading(false);
     }
   }
 
@@ -2394,12 +2372,7 @@
       PAGE_HELP.audio_graphiceq_s_audio ||
       "Adjusts the tonal quality for each speaker using a graphic equalizer";
     buildManualEqForm();
-    setPageLoading(true, "Loading…");
-    try {
-      await loadManualEq();
-    } finally {
-      setPageLoading(false);
-    }
+    await loadManualEq();
   }
 
   function syncEqHiddenFromValue(label, formName, v) {
