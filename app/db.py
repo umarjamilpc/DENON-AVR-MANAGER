@@ -22,6 +22,18 @@ _WIDGET_SIZES = {"sm", "md", "lg", "xl"}
 _SECTION_SIZES = {"full", "half", "third"}
 _SHAPES = {"rectangle", "square"}
 _SECTION_STACKS = {"horizontal", "vertical"}
+_CONTROL_UI = {"auto", "popup", "inline"}
+_WIDGET_SIZE_TO_PX = {
+    "sm": (96, 96),
+    "md": (120, 120),
+    "lg": (180, 140),
+    "xl": (280, 160),
+}
+_SECTION_SIZE_TO_PX = {
+    "full": (0, 0),
+    "half": (480, 0),
+    "third": (320, 0),
+}
 _COLOR_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
 
@@ -252,6 +264,25 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(
         conn, "dashboard_sections", "layout_id", "layout_id TEXT"
     )
+    _add_column_if_missing(
+        conn, "dashboard_sections", "width_px", "width_px INTEGER NOT NULL DEFAULT 0"
+    )
+    _add_column_if_missing(
+        conn, "dashboard_sections", "height_px", "height_px INTEGER NOT NULL DEFAULT 0"
+    )
+    _add_column_if_missing(
+        conn, "dashboard_widgets", "width_px", "width_px INTEGER NOT NULL DEFAULT 0"
+    )
+    _add_column_if_missing(
+        conn, "dashboard_widgets", "height_px", "height_px INTEGER NOT NULL DEFAULT 0"
+    )
+    _add_column_if_missing(
+        conn,
+        "dashboard_widgets",
+        "control_ui",
+        "control_ui TEXT NOT NULL DEFAULT 'auto'",
+    )
+    _migrate_px_sizes(conn)
     _migrate_layouts(conn)
 
 
@@ -399,6 +430,57 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
+def _norm_px(value: Any, default: int = 0) -> int:
+    try:
+        n = int(float(value))
+    except (TypeError, ValueError):
+        return default
+    return max(0, min(4000, n))
+
+
+def _norm_control_ui(value: Any, default: str = "auto") -> str:
+    v = str(value or default).strip().lower()
+    return v if v in _CONTROL_UI else default
+
+
+def _migrate_px_sizes(conn: sqlite3.Connection) -> None:
+    """One-time: map legacy size tokens into width_px/height_px when still 0."""
+    try:
+        for token, (w, h) in _WIDGET_SIZE_TO_PX.items():
+            conn.execute(
+                """
+                UPDATE dashboard_widgets
+                SET width_px = ?, height_px = ?
+                WHERE (width_px IS NULL OR width_px = 0)
+                  AND (height_px IS NULL OR height_px = 0)
+                  AND lower(size) = ?
+                """,
+                (w, h, token),
+            )
+        # Default remaining widgets
+        conn.execute(
+            """
+            UPDATE dashboard_widgets
+            SET width_px = 120, height_px = 120
+            WHERE (width_px IS NULL OR width_px = 0)
+              AND (height_px IS NULL OR height_px = 0)
+            """
+        )
+        for token, (w, h) in _SECTION_SIZE_TO_PX.items():
+            conn.execute(
+                """
+                UPDATE dashboard_sections
+                SET width_px = ?, height_px = ?
+                WHERE (width_px IS NULL OR width_px = 0)
+                  AND (height_px IS NULL OR height_px = 0)
+                  AND lower(size) = ?
+                """,
+                (w, h, token),
+            )
+    except sqlite3.Error:
+        pass
+
+
 def _norm_shape(value: Any, default: str = "rectangle") -> str:
     v = str(value or default).strip().lower()
     return v if v in _SHAPES else default
@@ -416,6 +498,13 @@ def _norm_section_size(value: Any, default: str = "full") -> str:
 
 def _widget_row(w: sqlite3.Row) -> Dict[str, Any]:
     keys = w.keys()
+    width_px = _norm_px(w["width_px"] if "width_px" in keys else 0)
+    height_px = _norm_px(w["height_px"] if "height_px" in keys else 0)
+    if width_px <= 0 and height_px <= 0:
+        width_px, height_px = _WIDGET_SIZE_TO_PX.get(
+            _norm_widget_size(w["size"] if "size" in keys else "md"),
+            (120, 120),
+        )
     return {
         "id": w["id"],
         "section_id": w["section_id"],
@@ -424,6 +513,11 @@ def _widget_row(w: sqlite3.Row) -> Dict[str, Any]:
         "sort_order": int(w["sort_order"]),
         "shape": _norm_shape(w["shape"] if "shape" in keys else "square", "square"),
         "size": _norm_widget_size(w["size"] if "size" in keys else "md"),
+        "width_px": width_px,
+        "height_px": height_px,
+        "control_ui": _norm_control_ui(
+            w["control_ui"] if "control_ui" in keys else "auto"
+        ),
         "icon_on": str(w["icon_on"] if "icon_on" in keys else ""),
         "icon_off": str(w["icon_off"] if "icon_off" in keys else ""),
         "color_on": _norm_color(w["color_on"] if "color_on" in keys else ""),
@@ -452,7 +546,7 @@ def load_dashboard() -> Dict[str, Any]:
         sections = conn.execute(
             """
             SELECT id, title, sort_order, collapsed, shape, size, stack,
-                   layout_id, created_at, updated_at
+                   layout_id, width_px, height_px, created_at, updated_at
             FROM dashboard_sections
             ORDER BY sort_order ASC, title ASC
             """
@@ -461,6 +555,7 @@ def load_dashboard() -> Dict[str, Any]:
             """
             SELECT id, section_id, control_id, control_layout, sort_order,
                    shape, size, icon_on, icon_off, color_on, color_off,
+                   width_px, height_px, control_ui,
                    created_at, updated_at
             FROM dashboard_widgets
             ORDER BY sort_order ASC
@@ -469,19 +564,28 @@ def load_dashboard() -> Dict[str, Any]:
     by_sec: Dict[str, List[Dict[str, Any]]] = {}
     for w in widgets:
         by_sec.setdefault(str(w["section_id"]), []).append(_widget_row(w))
-    sections_out = [
-        {
-            "id": s["id"],
-            "title": s["title"],
-            "sort_order": int(s["sort_order"]),
-            "collapsed": bool(s["collapsed"]),
-            "stack": _section_stack_from_row(s),
-            "size": _norm_section_size(s["size"] if "size" in s.keys() else "full"),
-            "layout_id": str(s["layout_id"] or "") if "layout_id" in s.keys() else "",
-            "widgets": by_sec.get(str(s["id"]), []),
-        }
-        for s in sections
-    ]
+    sections_out = []
+    for s in sections:
+        keys = s.keys()
+        width_px = _norm_px(s["width_px"] if "width_px" in keys else 0)
+        height_px = _norm_px(s["height_px"] if "height_px" in keys else 0)
+        size_token = _norm_section_size(s["size"] if "size" in keys else "full")
+        if width_px <= 0 and height_px <= 0:
+            width_px, height_px = _SECTION_SIZE_TO_PX.get(size_token, (0, 0))
+        sections_out.append(
+            {
+                "id": s["id"],
+                "title": s["title"],
+                "sort_order": int(s["sort_order"]),
+                "collapsed": bool(s["collapsed"]),
+                "stack": "horizontal",
+                "size": size_token,
+                "width_px": width_px,
+                "height_px": height_px,
+                "layout_id": str(s["layout_id"] or "") if "layout_id" in keys else "",
+                "widgets": by_sec.get(str(s["id"]), []),
+            }
+        )
     by_layout: Dict[str, List[Dict[str, Any]]] = {}
     for sec in sections_out:
         lid = sec.get("layout_id") or ""
@@ -569,15 +673,19 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
             sid = str(sec.get("id") or new_id())
             title = str(sec.get("title") or "Section").strip() or "Section"
             collapsed = 1 if sec.get("collapsed") else 0
-            stack = _norm_section_stack(sec.get("stack") or sec.get("shape"))
+            stack = "horizontal"
             size = _norm_section_size(sec.get("size"))
             layout_id = str(sec.get("layout_id") or "") or None
+            width_px = _norm_px(sec.get("width_px"))
+            height_px = _norm_px(sec.get("height_px"))
+            if width_px <= 0 and height_px <= 0:
+                width_px, height_px = _SECTION_SIZE_TO_PX.get(size, (0, 0))
             conn.execute(
                 """
                 INSERT INTO dashboard_sections(
                   id, title, sort_order, collapsed, shape, size, stack,
-                  layout_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  layout_id, width_px, height_px, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     sid,
@@ -588,6 +696,8 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                     size,
                     stack,
                     layout_id,
+                    width_px,
+                    height_px,
                     now,
                     now,
                 ),
@@ -605,13 +715,19 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                 if layout not in {"less", "more"}:
                     layout = "less"
                 wid = str(w.get("id") or new_id())
+                w_size = _norm_widget_size(w.get("size"))
+                ww = _norm_px(w.get("width_px"))
+                wh = _norm_px(w.get("height_px"))
+                if ww <= 0 and wh <= 0:
+                    ww, wh = _WIDGET_SIZE_TO_PX.get(w_size, (120, 120))
                 conn.execute(
                     """
                     INSERT INTO dashboard_widgets(
                       id, section_id, control_id, control_layout, sort_order,
                       shape, size, icon_on, icon_off, color_on, color_off,
+                      width_px, height_px, control_ui,
                       created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         wid,
@@ -620,11 +736,14 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                         layout,
                         int(w.get("sort_order", wi)),
                         _norm_shape(w.get("shape"), "square"),
-                        _norm_widget_size(w.get("size")),
+                        w_size,
                         str(w.get("icon_on") or ""),
                         str(w.get("icon_off") or ""),
                         _norm_color(w.get("color_on")),
                         _norm_color(w.get("color_off")),
+                        ww,
+                        wh,
+                        _norm_control_ui(w.get("control_ui")),
                         now,
                         now,
                     ),
@@ -777,6 +896,12 @@ def update_section(section_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     if "layout_id" in fields and fields["layout_id"] is not None:
         sets.append("layout_id = ?")
         vals.append(str(fields["layout_id"]) or None)
+    if "width_px" in fields and fields["width_px"] is not None:
+        sets.append("width_px = ?")
+        vals.append(_norm_px(fields["width_px"]))
+    if "height_px" in fields and fields["height_px"] is not None:
+        sets.append("height_px = ?")
+        vals.append(_norm_px(fields["height_px"]))
     if not sets:
         return load_dashboard()
     sets.append("updated_at = ?")
@@ -805,6 +930,9 @@ def add_widget(
     icon_off: str = "",
     color_on: str = "",
     color_off: str = "",
+    width_px: int = 0,
+    height_px: int = 0,
+    control_ui: str = "auto",
 ) -> Dict[str, Any]:
     init_db()
     now = time.time()
@@ -812,7 +940,13 @@ def add_widget(
     cid = (control_id or "").strip()
     if not cid:
         raise ValueError("control_id required")
+    w_size = _norm_widget_size(size)
+    ww = _norm_px(width_px)
+    wh = _norm_px(height_px)
+    if ww <= 0 and wh <= 0:
+        ww, wh = _WIDGET_SIZE_TO_PX.get(w_size, (120, 120))
     with _lock, connect() as conn:
+        _migrate_schema(conn)
         exists = conn.execute(
             "SELECT 1 FROM dashboard_sections WHERE id = ?", (section_id,)
         ).fetchone()
@@ -831,8 +965,9 @@ def add_widget(
             INSERT INTO dashboard_widgets(
               id, section_id, control_id, control_layout, sort_order,
               shape, size, icon_on, icon_off, color_on, color_off,
+              width_px, height_px, control_ui,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 new_id(),
@@ -841,11 +976,14 @@ def add_widget(
                 layout,
                 order,
                 _norm_shape(shape, "square"),
-                _norm_widget_size(size),
+                w_size,
                 str(icon_on or ""),
                 str(icon_off or ""),
                 _norm_color(color_on),
                 _norm_color(color_off),
+                ww,
+                wh,
+                _norm_control_ui(control_ui),
                 now,
                 now,
             ),
@@ -881,6 +1019,15 @@ def update_widget(widget_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         layout = "more" if layout in {"more", "ungrouped"} else "less"
         sets.append("control_layout = ?")
         vals.append(layout)
+    if "width_px" in fields and fields["width_px"] is not None:
+        sets.append("width_px = ?")
+        vals.append(_norm_px(fields["width_px"]))
+    if "height_px" in fields and fields["height_px"] is not None:
+        sets.append("height_px = ?")
+        vals.append(_norm_px(fields["height_px"]))
+    if "control_ui" in fields and fields["control_ui"] is not None:
+        sets.append("control_ui = ?")
+        vals.append(_norm_control_ui(fields["control_ui"]))
     if not sets:
         return load_dashboard()
     sets.append("updated_at = ?")

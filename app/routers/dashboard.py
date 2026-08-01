@@ -215,6 +215,8 @@ class SectionPatchBody(BaseModel):
     size: Optional[str] = None
     collapsed: Optional[bool] = None
     layout_id: Optional[str] = None
+    width_px: Optional[int] = None
+    height_px: Optional[int] = None
 
 
 class WidgetBody(BaseModel):
@@ -227,6 +229,9 @@ class WidgetBody(BaseModel):
     icon_off: str = ""
     color_on: str = ""
     color_off: str = ""
+    width_px: int = 0
+    height_px: int = 0
+    control_ui: str = "auto"
 
 
 class WidgetPatchBody(BaseModel):
@@ -237,6 +242,9 @@ class WidgetPatchBody(BaseModel):
     color_on: Optional[str] = None
     color_off: Optional[str] = None
     control_layout: Optional[str] = None
+    width_px: Optional[int] = None
+    height_px: Optional[int] = None
+    control_ui: Optional[str] = None
 
 
 class IconUrlBody(BaseModel):
@@ -300,6 +308,8 @@ def patch_section(
             "size": body.size,
             "collapsed": body.collapsed,
             "layout_id": body.layout_id,
+            "width_px": body.width_px,
+            "height_px": body.height_px,
         },
     )
     return _enrich_dashboard(data, _base(request))
@@ -325,6 +335,9 @@ def create_widget(request: Request, body: WidgetBody) -> Dict[str, Any]:
             icon_off=body.icon_off or defaults["icon_off"],
             color_on=body.color_on,
             color_off=body.color_off,
+            width_px=body.width_px,
+            height_px=body.height_px,
+            control_ui=body.control_ui,
         )
     except KeyError as e:
         raise HTTPException(404, str(e)) from e
@@ -347,6 +360,9 @@ def patch_widget(
             "color_on": body.color_on,
             "color_off": body.color_off,
             "control_layout": body.control_layout,
+            "width_px": body.width_px,
+            "height_px": body.height_px,
+            "control_ui": body.control_ui,
         },
     )
     return _enrich_dashboard(data, _base(request))

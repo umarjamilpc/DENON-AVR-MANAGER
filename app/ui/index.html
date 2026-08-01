@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>DENON AVR MANAGER</title>
-  <link rel="stylesheet" href="/assets/fonts.css?v=71" />
-  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=71" />
-  <link rel="stylesheet" href="/assets/styles.css?v=71" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=73" />
+  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=73" />
+  <link rel="stylesheet" href="/assets/styles.css?v=73" />
 </head>
 <body>
   <div class="shell">
@@ -124,6 +124,19 @@
             <button type="submit" value="cancel" class="btn-ghost">Close</button>
           </header>
           <div id="dashboard-slider-body" class="dashboard-slider-body"></div>
+        </form>
+      </dialog>
+
+      <dialog id="dashboard-settings-popup" class="dashboard-picker dashboard-settings-popup">
+        <form method="dialog" class="dashboard-picker-form" id="dashboard-settings-form">
+          <header class="dashboard-picker-head">
+            <h3 id="dashboard-settings-title">Settings</h3>
+            <button type="submit" value="cancel" class="btn-ghost">Close</button>
+          </header>
+          <div id="dashboard-settings-body" class="dashboard-settings-body"></div>
+          <footer class="dashboard-picker-foot">
+            <button type="button" id="dashboard-settings-save" class="btn-primary">Save</button>
+          </footer>
         </form>
       </dialog>
 
@@ -439,6 +452,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=71"></script>
+  <script src="/assets/app.js?v=73"></script>
 </body>
 </html>
