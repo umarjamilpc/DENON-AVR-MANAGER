@@ -4341,6 +4341,12 @@
     if ($("dashboard-add-layout")) {
       $("dashboard-add-layout").hidden = !state.dashboardEdit;
     }
+    if (state.dashboardEdit) {
+      dashboardBanner(
+        "Edit mode: drag ⠿ handles to move layouts, sections, and widgets. Layout stack = section arrangement; Widgets stack = cards inside one section only.",
+        "ok"
+      );
+    }
     renderDashboard();
   }
 
@@ -4657,24 +4663,50 @@
     if (state.dashboardEdit) {
       const head = document.createElement("header");
       head.className = "dashboard-layout-head";
+
+      const handle = document.createElement("span");
+      handle.className = "dashboard-drag-handle";
+      handle.title = "Drag layout";
+      handle.textContent = "⠿";
+      handle.draggable = true;
+      handle.addEventListener("dragstart", (ev) => {
+        state.dashboardDrag = { type: "layout", id: ly.id || "" };
+        wrap.classList.add("is-dragging");
+        ev.dataTransfer.effectAllowed = "move";
+        ev.stopPropagation();
+      });
+      handle.addEventListener("dragend", () => {
+        wrap.classList.remove("is-dragging");
+        state.dashboardDrag = null;
+        clearDashDragOver();
+      });
+      head.appendChild(handle);
+
       const label = document.createElement("span");
       label.className = "dashboard-layout-label";
-      label.textContent = "Layout";
+      label.textContent = "Layout stack";
       head.appendChild(label);
-      head.appendChild(
-        buildStackSelect(stack, (v) => {
-          if (!ly.id) return;
-          api(`/api/dashboard/layouts/${ly.id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ stack: v }),
-          })
-            .then((d) => {
-              state.dashboard = d;
-              renderDashboard();
-            })
-            .catch((e) => dashboardBanner(e.message, "err"));
+      const stackSel = buildStackSelect(stack, (v) => {
+        if (!ly.id) {
+          wrap.dataset.stack = v;
+          wrap.className = `dashboard-layout stack-${v}`;
+          const bodyEl = wrap.querySelector(".dashboard-layout-body");
+          if (bodyEl) bodyEl.className = `dashboard-layout-body stack-${v}`;
+          return;
+        }
+        api(`/api/dashboard/layouts/${ly.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ stack: v }),
         })
-      );
+          .then((d) => {
+            state.dashboard = d;
+            renderDashboard();
+          })
+          .catch((e) => dashboardBanner(e.message, "err"));
+      });
+      stackSel.title = "Horizontal or vertical arrangement of sections in this layout";
+      head.appendChild(stackSel);
+
       const addSec = document.createElement("button");
       addSec.type = "button";
       addSec.className = "btn-ghost";
@@ -4718,16 +4750,65 @@
         head.appendChild(del);
       }
       wrap.appendChild(head);
+
+      wrap.addEventListener("dragover", (ev) => {
+        const drag = state.dashboardDrag;
+        if (!drag || (drag.type !== "layout" && drag.type !== "section")) return;
+        ev.preventDefault();
+        wrap.classList.add("drag-over");
+      });
+      wrap.addEventListener("dragleave", (ev) => {
+        if (!wrap.contains(ev.relatedTarget)) wrap.classList.remove("drag-over");
+      });
+      wrap.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        wrap.classList.remove("drag-over");
+        const drag = state.dashboardDrag;
+        if (!drag) return;
+        if (drag.type === "layout") {
+          const root = $("dashboard-sections");
+          const from = root?.querySelector(
+            `.dashboard-layout[data-layout-id="${CSS.escape(drag.id)}"]`
+          );
+          if (from && from !== wrap) root.insertBefore(from, wrap);
+          persistDashboardFromDom().catch((e) =>
+            dashboardBanner(e.message, "err")
+          );
+        }
+      });
     }
 
     const body = document.createElement("div");
     body.className = `dashboard-layout-body stack-${stack}`;
+    if (state.dashboardEdit) {
+      body.addEventListener("dragover", (ev) => {
+        if (state.dashboardDrag?.type !== "section") return;
+        ev.preventDefault();
+        body.classList.add("drag-over");
+      });
+      body.addEventListener("dragleave", (ev) => {
+        if (!body.contains(ev.relatedTarget)) body.classList.remove("drag-over");
+      });
+      body.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        body.classList.remove("drag-over");
+        const drag = state.dashboardDrag;
+        if (!drag || drag.type !== "section") return;
+        const from = document.querySelector(
+          `.dashboard-section[data-section-id="${CSS.escape(drag.id)}"]`
+        );
+        if (from) body.appendChild(from);
+        persistDashboardFromDom().catch((e) =>
+          dashboardBanner(e.message, "err")
+        );
+      });
+    }
     const secs = ly.sections || [];
     if (!secs.length) {
       const empty = document.createElement("div");
       empty.className = "dashboard-layout-empty";
       empty.textContent = state.dashboardEdit
-        ? "Empty layout — press Add section"
+        ? "Empty layout — press Add section (or drop a section here)"
         : "Empty layout";
       if (state.dashboardEdit) {
         empty.addEventListener("click", () => {
@@ -4757,6 +4838,14 @@
     return wrap;
   }
 
+  function clearDashDragOver() {
+    document
+      .querySelectorAll(
+        ".dashboard-layout.drag-over, .dashboard-layout-body.drag-over, .dashboard-section.drag-over, .dashboard-grid.drag-over, .dashboard-widget.drag-over"
+      )
+      .forEach((el) => el.classList.remove("drag-over"));
+  }
+
   function buildSizeSelect(options, value, onChange) {
     const sel = document.createElement("select");
     sel.className = "dash-style-select";
@@ -4777,8 +4866,8 @@
   function buildStackSelect(value, onChange) {
     return buildSizeSelect(
       [
-        ["horizontal", "Horizontal"],
-        ["vertical", "Vertical"],
+        ["horizontal", "Horizontal stack"],
+        ["vertical", "Vertical stack"],
       ],
       value || "horizontal",
       onChange
@@ -4839,27 +4928,16 @@
     wrap.dataset.stack = stack;
     wrap.dataset.size = size;
     if (sec.collapsed) wrap.classList.add("is-collapsed");
+    if (sec.collapsed) wrap.classList.add("is-collapsed");
     if (state.dashboardEdit) {
-      wrap.draggable = true;
-      wrap.addEventListener("dragstart", (ev) => {
-        if (ev.target.closest("select,button,input,a,[contenteditable]")) {
-          ev.preventDefault();
-          return;
-        }
-        state.dashboardDrag = { type: "section", id: sec.id };
-        wrap.classList.add("is-dragging");
-        ev.dataTransfer.effectAllowed = "move";
-      });
-      wrap.addEventListener("dragend", () => {
-        wrap.classList.remove("is-dragging");
-        state.dashboardDrag = null;
-      });
       wrap.addEventListener("dragover", (ev) => {
         if (state.dashboardDrag?.type !== "section") return;
         ev.preventDefault();
         wrap.classList.add("drag-over");
       });
-      wrap.addEventListener("dragleave", () => wrap.classList.remove("drag-over"));
+      wrap.addEventListener("dragleave", (ev) => {
+        if (!wrap.contains(ev.relatedTarget)) wrap.classList.remove("drag-over");
+      });
       wrap.addEventListener("drop", (ev) => {
         ev.preventDefault();
         wrap.classList.remove("drag-over");
@@ -4867,7 +4945,7 @@
         if (!drag || drag.type !== "section" || drag.id === sec.id) return;
         const parent = wrap.parentElement;
         const from = document.querySelector(
-          `.dashboard-section[data-section-id="${drag.id}"]`
+          `.dashboard-section[data-section-id="${CSS.escape(drag.id)}"]`
         );
         if (from && parent) parent.insertBefore(from, wrap);
         persistDashboardFromDom().catch((e) => dashboardBanner(e.message, "err"));
@@ -4876,6 +4954,25 @@
 
     const head = document.createElement("header");
     head.className = "dashboard-section-head";
+    if (state.dashboardEdit) {
+      const handle = document.createElement("span");
+      handle.className = "dashboard-drag-handle";
+      handle.title = "Drag section";
+      handle.textContent = "⠿";
+      handle.draggable = true;
+      handle.addEventListener("dragstart", (ev) => {
+        state.dashboardDrag = { type: "section", id: sec.id };
+        wrap.classList.add("is-dragging");
+        ev.dataTransfer.effectAllowed = "move";
+        ev.stopPropagation();
+      });
+      handle.addEventListener("dragend", () => {
+        wrap.classList.remove("is-dragging");
+        state.dashboardDrag = null;
+        clearDashDragOver();
+      });
+      head.appendChild(handle);
+    }
     const title = document.createElement("h3");
     title.className = "dashboard-section-title";
     title.textContent = sec.title || "Section";
@@ -4894,27 +4991,35 @@
     if (state.dashboardEdit) {
       const actions = document.createElement("div");
       actions.className = "dashboard-section-actions";
-      actions.appendChild(
-        buildSizeSelect(
-          [
-            ["full", "Full"],
-            ["half", "Half"],
-            ["third", "Third"],
-          ],
-          size,
-          (v) =>
-            patchSectionFields(sec.id, { size: v }).catch((e) =>
-              dashboardBanner(e.message, "err")
-            )
-        )
-      );
-      actions.appendChild(
-        buildStackSelect(stack, (v) =>
-          patchSectionFields(sec.id, { stack: v }).catch((e) =>
+      const sizeSel = buildSizeSelect(
+        [
+          ["full", "Width full"],
+          ["half", "Width half"],
+          ["third", "Width third"],
+        ],
+        size,
+        (v) =>
+          patchSectionFields(sec.id, { size: v }).catch((e) =>
             dashboardBanner(e.message, "err")
           )
+      );
+      sizeSel.title = "Section width inside the layout row";
+      actions.appendChild(sizeSel);
+      const widgetStackSel = buildStackSelect(stack, (v) =>
+        patchSectionFields(sec.id, { stack: v }).catch((e) =>
+          dashboardBanner(e.message, "err")
         )
       );
+      widgetStackSel.title =
+        "Widget stack for THIS section only (does not change other sections)";
+      // Prefix label via optgroup-like first option rename in select title is enough;
+      // also set aria-label.
+      widgetStackSel.setAttribute("aria-label", "Widget stack");
+      const stackLab = document.createElement("span");
+      stackLab.className = "dashboard-layout-label";
+      stackLab.textContent = "Widgets";
+      actions.appendChild(stackLab);
+      actions.appendChild(widgetStackSel);
       const addBtn = document.createElement("button");
       addBtn.type = "button";
       addBtn.className = "btn-ghost";
@@ -4946,16 +5051,20 @@
       grid.addEventListener("dragover", (ev) => {
         if (state.dashboardDrag?.type !== "widget") return;
         ev.preventDefault();
+        ev.stopPropagation();
         grid.classList.add("drag-over");
       });
-      grid.addEventListener("dragleave", () => grid.classList.remove("drag-over"));
+      grid.addEventListener("dragleave", (ev) => {
+        if (!grid.contains(ev.relatedTarget)) grid.classList.remove("drag-over");
+      });
       grid.addEventListener("drop", (ev) => {
         ev.preventDefault();
+        ev.stopPropagation();
         grid.classList.remove("drag-over");
         const drag = state.dashboardDrag;
         if (!drag || drag.type !== "widget") return;
         const from = document.querySelector(
-          `.dashboard-widget[data-widget-id="${drag.id}"]`
+          `.dashboard-widget[data-widget-id="${CSS.escape(drag.id)}"]`
         );
         if (from) grid.appendChild(from);
         persistDashboardFromDom().catch((e) => dashboardBanner(e.message, "err"));
@@ -5122,28 +5231,15 @@
     }
 
     if (state.dashboardEdit) {
-      shell.draggable = true;
-      shell.addEventListener("dragstart", (ev) => {
-        if (ev.target.closest("select,button,input,a,.dashboard-widget-toolbar")) {
-          ev.preventDefault();
-          return;
-        }
-        state.dashboardDrag = { type: "widget", id: w.id };
-        shell.classList.add("is-dragging");
-        ev.dataTransfer.effectAllowed = "move";
-        ev.stopPropagation();
-      });
-      shell.addEventListener("dragend", () => {
-        shell.classList.remove("is-dragging");
-        state.dashboardDrag = null;
-      });
       shell.addEventListener("dragover", (ev) => {
         if (state.dashboardDrag?.type !== "widget") return;
         ev.preventDefault();
         ev.stopPropagation();
         shell.classList.add("drag-over");
       });
-      shell.addEventListener("dragleave", () => shell.classList.remove("drag-over"));
+      shell.addEventListener("dragleave", (ev) => {
+        if (!shell.contains(ev.relatedTarget)) shell.classList.remove("drag-over");
+      });
       shell.addEventListener("drop", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -5151,7 +5247,7 @@
         const drag = state.dashboardDrag;
         if (!drag || drag.type !== "widget" || drag.id === w.id) return;
         const from = document.querySelector(
-          `.dashboard-widget[data-widget-id="${drag.id}"]`
+          `.dashboard-widget[data-widget-id="${CSS.escape(drag.id)}"]`
         );
         if (from && shell.parentElement) {
           shell.parentElement.insertBefore(from, shell);
@@ -5161,6 +5257,23 @@
 
       const toolbar = document.createElement("div");
       toolbar.className = "dashboard-widget-toolbar";
+      const handle = document.createElement("span");
+      handle.className = "dashboard-drag-handle";
+      handle.title = "Drag widget";
+      handle.textContent = "⠿";
+      handle.draggable = true;
+      handle.addEventListener("dragstart", (ev) => {
+        state.dashboardDrag = { type: "widget", id: w.id };
+        shell.classList.add("is-dragging");
+        ev.dataTransfer.effectAllowed = "move";
+        ev.stopPropagation();
+      });
+      handle.addEventListener("dragend", () => {
+        shell.classList.remove("is-dragging");
+        state.dashboardDrag = null;
+        clearDashDragOver();
+      });
+      toolbar.appendChild(handle);
       toolbar.appendChild(
         buildSizeSelect(
           [
@@ -5302,62 +5415,17 @@
           !Number.isNaN(Number(control.min)) &&
           !Number.isNaN(Number(control.max));
         if (canSlide) {
-          card.title = `Adjust ${control.label}`;
+          card.title = `Adjust ${control.label} (slider)`;
           card.classList.add("has-popup", "has-slider");
           card.addEventListener("click", () => {
             bounceDashCard(shell);
             openSliderPopup(control, w.id);
           });
         } else {
-          card.title = `Step ${control.label}`;
+          card.title = control.label || "Control";
+          card.addEventListener("click", () => bounceDashCard(shell));
         }
-        // Compact − value + row under the card face
-        const steppers = document.createElement("div");
-        steppers.className = "dash-stepper-row";
-        steppers.addEventListener("click", (e) => e.stopPropagation());
-        const down = document.createElement("button");
-        down.type = "button";
-        down.className = "btn-ghost control-btn";
-        down.textContent = "−";
-        down.addEventListener("click", () => {
-          if (control.down || control.up) {
-            runControlCommand({ id: control.id, value: "down" });
-            return;
-          }
-          const ent = controlEntity(control.id);
-          const step = Number(control.step || 1);
-          const lo = control.min != null ? Number(control.min) : 0;
-          let v = Number(ent?.value);
-          if (Number.isNaN(v)) v = lo;
-          runControlCommand({
-            id: control.id,
-            value: Math.max(lo, v - step),
-          });
-        });
-        const up = document.createElement("button");
-        up.type = "button";
-        up.className = "btn-ghost control-btn";
-        up.textContent = "+";
-        up.addEventListener("click", () => {
-          if (control.up || control.down) {
-            runControlCommand({ id: control.id, value: "up" });
-            return;
-          }
-          const ent = controlEntity(control.id);
-          const step = Number(control.step || 1);
-          const hi = control.max != null ? Number(control.max) : 98;
-          let v = Number(ent?.value);
-          if (Number.isNaN(v)) v = Number(control.min || 0);
-          runControlCommand({
-            id: control.id,
-            value: Math.min(hi, v + step),
-          });
-        });
-        steppers.appendChild(down);
-        steppers.appendChild(up);
-        shell.appendChild(card);
-        shell.appendChild(steppers);
-        return shell;
+        // No −/+ row — popup slider is the only adjust UI.
       } else {
         // Fallback: open enum-style info or use control widget
         card.addEventListener("click", () => bounceDashCard(shell));
