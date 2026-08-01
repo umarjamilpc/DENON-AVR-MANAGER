@@ -21,6 +21,7 @@ def _widget_for_yaml(w: Dict[str, Any]) -> Dict[str, Any]:
         "icon_off": w.get("icon_off") or "",
         "color_on": w.get("color_on") or "",
         "color_off": w.get("color_off") or "",
+        "custom_name": w.get("custom_name") or "",
     }
     cm = w.get("card_mod")
     if isinstance(cm, dict) and (cm.get("style") or "").strip():
@@ -28,7 +29,7 @@ def _widget_for_yaml(w: Dict[str, Any]) -> Dict[str, Any]:
     elif isinstance(cm, str) and cm.strip():
         out["card_mod"] = {"style": cm}
     # Drop empty optional cosmetics
-    for key in ("icon_on", "icon_off", "color_on", "color_off"):
+    for key in ("icon_on", "icon_off", "color_on", "color_off", "custom_name"):
         if not out.get(key):
             out.pop(key, None)
     if out.get("control_ui") == "auto":
@@ -128,7 +129,15 @@ def yaml_to_dashboard(text: str) -> Dict[str, Any]:
     layouts_in = doc.get("layouts")
     sections_flat: List[Dict[str, Any]] = []
 
-    def norm_widget(w: Any) -> Optional[Dict[str, Any]]:
+    def _sort_order(raw: Any, default: int) -> int:
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return default
+
+    def norm_widget(w: Any, index: int = 0) -> Optional[Dict[str, Any]]:
         if not isinstance(w, dict):
             return None
         cid = str(w.get("control_id") or "").strip()
@@ -138,7 +147,7 @@ def yaml_to_dashboard(text: str) -> Dict[str, Any]:
             "id": w.get("id"),
             "control_id": cid,
             "control_layout": w.get("control_layout") or "less",
-            "sort_order": w.get("sort_order"),
+            "sort_order": _sort_order(w.get("sort_order"), index),
             "shape": w.get("shape") or "square",
             "size": w.get("size") or "md",
             "width_px": w.get("width_px") or 0,
@@ -148,16 +157,19 @@ def yaml_to_dashboard(text: str) -> Dict[str, Any]:
             "icon_off": w.get("icon_off") or "",
             "color_on": w.get("color_on") or "",
             "color_off": w.get("color_off") or "",
+            "custom_name": str(w.get("custom_name") or "").strip(),
             "card_mod": _parse_card_mod(w.get("card_mod")),
         }
         return out
 
-    def norm_section(sec: Any, layout_id: str = "") -> Optional[Dict[str, Any]]:
+    def norm_section(
+        sec: Any, layout_id: str = "", index: int = 0
+    ) -> Optional[Dict[str, Any]]:
         if not isinstance(sec, dict):
             return None
         widgets = []
-        for w in sec.get("widgets") or []:
-            nw = norm_widget(w)
+        for wi, w in enumerate(sec.get("widgets") or []):
+            nw = norm_widget(w, wi)
             if nw:
                 widgets.append(nw)
         return {
@@ -166,6 +178,7 @@ def yaml_to_dashboard(text: str) -> Dict[str, Any]:
             "collapsed": bool(sec.get("collapsed")),
             "stack": "horizontal",
             "size": sec.get("size") or "custom",
+            "sort_order": _sort_order(sec.get("sort_order"), index),
             "width_px": sec.get("width_px") or 0,
             "height_px": sec.get("height_px") or 0,
             "layout_id": layout_id or sec.get("layout_id") or "",
@@ -180,8 +193,8 @@ def yaml_to_dashboard(text: str) -> Dict[str, Any]:
                 continue
             lid = str(ly.get("id") or "") or None
             secs = []
-            for sec in ly.get("sections") or []:
-                ns = norm_section(sec, layout_id=lid or "")
+            for si, sec in enumerate(ly.get("sections") or []):
+                ns = norm_section(sec, layout_id=lid or "", index=si)
                 if ns:
                     secs.append(ns)
                     sections_flat.append(ns)
@@ -189,14 +202,14 @@ def yaml_to_dashboard(text: str) -> Dict[str, Any]:
                 {
                     "id": lid,
                     "stack": ly.get("stack") or "horizontal",
-                    "sort_order": int(ly.get("sort_order", i)),
+                    "sort_order": _sort_order(ly.get("sort_order"), i),
                     "sections": secs,
                 }
             )
     elif isinstance(doc.get("sections"), list):
         # Flat HA-ish list of sections
-        for sec in doc["sections"]:
-            ns = norm_section(sec)
+        for si, sec in enumerate(doc["sections"]):
+            ns = norm_section(sec, index=si)
             if ns:
                 sections_flat.append(ns)
         layouts_out = [
