@@ -4343,7 +4343,7 @@
     }
     if (state.dashboardEdit) {
       dashboardBanner(
-        "Edit mode: drag ⠿ handles to move layouts, sections, and widgets. Layout stack = section arrangement; Widgets stack = cards inside one section only.",
+        "Edit mode: drag ⠿ handles to move items. Use Settings on sections/cards for size (px) and colors. Layout stack controls section arrangement.",
         "ok"
       );
     }
@@ -4535,6 +4535,24 @@
           stateEl.textContent = "—";
         }
       }
+      const range = shell.querySelector('[data-role="dash-inline-range"]');
+      const rangeVal = shell.querySelector('[data-role="dash-inline-value"]');
+      if (range && document.activeElement !== range) {
+        if (ent?.value != null && !Number.isNaN(Number(ent.value))) {
+          range.value = String(ent.value);
+          if (rangeVal) {
+            rangeVal.textContent =
+              ent.display || String(Number(ent.value));
+          }
+        }
+      }
+      const sel = shell.querySelector('[data-role="dash-inline-select"]');
+      if (sel && document.activeElement !== sel) {
+        const cur = ent?.command || ent?.raw || "";
+        if (cur && [...sel.options].some((o) => o.value === cur)) {
+          sel.value = cur;
+        }
+      }
     }
   }
 
@@ -4561,6 +4579,9 @@
             sort_order: widgets.length,
             shape: wEl.dataset.shape || "square",
             size: wEl.dataset.size || "md",
+            width_px: Number(wEl.dataset.widthPx || 0) || 0,
+            height_px: Number(wEl.dataset.heightPx || 0) || 0,
+            control_ui: wEl.dataset.controlUi || "auto",
             icon_on: wEl.dataset.iconOn || "",
             icon_off: wEl.dataset.iconOff || "",
             color_on: wEl.dataset.colorOn || "",
@@ -4572,8 +4593,10 @@
           title,
           sort_order: sections.length,
           collapsed: secEl.classList.contains("is-collapsed"),
-          stack: secEl.dataset.stack || "horizontal",
-          size: secEl.dataset.size || "half",
+          stack: "horizontal",
+          size: "custom",
+          width_px: Number(secEl.dataset.widthPx || 0) || 0,
+          height_px: Number(secEl.dataset.heightPx || 0) || 0,
           layout_id: lid,
           widgets,
         });
@@ -4921,13 +4944,22 @@
 
   function buildDashboardSection(sec) {
     const wrap = document.createElement("section");
-    const stack = sec.stack || "horizontal";
-    const size = sec.size || "full";
-    wrap.className = `dashboard-section stack-${stack} size-${size}`;
+    const widthPx = Number(sec.width_px) || 0;
+    const heightPx = Number(sec.height_px) || 0;
+    wrap.className = "dashboard-section stack-horizontal size-custom";
     wrap.dataset.sectionId = sec.id;
-    wrap.dataset.stack = stack;
-    wrap.dataset.size = size;
-    if (sec.collapsed) wrap.classList.add("is-collapsed");
+    wrap.dataset.stack = "horizontal";
+    wrap.dataset.size = "custom";
+    wrap.dataset.widthPx = String(widthPx);
+    wrap.dataset.heightPx = String(heightPx);
+    if (widthPx > 0) {
+      wrap.style.width = `${widthPx}px`;
+      wrap.style.flex = `0 0 ${widthPx}px`;
+      wrap.style.maxWidth = "100%";
+    }
+    if (heightPx > 0) {
+      wrap.style.minHeight = `${heightPx}px`;
+    }
     if (sec.collapsed) wrap.classList.add("is-collapsed");
     if (state.dashboardEdit) {
       wrap.addEventListener("dragover", (ev) => {
@@ -4991,35 +5023,15 @@
     if (state.dashboardEdit) {
       const actions = document.createElement("div");
       actions.className = "dashboard-section-actions";
-      const sizeSel = buildSizeSelect(
-        [
-          ["full", "Width full"],
-          ["half", "Width half"],
-          ["third", "Width third"],
-        ],
-        size,
-        (v) =>
-          patchSectionFields(sec.id, { size: v }).catch((e) =>
-            dashboardBanner(e.message, "err")
-          )
-      );
-      sizeSel.title = "Section width inside the layout row";
-      actions.appendChild(sizeSel);
-      const widgetStackSel = buildStackSelect(stack, (v) =>
-        patchSectionFields(sec.id, { stack: v }).catch((e) =>
-          dashboardBanner(e.message, "err")
-        )
-      );
-      widgetStackSel.title =
-        "Widget stack for THIS section only (does not change other sections)";
-      // Prefix label via optgroup-like first option rename in select title is enough;
-      // also set aria-label.
-      widgetStackSel.setAttribute("aria-label", "Widget stack");
-      const stackLab = document.createElement("span");
-      stackLab.className = "dashboard-layout-label";
-      stackLab.textContent = "Widgets";
-      actions.appendChild(stackLab);
-      actions.appendChild(widgetStackSel);
+      const settingsBtn = document.createElement("button");
+      settingsBtn.type = "button";
+      settingsBtn.className = "btn-ghost";
+      settingsBtn.textContent = "Settings";
+      settingsBtn.title = "Section size and title";
+      settingsBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openSectionSettings(sec);
+      });
       const addBtn = document.createElement("button");
       addBtn.type = "button";
       addBtn.className = "btn-ghost";
@@ -5038,6 +5050,7 @@
           })
           .catch((e) => dashboardBanner(e.message, "err"));
       });
+      actions.appendChild(settingsBtn);
       actions.appendChild(addBtn);
       actions.appendChild(delBtn);
       head.appendChild(actions);
@@ -5045,7 +5058,7 @@
     wrap.appendChild(head);
 
     const grid = document.createElement("div");
-    grid.className = `dashboard-grid stack-${stack}`;
+    grid.className = "dashboard-grid stack-horizontal";
     grid.dataset.sectionId = sec.id;
     if (state.dashboardEdit) {
       grid.addEventListener("dragover", (ev) => {
@@ -5137,7 +5150,7 @@
 
   /**
    * Slider popup for stepper/slider controls on Dashboard.
-   * Shows a range input + live value (dB when zero_db is set), Apply to send.
+   * Range input applies instantly (debounced) — no Apply button.
    */
   function formatDashSliderLabel(control, raw) {
     const n = Number(raw);
@@ -5177,28 +5190,314 @@
     const valEl = document.createElement("span");
     valEl.className = "dashboard-slider-value";
     valEl.textContent = formatDashSliderLabel(control, val);
-    range.addEventListener("input", () => {
-      valEl.textContent = formatDashSliderLabel(control, range.value);
-    });
-    const applyBtn = document.createElement("button");
-    applyBtn.type = "button";
-    applyBtn.className = "btn-primary";
-    applyBtn.textContent = "Apply";
-    applyBtn.addEventListener("click", () => {
+    let timer = null;
+    function sendNow() {
       runControlCommand({
         id: control.id,
         value: Number(range.value),
         confirm: Boolean(control.confirm),
         confirmMessage: control.confirm_message,
       });
-      if (typeof dlg.close === "function") dlg.close();
-      else dlg.removeAttribute("open");
+    }
+    range.addEventListener("input", () => {
+      valEl.textContent = formatDashSliderLabel(control, range.value);
+      clearTimeout(timer);
+      timer = setTimeout(sendNow, 120);
+    });
+    range.addEventListener("change", () => {
+      clearTimeout(timer);
+      sendNow();
     });
     body.appendChild(range);
     body.appendChild(valEl);
-    body.appendChild(applyBtn);
     if (typeof dlg.showModal === "function") dlg.showModal();
     else dlg.setAttribute("open", "open");
+  }
+
+  function wantsInlineControl(w) {
+    const mode = String(w.control_ui || "auto").toLowerCase();
+    if (mode === "inline") return true;
+    if (mode === "popup") return false;
+    const ww = Number(w.width_px) || 120;
+    const hh = Number(w.height_px) || 120;
+    return ww >= 200 || hh >= 180;
+  }
+
+  function mountInlineSlider(card, control) {
+    const wrap = document.createElement("div");
+    wrap.className = "dash-inline-control dash-inline-slider";
+    wrap.addEventListener("click", (e) => e.stopPropagation());
+    wrap.addEventListener("pointerdown", (e) => e.stopPropagation());
+    const lo = control.min != null ? Number(control.min) : 0;
+    const hi = control.max != null ? Number(control.max) : 100;
+    const step = Number(control.step || 1) || 1;
+    const ent = controlEntity(control.id);
+    let val =
+      ent?.value != null && !Number.isNaN(Number(ent.value))
+        ? Number(ent.value)
+        : Math.round((lo + hi) / 2);
+    val = Math.max(lo, Math.min(hi, val));
+    const range = document.createElement("input");
+    range.type = "range";
+    range.min = String(lo);
+    range.max = String(hi);
+    range.step = String(step);
+    range.value = String(val);
+    range.className = "dashboard-slider-range";
+    range.dataset.role = "dash-inline-range";
+    const valEl = document.createElement("span");
+    valEl.className = "dashboard-slider-value dash-inline-value";
+    valEl.dataset.role = "dash-inline-value";
+    valEl.textContent = formatDashSliderLabel(control, val);
+    let timer = null;
+    function sendNow() {
+      runControlCommand({
+        id: control.id,
+        value: Number(range.value),
+        confirm: Boolean(control.confirm),
+        confirmMessage: control.confirm_message,
+      });
+    }
+    range.addEventListener("input", () => {
+      valEl.textContent = formatDashSliderLabel(control, range.value);
+      clearTimeout(timer);
+      timer = setTimeout(sendNow, 120);
+    });
+    range.addEventListener("change", () => {
+      clearTimeout(timer);
+      sendNow();
+    });
+    wrap.appendChild(range);
+    wrap.appendChild(valEl);
+    card.appendChild(wrap);
+  }
+
+  function mountInlineEnum(card, control) {
+    const sel = document.createElement("select");
+    sel.className = "dash-inline-control dash-inline-select";
+    sel.dataset.role = "dash-inline-select";
+    sel.addEventListener("click", (e) => e.stopPropagation());
+    sel.addEventListener("pointerdown", (e) => e.stopPropagation());
+    const ent = controlEntity(control.id);
+    const current = ent?.command || ent?.raw || "";
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "Select…";
+    blank.disabled = true;
+    if (!current) blank.selected = true;
+    sel.appendChild(blank);
+    for (const opt of control.options || []) {
+      const o = document.createElement("option");
+      o.value = opt.command;
+      o.textContent = opt.label || opt.command;
+      if (opt.command === current) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener("change", () => {
+      if (!sel.value) return;
+      runControlCommand({
+        id: control.id,
+        value: sel.value,
+        confirm: Boolean(control.confirm),
+        confirmMessage: control.confirm_message,
+      });
+    });
+    card.appendChild(sel);
+  }
+
+  function openSettingsPopup({ title, fields, onSave }) {
+    const dlg = $("dashboard-settings-popup");
+    const titleEl = $("dashboard-settings-title");
+    const body = $("dashboard-settings-body");
+    const saveBtn = $("dashboard-settings-save");
+    if (!dlg || !body || !saveBtn) return;
+    if (titleEl) titleEl.textContent = title || "Settings";
+    body.innerHTML = "";
+    const values = { ...fields };
+    const makeRow = (label, input) => {
+      const row = document.createElement("label");
+      row.className = "dashboard-settings-row";
+      const lab = document.createElement("span");
+      lab.textContent = label;
+      row.appendChild(lab);
+      row.appendChild(input);
+      body.appendChild(row);
+      return input;
+    };
+    for (const f of fields._schema || []) {
+      if (f.type === "text" || f.type === "hex") {
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.value = String(values[f.key] ?? "");
+        inp.placeholder = f.placeholder || (f.type === "hex" ? "#rrggbb" : "");
+        inp.spellcheck = false;
+        if (f.type === "hex") {
+          inp.pattern = "^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$";
+          inp.title = "HTML hex color, e.g. #e8eef2";
+        }
+        inp.addEventListener("input", () => {
+          values[f.key] = inp.value;
+        });
+        makeRow(f.label, inp);
+      } else if (f.type === "number") {
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.min = String(f.min ?? 0);
+        inp.max = String(f.max ?? 4000);
+        inp.step = String(f.step ?? 1);
+        inp.value = String(values[f.key] ?? 0);
+        inp.addEventListener("input", () => {
+          values[f.key] = Number(inp.value) || 0;
+        });
+        makeRow(f.label, inp);
+      } else if (f.type === "select") {
+        const sel = document.createElement("select");
+        for (const [val, lab] of f.options || []) {
+          const o = document.createElement("option");
+          o.value = val;
+          o.textContent = lab;
+          if (String(values[f.key]) === String(val)) o.selected = true;
+          sel.appendChild(o);
+        }
+        sel.addEventListener("change", () => {
+          values[f.key] = sel.value;
+        });
+        makeRow(f.label, sel);
+      }
+    }
+    saveBtn.onclick = async () => {
+      try {
+        const payload = { ...values };
+        delete payload._schema;
+        for (const f of fields._schema || []) {
+          if (f.type !== "hex") continue;
+          let hex = String(payload[f.key] || "").trim();
+          if (!hex) continue;
+          if (!hex.startsWith("#")) hex = `#${hex}`;
+          if (/^#[0-9A-Fa-f]{3}$/.test(hex)) {
+            hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+          }
+          if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+            throw new Error(`${f.label}: use a hex color like #e8eef2`);
+          }
+          payload[f.key] = hex.toLowerCase();
+        }
+        await onSave(payload);
+        if (typeof dlg.close === "function") dlg.close();
+        else dlg.removeAttribute("open");
+      } catch (e) {
+        dashboardBanner(e.message, "err");
+      }
+    };
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "open");
+  }
+
+  function openSectionSettings(sec) {
+    openSettingsPopup({
+      title: `Section · ${sec.title || "Settings"}`,
+      fields: {
+        title: sec.title || "Section",
+        width_px: Number(sec.width_px) || 0,
+        height_px: Number(sec.height_px) || 0,
+        _schema: [
+          { key: "title", label: "Title", type: "text" },
+          {
+            key: "width_px",
+            label: "Width (px, 0 = auto)",
+            type: "number",
+            min: 0,
+            max: 4000,
+          },
+          {
+            key: "height_px",
+            label: "Height (px, 0 = auto)",
+            type: "number",
+            min: 0,
+            max: 4000,
+          },
+        ],
+      },
+      onSave: (payload) => patchSectionFields(sec.id, payload),
+    });
+  }
+
+  function openWidgetSettings(w) {
+    openSettingsPopup({
+      title: `Card · ${w.control?.label || w.control_id}`,
+      fields: {
+        width_px: Number(w.width_px) || 120,
+        height_px: Number(w.height_px) || 120,
+        color_on: w.color_on || "#e8eef2",
+        color_off: w.color_off || "#3a4248",
+        control_ui: w.control_ui || "auto",
+        icon_on: w.icon_on || "",
+        icon_off: w.icon_off || "",
+        _schema: [
+          {
+            key: "width_px",
+            label: "Width (px)",
+            type: "number",
+            min: 48,
+            max: 4000,
+          },
+          {
+            key: "height_px",
+            label: "Height (px)",
+            type: "number",
+            min: 48,
+            max: 4000,
+          },
+          {
+            key: "color_on",
+            label: "On color (hex)",
+            type: "hex",
+            placeholder: "#e8eef2",
+          },
+          {
+            key: "color_off",
+            label: "Off color (hex)",
+            type: "hex",
+            placeholder: "#3a4248",
+          },
+          {
+            key: "control_ui",
+            label: "Slider / dropdown",
+            type: "select",
+            options: [
+              ["auto", "Auto (inline when large)"],
+              ["inline", "Always on card"],
+              ["popup", "Always popup"],
+            ],
+          },
+          { key: "icon_on", label: "On icon (mdi:…)", type: "text" },
+          { key: "icon_off", label: "Off icon (mdi:…)", type: "text" },
+        ],
+      },
+      onSave: (payload) => patchWidgetFields(w.id, payload),
+    });
+    // Extra icon pickers after schema rows
+    const body = $("dashboard-settings-body");
+    if (body) {
+      const row = document.createElement("div");
+      row.className = "dashboard-settings-row";
+      row.style.flexDirection = "row";
+      row.style.flexWrap = "wrap";
+      row.style.gap = "0.4rem";
+      const mk = (layer, label, current) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn-ghost";
+        b.textContent = label;
+        b.addEventListener("click", () => {
+          openIconPicker({ widgetId: w.id, layer, current });
+        });
+        return b;
+      };
+      row.appendChild(mk("on", "Pick on icon", w.icon_on));
+      row.appendChild(mk("off", "Pick off icon", w.icon_off));
+      body.appendChild(row);
+    }
   }
 
   function buildDashboardWidget(w) {
@@ -5207,15 +5506,24 @@
     const shape = w.shape || "square";
     const size = w.size || "md";
     const kind = control?.kind || "";
-    shell.className = `dashboard-widget dash-button shape-${shape} size-${size}`;
+    const widthPx = Number(w.width_px) || 120;
+    const heightPx = Number(w.height_px) || 120;
+    const controlUi = w.control_ui || "auto";
+    shell.className = `dashboard-widget dash-button shape-${shape} size-custom`;
     shell.dataset.widgetId = w.id;
     shell.dataset.controlId = w.control_id;
     shell.dataset.controlLayout = w.control_layout || "less";
     shell.dataset.shape = shape;
     shell.dataset.size = size;
+    shell.dataset.widthPx = String(widthPx);
+    shell.dataset.heightPx = String(heightPx);
+    shell.dataset.controlUi = controlUi;
     shell.dataset.kind = kind;
     shell.dataset.iconOn = w.icon_on || "";
     shell.dataset.iconOff = w.icon_off || "";
+    shell.style.width = `${widthPx}px`;
+    shell.style.height = `${heightPx}px`;
+    shell.style.flex = `0 0 ${widthPx}px`;
     applyDashCardColors(shell, w);
     if (control) {
       shell.dataset.onLabel =
@@ -5274,68 +5582,16 @@
         clearDashDragOver();
       });
       toolbar.appendChild(handle);
-      toolbar.appendChild(
-        buildSizeSelect(
-          [
-            ["sm", "S"],
-            ["md", "M"],
-            ["lg", "L"],
-            ["xl", "XL"],
-          ],
-          size,
-          (v) =>
-            patchWidgetFields(w.id, { size: v }).catch((e) =>
-              dashboardBanner(e.message, "err")
-            )
-        )
-      );
-      toolbar.appendChild(
-        buildSizeSelect(
-          [
-            ["square", "Square"],
-            ["rectangle", "Rect"],
-          ],
-          shape,
-          (v) =>
-            patchWidgetFields(w.id, { shape: v }).catch((e) =>
-              dashboardBanner(e.message, "err")
-            )
-        )
-      );
-      toolbar.appendChild(
-        buildColorInput(w.color_on || "#e8eef2", "On", (v) =>
-          patchWidgetFields(w.id, { color_on: v }).catch((e) =>
-            dashboardBanner(e.message, "err")
-          )
-        )
-      );
-      toolbar.appendChild(
-        buildColorInput(w.color_off || "#3a4248", "Off", (v) =>
-          patchWidgetFields(w.id, { color_off: v }).catch((e) =>
-            dashboardBanner(e.message, "err")
-          )
-        )
-      );
-      const iconOnBtn = document.createElement("button");
-      iconOnBtn.type = "button";
-      iconOnBtn.className = "btn-ghost dash-icon-btn";
-      iconOnBtn.textContent = "On icon";
-      iconOnBtn.title = "Icon when On";
-      iconOnBtn.addEventListener("click", (ev) => {
+      const settingsBtn = document.createElement("button");
+      settingsBtn.type = "button";
+      settingsBtn.className = "btn-ghost dash-icon-btn";
+      settingsBtn.textContent = "Settings";
+      settingsBtn.title = "Card size, colors, control UI";
+      settingsBtn.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        openIconPicker({ widgetId: w.id, layer: "on", current: w.icon_on });
+        openWidgetSettings(w);
       });
-      const iconOffBtn = document.createElement("button");
-      iconOffBtn.type = "button";
-      iconOffBtn.className = "btn-ghost dash-icon-btn";
-      iconOffBtn.textContent = "Off icon";
-      iconOffBtn.title = "Icon when Off";
-      iconOffBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        openIconPicker({ widgetId: w.id, layer: "off", current: w.icon_off });
-      });
-      toolbar.appendChild(iconOnBtn);
-      toolbar.appendChild(iconOffBtn);
+      toolbar.appendChild(settingsBtn);
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "dashboard-widget-remove";
@@ -5379,6 +5635,7 @@
     card.appendChild(stateEl);
 
     if (!state.dashboardEdit && control) {
+      const inline = wantsInlineControl(w);
       if (kind === "toggle") {
         card.title = `Toggle ${control.label}`;
         card.addEventListener("click", () => {
@@ -5393,12 +5650,18 @@
           });
         });
       } else if (kind === "enum") {
-        card.title = `Choose ${control.label}`;
-        card.classList.add("has-popup");
-        card.addEventListener("click", () => {
-          bounceDashCard(shell);
-          openEnumPopup(control);
-        });
+        if (inline) {
+          card.title = control.label || "Select";
+          card.classList.add("has-inline-control");
+          mountInlineEnum(card, control);
+        } else {
+          card.title = `Choose ${control.label}`;
+          card.classList.add("has-popup");
+          card.addEventListener("click", () => {
+            bounceDashCard(shell);
+            openEnumPopup(control);
+          });
+        }
       } else if (kind === "action" || kind === "query") {
         card.addEventListener("click", () => {
           bounceDashCard(shell);
@@ -5414,7 +5677,11 @@
           control.max != null &&
           !Number.isNaN(Number(control.min)) &&
           !Number.isNaN(Number(control.max));
-        if (canSlide) {
+        if (canSlide && inline) {
+          card.title = control.label || "Adjust";
+          card.classList.add("has-inline-control", "has-slider");
+          mountInlineSlider(card, control);
+        } else if (canSlide) {
           card.title = `Adjust ${control.label} (slider)`;
           card.classList.add("has-popup", "has-slider");
           card.addEventListener("click", () => {
@@ -5425,9 +5692,7 @@
           card.title = control.label || "Control";
           card.addEventListener("click", () => bounceDashCard(shell));
         }
-        // No −/+ row — popup slider is the only adjust UI.
       } else {
-        // Fallback: open enum-style info or use control widget
         card.addEventListener("click", () => bounceDashCard(shell));
       }
     }
