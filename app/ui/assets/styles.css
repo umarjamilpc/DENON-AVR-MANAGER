@@ -2341,6 +2341,7 @@ html[data-theme="dark"] .dashboard-yaml-text {
 
 /* HA button-card style (inspired by matt8707/hass-config) */
 .dash-card {
+  position: relative;
   display: grid;
   grid-template-areas:
     "icon"
@@ -2376,6 +2377,34 @@ html[data-theme="dark"] .dashboard-yaml-text {
 .dash-card:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+.dash-card.dash-card-edit {
+  cursor: pointer;
+}
+.dash-card.dash-card-edit:hover {
+  filter: brightness(1.06);
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+}
+.dash-card-value {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  opacity: 0.92;
+  pointer-events: none;
+  z-index: 1;
+  max-width: 45%;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dash-card.has-value-badge .dash-card-icon {
+  padding-right: 2rem;
 }
 .dashboard-widget.is-entity-on .dash-card {
   background: var(--dash-on-bg, #e8eef2);

@@ -235,6 +235,7 @@ class WidgetBody(BaseModel):
     height_px: int = 0
     control_ui: str = "auto"
     card_mod: Optional[Any] = None
+    custom_name: str = ""
 
 
 class WidgetPatchBody(BaseModel):
@@ -249,6 +250,7 @@ class WidgetPatchBody(BaseModel):
     height_px: Optional[int] = None
     control_ui: Optional[str] = None
     card_mod: Optional[Any] = None
+    custom_name: Optional[str] = None
 
 
 class YamlBody(BaseModel):
@@ -347,6 +349,7 @@ def create_widget(request: Request, body: WidgetBody) -> Dict[str, Any]:
             height_px=body.height_px,
             control_ui=body.control_ui,
             card_mod=body.card_mod,
+            custom_name=body.custom_name,
         )
     except KeyError as e:
         raise HTTPException(404, str(e)) from e
@@ -373,6 +376,8 @@ def patch_widget(
     }
     if body.card_mod is not None:
         fields["card_mod"] = body.card_mod
+    if body.custom_name is not None:
+        fields["custom_name"] = body.custom_name
     data = db.update_widget(widget_id, fields)
     return _enrich_dashboard(data, _base(request))
 

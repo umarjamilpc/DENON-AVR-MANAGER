@@ -4341,9 +4341,12 @@
     if ($("dashboard-add-layout")) {
       $("dashboard-add-layout").hidden = !state.dashboardEdit;
     }
+    if ($("dashboard-raw-yaml")) {
+      $("dashboard-raw-yaml").hidden = !state.dashboardEdit;
+    }
     if (state.dashboardEdit) {
       dashboardBanner(
-        "Edit mode: drag ⠿ handles to move items. Use Settings on sections/cards for size (px) and colors. Layout stack controls section arrangement.",
+        "Edit mode: drag ⠿ to move. Click a card to open its settings. Raw YAML is available in the toolbar.",
         "ok"
       );
     }
@@ -4482,6 +4485,12 @@
     }
   }
 
+  function dashWidgetLabel(w) {
+    const custom = String(w.custom_name || "").trim();
+    if (custom) return custom;
+    return w.control?.label || w.control_id || "Card";
+  }
+
   function applyDashboardEntities() {
     const root = $("dashboard-sections");
     if (!root) return;
@@ -4541,10 +4550,35 @@
         if (ent?.value != null && !Number.isNaN(Number(ent.value))) {
           range.value = String(ent.value);
           if (rangeVal) {
-            rangeVal.textContent =
-              ent.display || String(Number(ent.value));
+            const label =
+              ent.display ||
+              formatDashSliderLabel(
+                {
+                  min: shell.dataset.sliderMin,
+                  max: shell.dataset.sliderMax,
+                  zero_db: shell.dataset.sliderZero,
+                },
+                ent.value
+              );
+            rangeVal.textContent = label;
           }
         }
+      }
+      const valueBadge = shell.querySelector('[data-role="dash-value-badge"]');
+      if (valueBadge && (kind === "slider" || kind === "stepper")) {
+        let label = ent?.display || "";
+        if (!label && ent?.value != null && !Number.isNaN(Number(ent.value))) {
+          label = formatDashSliderLabel(
+            {
+              min: shell.dataset.sliderMin,
+              max: shell.dataset.sliderMax,
+              zero_db: shell.dataset.sliderZero,
+            },
+            ent.value
+          );
+        }
+        valueBadge.textContent = label || "—";
+        valueBadge.hidden = Boolean(inactive && !label);
       }
       const sel = shell.querySelector('[data-role="dash-inline-select"]');
       if (sel && document.activeElement !== sel) {
@@ -4586,6 +4620,7 @@
             icon_off: wEl.dataset.iconOff || "",
             color_on: wEl.dataset.colorOn || "",
             color_off: wEl.dataset.colorOff || "",
+            custom_name: wEl.dataset.customName || "",
             card_mod: wEl.dataset.cardMod
               ? { style: wEl.dataset.cardMod }
               : null,
@@ -5303,6 +5338,7 @@
     valEl.className = "dashboard-slider-value dash-inline-value";
     valEl.dataset.role = "dash-inline-value";
     valEl.textContent = formatDashSliderLabel(control, val);
+    const badge = card.querySelector('[data-role="dash-value-badge"]');
     let timer = null;
     function sendNow() {
       runControlCommand({
@@ -5313,7 +5349,9 @@
       });
     }
     range.addEventListener("input", () => {
-      valEl.textContent = formatDashSliderLabel(control, range.value);
+      const label = formatDashSliderLabel(control, range.value);
+      valEl.textContent = label;
+      if (badge) badge.textContent = label;
       clearTimeout(timer);
       timer = setTimeout(sendNow, 120);
     });
@@ -5501,9 +5539,11 @@
   }
 
   function openWidgetSettings(w) {
+    const defaultName = w.control?.label || w.control_id || "Card";
     openSettingsPopup({
-      title: `Card · ${w.control?.label || w.control_id}`,
+      title: `Card · ${dashWidgetLabel(w)}`,
       fields: {
+        custom_name: w.custom_name || "",
         width_px: Number(w.width_px) || 120,
         height_px: Number(w.height_px) || 120,
         color_on: w.color_on || "#e8eef2",
@@ -5513,6 +5553,12 @@
         icon_off: w.icon_off || "",
         card_mod_style: cardModStyleText(w.card_mod),
         _schema: [
+          {
+            key: "custom_name",
+            label: "Custom name",
+            type: "text",
+            placeholder: defaultName,
+          },
           {
             key: "width_px",
             label: "Width (px)",
@@ -5563,6 +5609,7 @@
       },
       onSave: (payload) =>
         patchWidgetFields(w.id, {
+          custom_name: payload.custom_name || "",
           width_px: payload.width_px,
           height_px: payload.height_px,
           color_on: payload.color_on,
@@ -5618,6 +5665,8 @@
     shell.dataset.kind = kind;
     shell.dataset.iconOn = w.icon_on || "";
     shell.dataset.iconOff = w.icon_off || "";
+    shell.dataset.customName = w.custom_name || "";
+    shell.dataset.defaultLabel = control?.label || w.control_id || "Card";
     const wMod = cardModStyleText(w.card_mod);
     if (wMod) shell.dataset.cardMod = wMod;
     else delete shell.dataset.cardMod;
@@ -5682,16 +5731,6 @@
         clearDashDragOver();
       });
       toolbar.appendChild(handle);
-      const settingsBtn = document.createElement("button");
-      settingsBtn.type = "button";
-      settingsBtn.className = "btn-ghost dash-icon-btn";
-      settingsBtn.textContent = "Settings";
-      settingsBtn.title = "Card size, colors, control UI";
-      settingsBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        openWidgetSettings(w);
-      });
-      toolbar.appendChild(settingsBtn);
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "dashboard-widget-remove";
@@ -5711,20 +5750,31 @@
     }
 
     // HA button-card style body (matt8707/hass-config inspiration)
-    const card = document.createElement("button");
-    card.type = "button";
+    const card = document.createElement(state.dashboardEdit ? "div" : "button");
     card.className = "dash-card";
     card.dataset.role = "dash-card";
-    if (state.dashboardEdit) {
-      card.tabIndex = -1;
-      card.setAttribute("aria-disabled", "true");
+    if (card.tagName === "BUTTON") card.type = "button";
+
+    const canSlide =
+      control &&
+      (kind === "stepper" || kind === "slider") &&
+      control.min != null &&
+      control.max != null &&
+      !Number.isNaN(Number(control.min)) &&
+      !Number.isNaN(Number(control.max));
+    if (canSlide) {
+      shell.dataset.sliderMin = String(control.min);
+      shell.dataset.sliderMax = String(control.max);
+      if (control.zero_db != null) {
+        shell.dataset.sliderZero = String(control.zero_db);
+      }
     }
 
     const icon = buildDashIconHost(w);
     icon.classList.add("dash-card-icon");
     const name = document.createElement("span");
     name.className = "dash-card-name";
-    name.textContent = control?.label || w.control_id;
+    name.textContent = dashWidgetLabel(w);
     const stateEl = document.createElement("span");
     stateEl.className = "dash-card-state";
     stateEl.dataset.role = "dash-state";
@@ -5734,7 +5784,23 @@
     card.appendChild(name);
     card.appendChild(stateEl);
 
-    if (!state.dashboardEdit && control) {
+    if (canSlide) {
+      const valueBadge = document.createElement("span");
+      valueBadge.className = "dash-card-value";
+      valueBadge.dataset.role = "dash-value-badge";
+      valueBadge.textContent = "—";
+      card.appendChild(valueBadge);
+      card.classList.add("has-value-badge");
+    }
+
+    if (state.dashboardEdit) {
+      card.classList.add("dash-card-edit");
+      card.title = "Click to edit card settings";
+      card.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openWidgetSettings(w);
+      });
+    } else if (control) {
       const inline = wantsInlineControl(w);
       if (kind === "toggle") {
         card.title = `Toggle ${control.label}`;
@@ -5772,11 +5838,6 @@
           });
         });
       } else if (kind === "stepper" || kind === "slider") {
-        const canSlide =
-          control.min != null &&
-          control.max != null &&
-          !Number.isNaN(Number(control.min)) &&
-          !Number.isNaN(Number(control.max));
         if (canSlide && inline) {
           card.title = control.label || "Adjust";
           card.classList.add("has-inline-control", "has-slider");
@@ -5815,6 +5876,10 @@
   }
 
   async function openDashboardYamlEditor() {
+    if (!state.dashboardEdit) {
+      dashboardBanner("Turn on Customize to edit YAML", "warn");
+      return;
+    }
     const dlg = $("dashboard-yaml-editor");
     if (!dlg) return;
     try {

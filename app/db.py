@@ -294,6 +294,12 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         "card_mod",
         "card_mod TEXT NOT NULL DEFAULT ''",
     )
+    _add_column_if_missing(
+        conn,
+        "dashboard_widgets",
+        "custom_name",
+        "custom_name TEXT NOT NULL DEFAULT ''",
+    )
     _migrate_px_sizes(conn)
     _migrate_layouts(conn)
 
@@ -450,6 +456,16 @@ def _norm_px(value: Any, default: int = 0) -> int:
     return max(0, min(4000, n))
 
 
+def _norm_sort_order(value: Any, default: int = 0) -> int:
+    """Coerce sort_order; YAML null/missing values fall back to index."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _norm_control_ui(value: Any, default: str = "auto") -> str:
     v = str(value or default).strip().lower()
     return v if v in _CONTROL_UI else default
@@ -585,6 +601,7 @@ def _widget_row(w: sqlite3.Row) -> Dict[str, Any]:
         "icon_off": str(w["icon_off"] if "icon_off" in keys else ""),
         "color_on": _norm_color(w["color_on"] if "color_on" in keys else ""),
         "color_off": _norm_color(w["color_off"] if "color_off" in keys else ""),
+        "custom_name": str(w["custom_name"] if "custom_name" in keys else "").strip(),
         "card_mod": _card_mod_obj(w["card_mod"] if "card_mod" in keys else ""),
     }
 
@@ -619,7 +636,7 @@ def load_dashboard() -> Dict[str, Any]:
             """
             SELECT id, section_id, control_id, control_layout, sort_order,
                    shape, size, icon_on, icon_off, color_on, color_off,
-                   width_px, height_px, control_ui, card_mod,
+                   width_px, height_px, control_ui, card_mod, custom_name,
                    created_at, updated_at
             FROM dashboard_widgets
             ORDER BY sort_order ASC
@@ -700,7 +717,7 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                 {
                     "id": lid,
                     "stack": _norm_section_stack(ly.get("stack")),
-                    "sort_order": int(ly.get("sort_order", li)),
+                    "sort_order": _norm_sort_order(ly.get("sort_order"), li),
                 }
             )
             for si, sec in enumerate(ly.get("sections") or []):
@@ -758,7 +775,7 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                 (
                     sid,
                     title,
-                    int(sec.get("sort_order", si)),
+                    _norm_sort_order(sec.get("sort_order"), si),
                     collapsed,
                     "rectangle",
                     size,
@@ -794,16 +811,16 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                     INSERT INTO dashboard_widgets(
                       id, section_id, control_id, control_layout, sort_order,
                       shape, size, icon_on, icon_off, color_on, color_off,
-                      width_px, height_px, control_ui, card_mod,
+                      width_px, height_px, control_ui, card_mod, custom_name,
                       created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         wid,
                         sid,
                         cid,
                         layout,
-                        int(w.get("sort_order", wi)),
+                        _norm_sort_order(w.get("sort_order"), wi),
                         _norm_shape(w.get("shape"), "square"),
                         w_size,
                         str(w.get("icon_on") or ""),
@@ -814,6 +831,7 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                         wh,
                         _norm_control_ui(w.get("control_ui")),
                         _norm_card_mod(w.get("card_mod")),
+                        str(w.get("custom_name") or "").strip(),
                         now,
                         now,
                     ),
@@ -1007,6 +1025,7 @@ def add_widget(
     height_px: int = 0,
     control_ui: str = "auto",
     card_mod: Any = None,
+    custom_name: str = "",
 ) -> Dict[str, Any]:
     init_db()
     now = time.time()
@@ -1039,9 +1058,9 @@ def add_widget(
             INSERT INTO dashboard_widgets(
               id, section_id, control_id, control_layout, sort_order,
               shape, size, icon_on, icon_off, color_on, color_off,
-              width_px, height_px, control_ui, card_mod,
+              width_px, height_px, control_ui, card_mod, custom_name,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 new_id(),
@@ -1059,6 +1078,7 @@ def add_widget(
                 wh,
                 _norm_control_ui(control_ui),
                 _norm_card_mod(card_mod),
+                str(custom_name or "").strip(),
                 now,
                 now,
             ),
@@ -1106,6 +1126,9 @@ def update_widget(widget_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     if "card_mod" in fields:
         sets.append("card_mod = ?")
         vals.append(_norm_card_mod(fields["card_mod"]))
+    if "custom_name" in fields and fields["custom_name"] is not None:
+        sets.append("custom_name = ?")
+        vals.append(str(fields["custom_name"]).strip())
     if not sets:
         return load_dashboard()
     sets.append("updated_at = ?")
