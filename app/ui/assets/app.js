@@ -4338,6 +4338,9 @@
     if ($("dashboard-add-section")) {
       $("dashboard-add-section").hidden = !state.dashboardEdit;
     }
+    if ($("dashboard-add-layout")) {
+      $("dashboard-add-layout").hidden = !state.dashboardEdit;
+    }
     renderDashboard();
   }
 
@@ -4531,39 +4534,53 @@
 
   function dashboardPayloadFromDom() {
     const root = $("dashboard-sections");
-    const sections = [];
-    if (!root) return { sections };
-    for (const secEl of root.querySelectorAll(".dashboard-section")) {
-      const sid = secEl.dataset.sectionId;
-      const title =
-        secEl.querySelector(".dashboard-section-title")?.textContent?.trim() ||
-        "Section";
-      const widgets = [];
-      for (const wEl of secEl.querySelectorAll(".dashboard-widget")) {
-        widgets.push({
-          id: wEl.dataset.widgetId,
-          control_id: wEl.dataset.controlId,
-          control_layout: wEl.dataset.controlLayout || "less",
-          sort_order: widgets.length,
-          shape: wEl.dataset.shape || "square",
-          size: wEl.dataset.size || "md",
-          icon_on: wEl.dataset.iconOn || "",
-          icon_off: wEl.dataset.iconOff || "",
-          color_on: wEl.dataset.colorOn || "",
-          color_off: wEl.dataset.colorOff || "",
+    const layouts = [];
+    if (!root) return { layouts, sections: [] };
+    for (const layoutEl of root.querySelectorAll(":scope > .dashboard-layout")) {
+      const lid = layoutEl.dataset.layoutId || "";
+      const sections = [];
+      for (const secEl of layoutEl.querySelectorAll(
+        ":scope > .dashboard-layout-body > .dashboard-section"
+      )) {
+        const sid = secEl.dataset.sectionId;
+        const title =
+          secEl.querySelector(".dashboard-section-title")?.textContent?.trim() ||
+          "Section";
+        const widgets = [];
+        for (const wEl of secEl.querySelectorAll(".dashboard-widget")) {
+          widgets.push({
+            id: wEl.dataset.widgetId,
+            control_id: wEl.dataset.controlId,
+            control_layout: wEl.dataset.controlLayout || "less",
+            sort_order: widgets.length,
+            shape: wEl.dataset.shape || "square",
+            size: wEl.dataset.size || "md",
+            icon_on: wEl.dataset.iconOn || "",
+            icon_off: wEl.dataset.iconOff || "",
+            color_on: wEl.dataset.colorOn || "",
+            color_off: wEl.dataset.colorOff || "",
+          });
+        }
+        sections.push({
+          id: sid,
+          title,
+          sort_order: sections.length,
+          collapsed: secEl.classList.contains("is-collapsed"),
+          stack: secEl.dataset.stack || "horizontal",
+          size: secEl.dataset.size || "half",
+          layout_id: lid,
+          widgets,
         });
       }
-      sections.push({
-        id: sid,
-        title,
-        sort_order: sections.length,
-        collapsed: secEl.classList.contains("is-collapsed"),
-        stack: secEl.dataset.stack || "horizontal",
-        size: secEl.dataset.size || "full",
-        widgets,
+      layouts.push({
+        id: lid,
+        stack: layoutEl.dataset.stack || "horizontal",
+        sort_order: layouts.length,
+        sections,
       });
     }
-    return { sections };
+    const sections = layouts.flatMap((ly) => ly.sections);
+    return { layouts, sections };
   }
 
   async function persistDashboardFromDom() {
@@ -4600,23 +4617,144 @@
     const empty = $("dashboard-empty");
     const meta = $("dashboard-meta");
     if (!root) return;
+    let layouts = state.dashboard?.layouts || [];
     const sections = state.dashboard?.sections || [];
+    if (!layouts.length && sections.length) {
+      layouts = [
+        {
+          id: "",
+          stack: "horizontal",
+          sort_order: 0,
+          sections,
+        },
+      ];
+    }
     if (meta) {
       const n = sections.reduce((a, s) => a + (s.widgets?.length || 0), 0);
       meta.textContent = state.dashboardEdit
-        ? `Editing · ${sections.length} sections · ${n} widgets · stacks, sizes & colors`
-        : `${sections.length} sections · ${n} widgets · stored in SQLite`;
+        ? `Editing · ${layouts.length} layouts · ${sections.length} sections · ${n} widgets`
+        : `${layouts.length} layouts · ${sections.length} sections · ${n} widgets · stored in SQLite`;
     }
     root.innerHTML = "";
-    if (!sections.length) {
+    if (!layouts.length && !sections.length) {
       if (empty) empty.hidden = false;
       return;
     }
     if (empty) empty.hidden = true;
-    for (const sec of sections) {
-      root.appendChild(buildDashboardSection(sec));
+    for (const ly of layouts) {
+      root.appendChild(buildDashboardLayout(ly));
     }
     applyDashboardEntities();
+  }
+
+  function buildDashboardLayout(ly) {
+    const wrap = document.createElement("div");
+    const stack = ly.stack || "horizontal";
+    wrap.className = `dashboard-layout stack-${stack}`;
+    wrap.dataset.layoutId = ly.id || "";
+    wrap.dataset.stack = stack;
+
+    if (state.dashboardEdit) {
+      const head = document.createElement("header");
+      head.className = "dashboard-layout-head";
+      const label = document.createElement("span");
+      label.className = "dashboard-layout-label";
+      label.textContent = "Layout";
+      head.appendChild(label);
+      head.appendChild(
+        buildStackSelect(stack, (v) => {
+          if (!ly.id) return;
+          api(`/api/dashboard/layouts/${ly.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ stack: v }),
+          })
+            .then((d) => {
+              state.dashboard = d;
+              renderDashboard();
+            })
+            .catch((e) => dashboardBanner(e.message, "err"));
+        })
+      );
+      const addSec = document.createElement("button");
+      addSec.type = "button";
+      addSec.className = "btn-ghost";
+      addSec.textContent = "Add section";
+      addSec.addEventListener("click", () => {
+        const title = window.prompt("Section title", "New section");
+        if (title == null) return;
+        api("/api/dashboard/sections", {
+          method: "POST",
+          body: JSON.stringify({
+            title: title.trim() || "New section",
+            layout_id: ly.id || null,
+          }),
+        })
+          .then((d) => {
+            state.dashboard = d;
+            renderDashboard();
+          })
+          .catch((e) => dashboardBanner(e.message, "err"));
+      });
+      head.appendChild(addSec);
+      if (ly.id) {
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn-ghost";
+        del.textContent = "Delete layout";
+        del.addEventListener("click", () => {
+          if (
+            !window.confirm(
+              "Delete this layout and all sections inside it?"
+            )
+          )
+            return;
+          api(`/api/dashboard/layouts/${ly.id}`, { method: "DELETE" })
+            .then((d) => {
+              state.dashboard = d;
+              renderDashboard();
+            })
+            .catch((e) => dashboardBanner(e.message, "err"));
+        });
+        head.appendChild(del);
+      }
+      wrap.appendChild(head);
+    }
+
+    const body = document.createElement("div");
+    body.className = `dashboard-layout-body stack-${stack}`;
+    const secs = ly.sections || [];
+    if (!secs.length) {
+      const empty = document.createElement("div");
+      empty.className = "dashboard-layout-empty";
+      empty.textContent = state.dashboardEdit
+        ? "Empty layout — press Add section"
+        : "Empty layout";
+      if (state.dashboardEdit) {
+        empty.addEventListener("click", () => {
+          const title = window.prompt("Section title", "New section");
+          if (title == null) return;
+          api("/api/dashboard/sections", {
+            method: "POST",
+            body: JSON.stringify({
+              title: title.trim() || "New section",
+              layout_id: ly.id || null,
+            }),
+          })
+            .then((d) => {
+              state.dashboard = d;
+              renderDashboard();
+            })
+            .catch((e) => dashboardBanner(e.message, "err"));
+        });
+      }
+      body.appendChild(empty);
+    } else {
+      for (const sec of secs) {
+        body.appendChild(buildDashboardSection(sec));
+      }
+    }
+    wrap.appendChild(body);
+    return wrap;
   }
 
   function buildSizeSelect(options, value, onChange) {
@@ -4727,9 +4865,11 @@
         wrap.classList.remove("drag-over");
         const drag = state.dashboardDrag;
         if (!drag || drag.type !== "section" || drag.id === sec.id) return;
-        const root = $("dashboard-sections");
-        const from = root.querySelector(`[data-section-id="${drag.id}"]`);
-        if (from) root.insertBefore(from, wrap);
+        const parent = wrap.parentElement;
+        const from = document.querySelector(
+          `.dashboard-section[data-section-id="${drag.id}"]`
+        );
+        if (from && parent) parent.insertBefore(from, wrap);
         persistDashboardFromDom().catch((e) => dashboardBanner(e.message, "err"));
       });
     }
@@ -4887,10 +5027,21 @@
   }
 
   /**
-   * Slider popup for stepper/ranged controls on Dashboard.
-   * Shows a range input + live value, then sends the value on "Apply".
+   * Slider popup for stepper/slider controls on Dashboard.
+   * Shows a range input + live value (dB when zero_db is set), Apply to send.
    */
-  function openSliderPopup(control, widgetId) {
+  function formatDashSliderLabel(control, raw) {
+    const n = Number(raw);
+    if (Number.isNaN(n)) return String(raw ?? "");
+    if (control?.zero_db != null && !Number.isNaN(Number(control.zero_db))) {
+      const db = n - Number(control.zero_db);
+      const sign = db > 0 ? "+" : "";
+      return `${sign}${db} dB`;
+    }
+    return String(n);
+  }
+
+  function openSliderPopup(control, _widgetId) {
     const dlg = $("dashboard-slider-popup");
     const title = $("dashboard-slider-title");
     const body = $("dashboard-slider-body");
@@ -4899,10 +5050,12 @@
     const ent = controlEntity(control.id);
     const lo = control.min != null ? Number(control.min) : 0;
     const hi = control.max != null ? Number(control.max) : 100;
-    const step = Number(control.step || 1);
-    let val = ent?.value != null && !Number.isNaN(Number(ent.value))
-      ? Number(ent.value)
-      : Math.round((lo + hi) / 2);
+    const step = Number(control.step || 1) || 1;
+    let val =
+      ent?.value != null && !Number.isNaN(Number(ent.value))
+        ? Number(ent.value)
+        : Math.round((lo + hi) / 2);
+    val = Math.max(lo, Math.min(hi, val));
 
     body.innerHTML = "";
     const range = document.createElement("input");
@@ -4911,23 +5064,17 @@
     range.max = String(hi);
     range.step = String(step);
     range.value = String(val);
-    range.style.width = "100%";
+    range.className = "dashboard-slider-range";
     const valEl = document.createElement("span");
-    valEl.style.display = "block";
-    valEl.style.textAlign = "center";
-    valEl.style.margin = "0.5rem 0";
-    valEl.style.fontSize = "1.25rem";
-    valEl.style.fontWeight = "600";
-    valEl.textContent = String(val);
+    valEl.className = "dashboard-slider-value";
+    valEl.textContent = formatDashSliderLabel(control, val);
     range.addEventListener("input", () => {
-      valEl.textContent = String(range.value);
+      valEl.textContent = formatDashSliderLabel(control, range.value);
     });
     const applyBtn = document.createElement("button");
     applyBtn.type = "button";
     applyBtn.className = "btn-primary";
     applyBtn.textContent = "Apply";
-    applyBtn.style.display = "block";
-    applyBtn.style.margin = "0.5rem auto 0";
     applyBtn.addEventListener("click", () => {
       runControlCommand({
         id: control.id,
@@ -5148,10 +5295,15 @@
             confirmMessage: control.confirm_message,
           });
         });
-      } else if (kind === "stepper") {
-        if ((control.min != null && control.max != null) || control.options) {
+      } else if (kind === "stepper" || kind === "slider") {
+        const canSlide =
+          control.min != null &&
+          control.max != null &&
+          !Number.isNaN(Number(control.min)) &&
+          !Number.isNaN(Number(control.max));
+        if (canSlide) {
           card.title = `Adjust ${control.label}`;
-          card.classList.add("has-popup");
+          card.classList.add("has-popup", "has-slider");
           card.addEventListener("click", () => {
             bounceDashCard(shell);
             openSliderPopup(control, w.id);
@@ -5483,9 +5635,31 @@
     $("dashboard-add-section")?.addEventListener("click", () => {
       const title = window.prompt("Section title", "New section");
       if (title == null) return;
+      const layoutId =
+        state.dashboard?.layouts?.[0]?.id ||
+        null;
       api("/api/dashboard/sections", {
         method: "POST",
-        body: JSON.stringify({ title: title.trim() || "New section" }),
+        body: JSON.stringify({
+          title: title.trim() || "New section",
+          layout_id: layoutId,
+        }),
+      })
+        .then((d) => {
+          state.dashboard = d;
+          renderDashboard();
+        })
+        .catch((e) => dashboardBanner(e.message, "err"));
+    });
+    $("dashboard-add-layout")?.addEventListener("click", () => {
+      const stack =
+        window.prompt("Layout stack: horizontal or vertical", "horizontal") ||
+        "horizontal";
+      api("/api/dashboard/layouts", {
+        method: "POST",
+        body: JSON.stringify({
+          stack: /vert/i.test(stack) ? "vertical" : "horizontal",
+        }),
       })
         .then((d) => {
           state.dashboard = d;

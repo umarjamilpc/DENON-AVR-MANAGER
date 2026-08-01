@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>DENON AVR MANAGER</title>
-  <link rel="stylesheet" href="/assets/fonts.css?v=65" />
-  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=65" />
-  <link rel="stylesheet" href="/assets/styles.css?v=65" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=70" />
+  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=70" />
+  <link rel="stylesheet" href="/assets/styles.css?v=70" />
 </head>
 <body>
   <div class="shell">
@@ -95,6 +95,7 @@
           </div>
           <div class="editor-actions">
             <button type="button" id="dashboard-customize" class="btn-ghost">Customize</button>
+            <button type="button" id="dashboard-add-layout" class="btn-ghost" hidden>Add layout</button>
             <button type="button" id="dashboard-add-section" class="btn-ghost" hidden>Add section</button>
             <button type="button" id="dashboard-refresh" class="btn-ghost">Refresh</button>
           </div>
@@ -102,7 +103,7 @@
         <p id="dashboard-banner" class="banner" hidden></p>
         <div id="dashboard-sections" class="dashboard-sections"></div>
         <div id="dashboard-empty" class="empty-state" hidden>
-          <p>No sections yet. Press Customize → Add section, then add widgets.</p>
+          <p>No layouts yet. Press Customize → Add layout, then Add section.</p>
         </div>
       </section>
 
@@ -438,6 +439,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=65"></script>
+  <script src="/assets/app.js?v=70"></script>
 </body>
 </html>

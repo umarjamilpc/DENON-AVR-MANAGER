@@ -167,11 +167,20 @@ def _enrich_dashboard(data: Dict[str, Any], request_base: str) -> Dict[str, Any]
                 }
             )
         sections_out.append({**sec, "widgets": widgets_out})
+    by_id = {str(s["id"]): s for s in sections_out}
+    layouts_out = []
+    for ly in data.get("layouts") or []:
+        secs = []
+        for sec in ly.get("sections") or []:
+            sid = str(sec.get("id") or "")
+            secs.append(by_id.get(sid) or {**sec, "widgets": sec.get("widgets") or []})
+        layouts_out.append({**ly, "sections": secs})
     return {
         "ok": True,
         "host": host_label(request_base),
         "model": _model(),
         "settings_layout": normalize_layout(settings.get("control_grouping")),
+        "layouts": layouts_out,
         "sections": sections_out,
         "db_path": str(db.db_path()),
     }
@@ -183,10 +192,20 @@ def _base(request: Request) -> str:
 
 class DashboardBody(BaseModel):
     sections: List[Dict[str, Any]] = Field(default_factory=list)
+    layouts: Optional[List[Dict[str, Any]]] = None
 
 
 class SectionBody(BaseModel):
     title: str = "New section"
+    layout_id: Optional[str] = None
+
+
+class LayoutBody(BaseModel):
+    stack: str = "horizontal"
+
+
+class LayoutPatchBody(BaseModel):
+    stack: Optional[str] = None
 
 
 class SectionPatchBody(BaseModel):
@@ -195,6 +214,7 @@ class SectionPatchBody(BaseModel):
     shape: Optional[str] = None  # legacy alias → stack
     size: Optional[str] = None
     collapsed: Optional[bool] = None
+    layout_id: Optional[str] = None
 
 
 class WidgetBody(BaseModel):
@@ -233,15 +253,37 @@ def get_dashboard(request: Request) -> Dict[str, Any]:
 @router.put("/dashboard")
 def put_dashboard(request: Request, body: DashboardBody) -> Dict[str, Any]:
     try:
-        data = db.replace_dashboard({"sections": body.sections})
+        data = db.replace_dashboard(
+            {"sections": body.sections, "layouts": body.layouts}
+        )
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return _enrich_dashboard(data, _base(request))
 
 
+@router.post("/dashboard/layouts")
+def create_layout(request: Request, body: LayoutBody) -> Dict[str, Any]:
+    data = db.add_layout(body.stack)
+    return _enrich_dashboard(data, _base(request))
+
+
+@router.patch("/dashboard/layouts/{layout_id}")
+def patch_layout(
+    request: Request, layout_id: str, body: LayoutPatchBody
+) -> Dict[str, Any]:
+    data = db.update_layout(layout_id, {"stack": body.stack})
+    return _enrich_dashboard(data, _base(request))
+
+
+@router.delete("/dashboard/layouts/{layout_id}")
+def remove_layout(request: Request, layout_id: str) -> Dict[str, Any]:
+    data = db.delete_layout(layout_id)
+    return _enrich_dashboard(data, _base(request))
+
+
 @router.post("/dashboard/sections")
 def create_section(request: Request, body: SectionBody) -> Dict[str, Any]:
-    data = db.add_section(body.title)
+    data = db.add_section(body.title, layout_id=body.layout_id)
     return _enrich_dashboard(data, _base(request))
 
 
@@ -257,6 +299,7 @@ def patch_section(
             "shape": body.shape,
             "size": body.size,
             "collapsed": body.collapsed,
+            "layout_id": body.layout_id,
         },
     )
     return _enrich_dashboard(data, _base(request))
