@@ -87,6 +87,94 @@ def _add_column_if_missing(
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
 
 
+def _migrate_layouts(conn: sqlite3.Connection) -> None:
+    """Ensure every section belongs to a layout; create empty-ready layout rows."""
+    n_layouts = conn.execute(
+        "SELECT COUNT(*) AS n FROM dashboard_layouts"
+    ).fetchone()
+    if n_layouts and int(n_layouts["n"]) > 0:
+        # Attach any orphan sections to a new horizontal layout
+        orphans = conn.execute(
+            """
+            SELECT id, size, sort_order FROM dashboard_sections
+            WHERE layout_id IS NULL OR layout_id = ''
+            ORDER BY sort_order ASC, title ASC
+            """
+        ).fetchall()
+        if orphans:
+            _assign_sections_to_layouts(conn, orphans)
+        return
+
+    sections = conn.execute(
+        """
+        SELECT id, size, sort_order FROM dashboard_sections
+        ORDER BY sort_order ASC, title ASC
+        """
+    ).fetchall()
+    if not sections:
+        now = time.time()
+        lid = str(uuid.uuid4())
+        conn.execute(
+            """
+            INSERT INTO dashboard_layouts(id, stack, sort_order, created_at, updated_at)
+            VALUES (?, 'horizontal', 0, ?, ?)
+            """,
+            (lid, now, now),
+        )
+        return
+    _assign_sections_to_layouts(conn, sections)
+
+
+def _assign_sections_to_layouts(
+    conn: sqlite3.Connection, sections: List[sqlite3.Row]
+) -> None:
+    """Group consecutive non-full sections into horizontal layouts; full = own row."""
+    now = time.time()
+    row = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), -1) AS m FROM dashboard_layouts"
+    ).fetchone()
+    layout_order = int(row["m"]) + 1 if row else 0
+    i = 0
+    while i < len(sections):
+        size = _norm_section_size(sections[i]["size"] if "size" in sections[i].keys() else "full")
+        if size == "full":
+            lid = str(uuid.uuid4())
+            conn.execute(
+                """
+                INSERT INTO dashboard_layouts(id, stack, sort_order, created_at, updated_at)
+                VALUES (?, 'vertical', ?, ?, ?)
+                """,
+                (lid, layout_order, now, now),
+            )
+            conn.execute(
+                "UPDATE dashboard_sections SET layout_id = ? WHERE id = ?",
+                (lid, sections[i]["id"]),
+            )
+            layout_order += 1
+            i += 1
+            continue
+        lid = str(uuid.uuid4())
+        conn.execute(
+            """
+            INSERT INTO dashboard_layouts(id, stack, sort_order, created_at, updated_at)
+            VALUES (?, 'horizontal', ?, ?, ?)
+            """,
+            (lid, layout_order, now, now),
+        )
+        while i < len(sections):
+            sz = _norm_section_size(
+                sections[i]["size"] if "size" in sections[i].keys() else "full"
+            )
+            if sz == "full":
+                break
+            conn.execute(
+                "UPDATE dashboard_sections SET layout_id = ? WHERE id = ?",
+                (lid, sections[i]["id"]),
+            )
+            i += 1
+        layout_order += 1
+
+
 def _migrate_schema(conn: sqlite3.Connection) -> None:
     """Additive migrations for dashboard layout / icons columns."""
     _add_column_if_missing(
@@ -150,6 +238,21 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dashboard_layouts (
+          id TEXT PRIMARY KEY,
+          stack TEXT NOT NULL DEFAULT 'horizontal',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at REAL NOT NULL,
+          updated_at REAL NOT NULL
+        )
+        """
+    )
+    _add_column_if_missing(
+        conn, "dashboard_sections", "layout_id", "layout_id TEXT"
+    )
+    _migrate_layouts(conn)
 
 
 def init_db() -> None:
@@ -338,10 +441,18 @@ def _section_stack_from_row(s: sqlite3.Row) -> str:
 def load_dashboard() -> Dict[str, Any]:
     init_db()
     with _lock, connect() as conn:
+        _migrate_schema(conn)
+        layouts = conn.execute(
+            """
+            SELECT id, stack, sort_order, created_at, updated_at
+            FROM dashboard_layouts
+            ORDER BY sort_order ASC
+            """
+        ).fetchall()
         sections = conn.execute(
             """
             SELECT id, title, sort_order, collapsed, shape, size, stack,
-                   created_at, updated_at
+                   layout_id, created_at, updated_at
             FROM dashboard_sections
             ORDER BY sort_order ASC, title ASC
             """
@@ -358,32 +469,100 @@ def load_dashboard() -> Dict[str, Any]:
     by_sec: Dict[str, List[Dict[str, Any]]] = {}
     for w in widgets:
         by_sec.setdefault(str(w["section_id"]), []).append(_widget_row(w))
-    return {
-        "sections": [
+    sections_out = [
+        {
+            "id": s["id"],
+            "title": s["title"],
+            "sort_order": int(s["sort_order"]),
+            "collapsed": bool(s["collapsed"]),
+            "stack": _section_stack_from_row(s),
+            "size": _norm_section_size(s["size"] if "size" in s.keys() else "full"),
+            "layout_id": str(s["layout_id"] or "") if "layout_id" in s.keys() else "",
+            "widgets": by_sec.get(str(s["id"]), []),
+        }
+        for s in sections
+    ]
+    by_layout: Dict[str, List[Dict[str, Any]]] = {}
+    for sec in sections_out:
+        lid = sec.get("layout_id") or ""
+        by_layout.setdefault(lid, []).append(sec)
+    layouts_out = [
+        {
+            "id": ly["id"],
+            "stack": _norm_section_stack(ly["stack"]),
+            "sort_order": int(ly["sort_order"]),
+            "sections": by_layout.get(str(ly["id"]), []),
+        }
+        for ly in layouts
+    ]
+    # Orphans (no layout) — wrap as synthetic horizontal layouts for API consumers
+    orphans = by_layout.get("", [])
+    if orphans:
+        layouts_out.append(
             {
-                "id": s["id"],
-                "title": s["title"],
-                "sort_order": int(s["sort_order"]),
-                "collapsed": bool(s["collapsed"]),
-                "stack": _section_stack_from_row(s),
-                "size": _norm_section_size(s["size"] if "size" in s.keys() else "full"),
-                "widgets": by_sec.get(str(s["id"]), []),
+                "id": "",
+                "stack": "horizontal",
+                "sort_order": len(layouts_out),
+                "sections": orphans,
             }
-            for s in sections
-        ]
-    }
+        )
+    return {"layouts": layouts_out, "sections": sections_out}
 
 
 def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Replace entire dashboard layout (used by drag-drop save)."""
     init_db()
+    layouts_in = payload.get("layouts")
     sections_in = payload.get("sections") or []
+    if layouts_in is not None and not isinstance(layouts_in, list):
+        raise ValueError("layouts must be a list")
     if not isinstance(sections_in, list):
         raise ValueError("sections must be a list")
+    flat_layouts: List[Dict[str, Any]] = []
+    if isinstance(layouts_in, list) and layouts_in:
+        sections_in = []
+        for li, ly in enumerate(layouts_in):
+            if not isinstance(ly, dict):
+                continue
+            lid = str(ly.get("id") or new_id())
+            flat_layouts.append(
+                {
+                    "id": lid,
+                    "stack": _norm_section_stack(ly.get("stack")),
+                    "sort_order": int(ly.get("sort_order", li)),
+                }
+            )
+            for si, sec in enumerate(ly.get("sections") or []):
+                if not isinstance(sec, dict):
+                    continue
+                sections_in.append({**sec, "layout_id": lid, "sort_order": si})
     now = time.time()
     with _lock, connect() as conn:
+        _migrate_schema(conn)
         conn.execute("DELETE FROM dashboard_widgets")
         conn.execute("DELETE FROM dashboard_sections")
+        conn.execute("DELETE FROM dashboard_layouts")
+        if flat_layouts:
+            for ly in flat_layouts:
+                conn.execute(
+                    """
+                    INSERT INTO dashboard_layouts(id, stack, sort_order, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (ly["id"], ly["stack"], ly["sort_order"], now, now),
+                )
+        else:
+            default_lid = new_id()
+            conn.execute(
+                """
+                INSERT INTO dashboard_layouts(id, stack, sort_order, created_at, updated_at)
+                VALUES (?, 'horizontal', 0, ?, ?)
+                """,
+                (default_lid, now, now),
+            )
+            for sec in sections_in:
+                if isinstance(sec, dict) and not sec.get("layout_id"):
+                    sec["layout_id"] = default_lid
         for si, sec in enumerate(sections_in):
             if not isinstance(sec, dict):
                 continue
@@ -392,12 +571,13 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
             collapsed = 1 if sec.get("collapsed") else 0
             stack = _norm_section_stack(sec.get("stack") or sec.get("shape"))
             size = _norm_section_size(sec.get("size"))
+            layout_id = str(sec.get("layout_id") or "") or None
             conn.execute(
                 """
                 INSERT INTO dashboard_sections(
                   id, title, sort_order, collapsed, shape, size, stack,
-                  created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  layout_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     sid,
@@ -407,6 +587,7 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "rectangle",
                     size,
                     stack,
+                    layout_id,
                     now,
                     now,
                 ),
@@ -451,23 +632,113 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
     return load_dashboard()
 
 
-def add_section(title: str = "New section") -> Dict[str, Any]:
+def add_layout(stack: str = "horizontal") -> Dict[str, Any]:
+    init_db()
+    now = time.time()
+    lid = new_id()
+    with _lock, connect() as conn:
+        _migrate_schema(conn)
+        row = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) AS m FROM dashboard_layouts"
+        ).fetchone()
+        order = int(row["m"]) + 1 if row else 0
+        conn.execute(
+            """
+            INSERT INTO dashboard_layouts(id, stack, sort_order, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (lid, _norm_section_stack(stack), order, now, now),
+        )
+    return load_dashboard()
+
+
+def update_layout(layout_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    init_db()
+    now = time.time()
+    sets: List[str] = []
+    vals: List[Any] = []
+    if "stack" in fields and fields["stack"] is not None:
+        sets.append("stack = ?")
+        vals.append(_norm_section_stack(fields["stack"]))
+    if not sets:
+        return load_dashboard()
+    sets.append("updated_at = ?")
+    vals.append(now)
+    vals.append(layout_id)
+    with _lock, connect() as conn:
+        conn.execute(
+            f"UPDATE dashboard_layouts SET {', '.join(sets)} WHERE id = ?",
+            vals,
+        )
+    return load_dashboard()
+
+
+def delete_layout(layout_id: str) -> Dict[str, Any]:
+    init_db()
+    with _lock, connect() as conn:
+        secs = conn.execute(
+            "SELECT id FROM dashboard_sections WHERE layout_id = ?",
+            (layout_id,),
+        ).fetchall()
+        for s in secs:
+            conn.execute(
+                "DELETE FROM dashboard_widgets WHERE section_id = ?", (s["id"],)
+            )
+            conn.execute("DELETE FROM dashboard_sections WHERE id = ?", (s["id"],))
+        conn.execute("DELETE FROM dashboard_layouts WHERE id = ?", (layout_id,))
+    return load_dashboard()
+
+
+def add_section(
+    title: str = "New section", layout_id: Optional[str] = None
+) -> Dict[str, Any]:
     init_db()
     now = time.time()
     sid = new_id()
     with _lock, connect() as conn:
+        _migrate_schema(conn)
+        lid = layout_id
+        if not lid:
+            row = conn.execute(
+                """
+                SELECT id FROM dashboard_layouts
+                ORDER BY sort_order ASC LIMIT 1
+                """
+            ).fetchone()
+            if row:
+                lid = str(row["id"])
+            else:
+                lid = new_id()
+                conn.execute(
+                    """
+                    INSERT INTO dashboard_layouts(id, stack, sort_order, created_at, updated_at)
+                    VALUES (?, 'horizontal', 0, ?, ?)
+                    """,
+                    (lid, now, now),
+                )
         row = conn.execute(
-            "SELECT COALESCE(MAX(sort_order), -1) AS m FROM dashboard_sections"
+            """
+            SELECT COALESCE(MAX(sort_order), -1) AS m
+            FROM dashboard_sections WHERE layout_id = ?
+            """,
+            (lid,),
         ).fetchone()
         order = int(row["m"]) + 1 if row else 0
         conn.execute(
             """
             INSERT INTO dashboard_sections(
               id, title, sort_order, collapsed, shape, size, stack,
-              created_at, updated_at
-            ) VALUES (?, ?, ?, 0, 'rectangle', 'full', 'horizontal', ?, ?)
+              layout_id, created_at, updated_at
+            ) VALUES (?, ?, ?, 0, 'rectangle', 'half', 'horizontal', ?, ?, ?)
             """,
-            (sid, (title or "New section").strip() or "New section", order, now, now),
+            (
+                sid,
+                (title or "New section").strip() or "New section",
+                order,
+                lid,
+                now,
+                now,
+            ),
         )
     return load_dashboard()
 
@@ -503,6 +774,9 @@ def update_section(section_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     if "collapsed" in fields and fields["collapsed"] is not None:
         sets.append("collapsed = ?")
         vals.append(1 if fields["collapsed"] else 0)
+    if "layout_id" in fields and fields["layout_id"] is not None:
+        sets.append("layout_id = ?")
+        vals.append(str(fields["layout_id"]) or None)
     if not sets:
         return load_dashboard()
     sets.append("updated_at = ?")
