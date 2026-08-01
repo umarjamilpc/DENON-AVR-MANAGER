@@ -4886,6 +4886,65 @@
     else dlg.setAttribute("open", "open");
   }
 
+  /**
+   * Slider popup for stepper/ranged controls on Dashboard.
+   * Shows a range input + live value, then sends the value on "Apply".
+   */
+  function openSliderPopup(control, widgetId) {
+    const dlg = $("dashboard-slider-popup");
+    const title = $("dashboard-slider-title");
+    const body = $("dashboard-slider-body");
+    if (!dlg || !body || !control) return;
+    if (title) title.textContent = control.label || "Adjust";
+    const ent = controlEntity(control.id);
+    const lo = control.min != null ? Number(control.min) : 0;
+    const hi = control.max != null ? Number(control.max) : 100;
+    const step = Number(control.step || 1);
+    let val = ent?.value != null && !Number.isNaN(Number(ent.value))
+      ? Number(ent.value)
+      : Math.round((lo + hi) / 2);
+
+    body.innerHTML = "";
+    const range = document.createElement("input");
+    range.type = "range";
+    range.min = String(lo);
+    range.max = String(hi);
+    range.step = String(step);
+    range.value = String(val);
+    range.style.width = "100%";
+    const valEl = document.createElement("span");
+    valEl.style.display = "block";
+    valEl.style.textAlign = "center";
+    valEl.style.margin = "0.5rem 0";
+    valEl.style.fontSize = "1.25rem";
+    valEl.style.fontWeight = "600";
+    valEl.textContent = String(val);
+    range.addEventListener("input", () => {
+      valEl.textContent = String(range.value);
+    });
+    const applyBtn = document.createElement("button");
+    applyBtn.type = "button";
+    applyBtn.className = "btn-primary";
+    applyBtn.textContent = "Apply";
+    applyBtn.style.display = "block";
+    applyBtn.style.margin = "0.5rem auto 0";
+    applyBtn.addEventListener("click", () => {
+      runControlCommand({
+        id: control.id,
+        value: Number(range.value),
+        confirm: Boolean(control.confirm),
+        confirmMessage: control.confirm_message,
+      });
+      if (typeof dlg.close === "function") dlg.close();
+      else dlg.removeAttribute("open");
+    });
+    body.appendChild(range);
+    body.appendChild(valEl);
+    body.appendChild(applyBtn);
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "open");
+  }
+
   function buildDashboardWidget(w) {
     const control = w.control;
     const shell = document.createElement("article");
@@ -5090,6 +5149,16 @@
           });
         });
       } else if (kind === "stepper") {
+        if ((control.min != null && control.max != null) || control.options) {
+          card.title = `Adjust ${control.label}`;
+          card.classList.add("has-popup");
+          card.addEventListener("click", () => {
+            bounceDashCard(shell);
+            openSliderPopup(control, w.id);
+          });
+        } else {
+          card.title = `Step ${control.label}`;
+        }
         // Compact − value + row under the card face
         const steppers = document.createElement("div");
         steppers.className = "dash-stepper-row";
