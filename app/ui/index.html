@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>DENON AVR MANAGER</title>
-  <link rel="stylesheet" href="/assets/fonts.css?v=73" />
-  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=73" />
-  <link rel="stylesheet" href="/assets/styles.css?v=73" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=74" />
+  <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=74" />
+  <link rel="stylesheet" href="/assets/styles.css?v=74" />
 </head>
 <body>
   <div class="shell">
@@ -95,6 +95,7 @@
           </div>
           <div class="editor-actions">
             <button type="button" id="dashboard-customize" class="btn-ghost">Customize</button>
+            <button type="button" id="dashboard-raw-yaml" class="btn-ghost">Raw YAML</button>
             <button type="button" id="dashboard-add-layout" class="btn-ghost" hidden>Add layout</button>
             <button type="button" id="dashboard-add-section" class="btn-ghost" hidden>Add section</button>
             <button type="button" id="dashboard-refresh" class="btn-ghost">Refresh</button>
@@ -106,6 +107,25 @@
           <p>No layouts yet. Press Customize → Add layout, then Add section.</p>
         </div>
       </section>
+
+      <dialog id="dashboard-yaml-editor" class="dashboard-picker dashboard-yaml-editor">
+        <form method="dialog" class="dashboard-picker-form" id="dashboard-yaml-form">
+          <header class="dashboard-picker-head">
+            <h3>Dashboard YAML</h3>
+            <button type="submit" value="cancel" class="btn-ghost">Close</button>
+          </header>
+          <p class="meta dashboard-yaml-hint">
+            Full layout editor. Supports <code>card_mod.style</code> CSS (like
+            <a href="https://github.com/thomasloven/lovelace-card-mod" target="_blank" rel="noopener">lovelace-card-mod</a>).
+            Use <code>ha-card</code> or <code>.dash-card</code> selectors.
+          </p>
+          <textarea id="dashboard-yaml-text" class="dashboard-yaml-text" spellcheck="false"></textarea>
+          <footer class="dashboard-picker-foot">
+            <button type="button" id="dashboard-yaml-reload" class="btn-ghost">Reload</button>
+            <button type="button" id="dashboard-yaml-save" class="btn-primary">Save YAML</button>
+          </footer>
+        </form>
+      </dialog>
 
       <dialog id="dashboard-enum-popup" class="dashboard-picker dashboard-enum-popup">
         <form method="dialog" class="dashboard-picker-form">
@@ -452,6 +472,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=73"></script>
+  <script src="/assets/app.js?v=74"></script>
 </body>
 </html>

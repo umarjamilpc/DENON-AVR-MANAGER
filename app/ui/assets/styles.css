@@ -2230,9 +2230,87 @@ body.eq-progress-open {
   min-height: 2.1rem;
   padding: 0.35rem 0.45rem;
   border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
-  background: color-mix(in srgb, var(--bg) 55%, transparent);
-  color: inherit;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  color-scheme: light;
+}
+.dash-inline-select option {
+  background: var(--bg);
+  color: var(--ink);
+}
+html[data-theme="dark"] .dash-inline-select,
+html[data-theme="dark"] .dashboard-settings-row select,
+html[data-theme="dark"] .dash-style-select {
+  color-scheme: dark;
+  background: #1e293b;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+html[data-theme="dark"] .dash-inline-select option,
+html[data-theme="dark"] .dashboard-settings-row select option,
+html[data-theme="dark"] .dash-style-select option {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] .dash-inline-select,
+  html[data-theme="system"] .dashboard-settings-row select,
+  html[data-theme="system"] .dash-style-select {
+    color-scheme: dark;
+    background: #1e293b;
+    color: #f1f5f9;
+    border-color: #475569;
+  }
+  html[data-theme="system"] .dash-inline-select option,
+  html[data-theme="system"] .dashboard-settings-row select option,
+  html[data-theme="system"] .dash-style-select option {
+    background: #1e293b;
+    color: #f1f5f9;
+  }
+}
+.dashboard-yaml-editor {
+  width: min(52rem, 96vw);
+  max-width: 96vw;
+}
+.dashboard-yaml-hint {
+  margin: 0 1rem 0.5rem;
+}
+.dashboard-yaml-hint a {
+  color: var(--accent);
+}
+.dashboard-yaml-text {
+  display: block;
+  width: calc(100% - 2rem);
+  margin: 0 1rem 0.75rem;
+  min-height: min(55vh, 28rem);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  resize: vertical;
+  tab-size: 2;
+}
+html[data-theme="dark"] .dashboard-yaml-text {
+  color-scheme: dark;
+}
+.dashboard-settings-row textarea {
+  font: inherit;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.82rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.55rem;
+  min-height: 6rem;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
 }
 .dashboard-settings-body {
   padding: 0.75rem 1rem 0.35rem;

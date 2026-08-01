@@ -282,6 +282,18 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         "control_ui",
         "control_ui TEXT NOT NULL DEFAULT 'auto'",
     )
+    _add_column_if_missing(
+        conn,
+        "dashboard_widgets",
+        "card_mod",
+        "card_mod TEXT NOT NULL DEFAULT ''",
+    )
+    _add_column_if_missing(
+        conn,
+        "dashboard_sections",
+        "card_mod",
+        "card_mod TEXT NOT NULL DEFAULT ''",
+    )
     _migrate_px_sizes(conn)
     _migrate_layouts(conn)
 
@@ -443,6 +455,57 @@ def _norm_control_ui(value: Any, default: str = "auto") -> str:
     return v if v in _CONTROL_UI else default
 
 
+def _norm_card_mod(value: Any) -> str:
+    """Store card_mod as JSON text: {"style": "..."}. Empty string if none."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return ""
+        if s.startswith("{"):
+            try:
+                obj = json.loads(s)
+                if isinstance(obj, dict):
+                    style = obj.get("style") or ""
+                    if isinstance(style, dict):
+                        style = "\n".join(
+                            f"{k} {{\n{v}\n}}" for k, v in style.items()
+                        )
+                    style_s = str(style).strip()
+                    return (
+                        json.dumps({"style": style_s}, ensure_ascii=False)
+                        if style_s
+                        else ""
+                    )
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pass
+        return json.dumps({"style": s}, ensure_ascii=False)
+    if isinstance(value, dict):
+        style = value.get("style") or ""
+        if isinstance(style, dict):
+            style = "\n".join(f"{k} {{\n{v}\n}}" for k, v in style.items())
+        style_s = str(style).strip()
+        return (
+            json.dumps({"style": style_s}, ensure_ascii=False) if style_s else ""
+        )
+    return ""
+
+
+def _card_mod_obj(raw: Any) -> Optional[Dict[str, str]]:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            style = str(obj.get("style") or "").strip()
+            return {"style": style} if style else None
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+    return {"style": text}
+
+
 def _migrate_px_sizes(conn: sqlite3.Connection) -> None:
     """One-time: map legacy size tokens into width_px/height_px when still 0."""
     try:
@@ -522,6 +585,7 @@ def _widget_row(w: sqlite3.Row) -> Dict[str, Any]:
         "icon_off": str(w["icon_off"] if "icon_off" in keys else ""),
         "color_on": _norm_color(w["color_on"] if "color_on" in keys else ""),
         "color_off": _norm_color(w["color_off"] if "color_off" in keys else ""),
+        "card_mod": _card_mod_obj(w["card_mod"] if "card_mod" in keys else ""),
     }
 
 
@@ -546,7 +610,7 @@ def load_dashboard() -> Dict[str, Any]:
         sections = conn.execute(
             """
             SELECT id, title, sort_order, collapsed, shape, size, stack,
-                   layout_id, width_px, height_px, created_at, updated_at
+                   layout_id, width_px, height_px, card_mod, created_at, updated_at
             FROM dashboard_sections
             ORDER BY sort_order ASC, title ASC
             """
@@ -555,7 +619,7 @@ def load_dashboard() -> Dict[str, Any]:
             """
             SELECT id, section_id, control_id, control_layout, sort_order,
                    shape, size, icon_on, icon_off, color_on, color_off,
-                   width_px, height_px, control_ui,
+                   width_px, height_px, control_ui, card_mod,
                    created_at, updated_at
             FROM dashboard_widgets
             ORDER BY sort_order ASC
@@ -583,6 +647,9 @@ def load_dashboard() -> Dict[str, Any]:
                 "width_px": width_px,
                 "height_px": height_px,
                 "layout_id": str(s["layout_id"] or "") if "layout_id" in keys else "",
+                "card_mod": _card_mod_obj(
+                    s["card_mod"] if "card_mod" in keys else ""
+                ),
                 "widgets": by_sec.get(str(s["id"]), []),
             }
         )
@@ -680,12 +747,13 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
             height_px = _norm_px(sec.get("height_px"))
             if width_px <= 0 and height_px <= 0:
                 width_px, height_px = _SECTION_SIZE_TO_PX.get(size, (0, 0))
+            sec_card_mod = _norm_card_mod(sec.get("card_mod"))
             conn.execute(
                 """
                 INSERT INTO dashboard_sections(
                   id, title, sort_order, collapsed, shape, size, stack,
-                  layout_id, width_px, height_px, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  layout_id, width_px, height_px, card_mod, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     sid,
@@ -698,6 +766,7 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                     layout_id,
                     width_px,
                     height_px,
+                    sec_card_mod,
                     now,
                     now,
                 ),
@@ -725,9 +794,9 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                     INSERT INTO dashboard_widgets(
                       id, section_id, control_id, control_layout, sort_order,
                       shape, size, icon_on, icon_off, color_on, color_off,
-                      width_px, height_px, control_ui,
+                      width_px, height_px, control_ui, card_mod,
                       created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         wid,
@@ -744,6 +813,7 @@ def replace_dashboard(payload: Dict[str, Any]) -> Dict[str, Any]:
                         ww,
                         wh,
                         _norm_control_ui(w.get("control_ui")),
+                        _norm_card_mod(w.get("card_mod")),
                         now,
                         now,
                     ),
@@ -902,6 +972,9 @@ def update_section(section_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     if "height_px" in fields and fields["height_px"] is not None:
         sets.append("height_px = ?")
         vals.append(_norm_px(fields["height_px"]))
+    if "card_mod" in fields:
+        sets.append("card_mod = ?")
+        vals.append(_norm_card_mod(fields["card_mod"]))
     if not sets:
         return load_dashboard()
     sets.append("updated_at = ?")
@@ -933,6 +1006,7 @@ def add_widget(
     width_px: int = 0,
     height_px: int = 0,
     control_ui: str = "auto",
+    card_mod: Any = None,
 ) -> Dict[str, Any]:
     init_db()
     now = time.time()
@@ -965,9 +1039,9 @@ def add_widget(
             INSERT INTO dashboard_widgets(
               id, section_id, control_id, control_layout, sort_order,
               shape, size, icon_on, icon_off, color_on, color_off,
-              width_px, height_px, control_ui,
+              width_px, height_px, control_ui, card_mod,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 new_id(),
@@ -984,6 +1058,7 @@ def add_widget(
                 ww,
                 wh,
                 _norm_control_ui(control_ui),
+                _norm_card_mod(card_mod),
                 now,
                 now,
             ),
@@ -1028,6 +1103,9 @@ def update_widget(widget_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     if "control_ui" in fields and fields["control_ui"] is not None:
         sets.append("control_ui = ?")
         vals.append(_norm_control_ui(fields["control_ui"]))
+    if "card_mod" in fields:
+        sets.append("card_mod = ?")
+        vals.append(_norm_card_mod(fields["card_mod"]))
     if not sets:
         return load_dashboard()
     sets.append("updated_at = ?")
