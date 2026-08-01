@@ -4586,6 +4586,9 @@
             icon_off: wEl.dataset.iconOff || "",
             color_on: wEl.dataset.colorOn || "",
             color_off: wEl.dataset.colorOff || "",
+            card_mod: wEl.dataset.cardMod
+              ? { style: wEl.dataset.cardMod }
+              : null,
           });
         }
         sections.push({
@@ -4598,6 +4601,9 @@
           width_px: Number(secEl.dataset.widthPx || 0) || 0,
           height_px: Number(secEl.dataset.heightPx || 0) || 0,
           layout_id: lid,
+          card_mod: secEl.dataset.cardMod
+            ? { style: secEl.dataset.cardMod }
+            : null,
           widgets,
         });
       }
@@ -4952,6 +4958,9 @@
     wrap.dataset.size = "custom";
     wrap.dataset.widthPx = String(widthPx);
     wrap.dataset.heightPx = String(heightPx);
+    const secMod = cardModStyleText(sec.card_mod);
+    if (secMod) wrap.dataset.cardMod = secMod;
+    else delete wrap.dataset.cardMod;
     if (widthPx > 0) {
       wrap.style.width = `${widthPx}px`;
       wrap.style.flex = `0 0 ${widthPx}px`;
@@ -5095,6 +5104,7 @@
       grid.appendChild(hint);
     }
     wrap.appendChild(grid);
+    applyCardMod(wrap, sec.card_mod, sec.id);
     return wrap;
   }
 
@@ -5221,6 +5231,50 @@
     const ww = Number(w.width_px) || 120;
     const hh = Number(w.height_px) || 120;
     return ww >= 200 || hh >= 180;
+  }
+
+  function cardModStyleText(cardMod) {
+    if (!cardMod) return "";
+    if (typeof cardMod === "string") return cardMod;
+    return String(cardMod.style || "");
+  }
+
+  function sanitizeCardModCss(css) {
+    return String(css || "")
+      .replace(/<\/style/gi, "")
+      .replace(/<script/gi, "")
+      .replace(/ha-card/g, ".dash-card")
+      .trim();
+  }
+
+  function applyCardMod(host, cardMod, scopePrefix) {
+    if (!host) return;
+    host.querySelectorAll("style[data-card-mod]").forEach((el) => el.remove());
+    const raw = sanitizeCardModCss(cardModStyleText(cardMod));
+    if (!raw) return;
+    const id = String(scopePrefix || host.dataset.widgetId || host.dataset.sectionId || "x")
+      .replace(/[^a-zA-Z0-9_-]/g, "")
+      .slice(0, 40);
+    const scope = `dash-mod-${id || "x"}`;
+    host.classList.add(scope);
+    const style = document.createElement("style");
+    style.dataset.cardMod = "1";
+    const withHost = raw.replace(/:host\b/g, `.${scope}`);
+    style.textContent = withHost.replace(
+      /(^|})\s*([^@}/{][^{]*)\{/g,
+      (m, brace, sel) => {
+        const parts = String(sel)
+          .split(",")
+          .map((s) => {
+            const t = s.trim();
+            if (!t) return t;
+            if (t.startsWith(`.${scope}`)) return t;
+            return `.${scope} ${t}`;
+          });
+        return `${brace}\n${parts.join(", ")} {`;
+      }
+    );
+    host.appendChild(style);
   }
 
   function mountInlineSlider(card, control) {
@@ -5363,6 +5417,16 @@
           values[f.key] = sel.value;
         });
         makeRow(f.label, sel);
+      } else if (f.type === "textarea") {
+        const inp = document.createElement("textarea");
+        inp.value = String(values[f.key] ?? "");
+        inp.placeholder = f.placeholder || "";
+        inp.spellcheck = false;
+        inp.rows = f.rows || 6;
+        inp.addEventListener("input", () => {
+          values[f.key] = inp.value;
+        });
+        makeRow(f.label, inp);
       }
     }
     saveBtn.onclick = async () => {
@@ -5400,6 +5464,7 @@
         title: sec.title || "Section",
         width_px: Number(sec.width_px) || 0,
         height_px: Number(sec.height_px) || 0,
+        card_mod_style: cardModStyleText(sec.card_mod),
         _schema: [
           { key: "title", label: "Title", type: "text" },
           {
@@ -5416,9 +5481,22 @@
             min: 0,
             max: 4000,
           },
+          {
+            key: "card_mod_style",
+            label: "card_mod CSS",
+            type: "textarea",
+            rows: 7,
+            placeholder: ".dash-card {\n  /* or ha-card */\n}",
+          },
         ],
       },
-      onSave: (payload) => patchSectionFields(sec.id, payload),
+      onSave: (payload) =>
+        patchSectionFields(sec.id, {
+          title: payload.title,
+          width_px: payload.width_px,
+          height_px: payload.height_px,
+          card_mod: { style: payload.card_mod_style || "" },
+        }),
     });
   }
 
@@ -5433,6 +5511,7 @@
         control_ui: w.control_ui || "auto",
         icon_on: w.icon_on || "",
         icon_off: w.icon_off || "",
+        card_mod_style: cardModStyleText(w.card_mod),
         _schema: [
           {
             key: "width_px",
@@ -5472,9 +5551,27 @@
           },
           { key: "icon_on", label: "On icon (mdi:…)", type: "text" },
           { key: "icon_off", label: "Off icon (mdi:…)", type: "text" },
+          {
+            key: "card_mod_style",
+            label: "card_mod CSS (custom design)",
+            type: "textarea",
+            rows: 8,
+            placeholder:
+              ".dash-card {\n  background: linear-gradient(...);\n}\n.dash-card-name {\n  font-size: 1.1rem;\n}",
+          },
         ],
       },
-      onSave: (payload) => patchWidgetFields(w.id, payload),
+      onSave: (payload) =>
+        patchWidgetFields(w.id, {
+          width_px: payload.width_px,
+          height_px: payload.height_px,
+          color_on: payload.color_on,
+          color_off: payload.color_off,
+          control_ui: payload.control_ui,
+          icon_on: payload.icon_on,
+          icon_off: payload.icon_off,
+          card_mod: { style: payload.card_mod_style || "" },
+        }),
     });
     // Extra icon pickers after schema rows
     const body = $("dashboard-settings-body");
@@ -5521,6 +5618,9 @@
     shell.dataset.kind = kind;
     shell.dataset.iconOn = w.icon_on || "";
     shell.dataset.iconOff = w.icon_off || "";
+    const wMod = cardModStyleText(w.card_mod);
+    if (wMod) shell.dataset.cardMod = wMod;
+    else delete shell.dataset.cardMod;
     shell.style.width = `${widthPx}px`;
     shell.style.height = `${heightPx}px`;
     shell.style.flex = `0 0 ${widthPx}px`;
@@ -5703,7 +5803,48 @@
     }
 
     shell.appendChild(card);
+    applyCardMod(shell, w.card_mod, w.id);
     return shell;
+  }
+
+  async function loadDashboardYamlEditor() {
+    const ta = $("dashboard-yaml-text");
+    if (!ta) return;
+    const data = await api("/api/dashboard/yaml");
+    ta.value = data.yaml || "";
+  }
+
+  async function openDashboardYamlEditor() {
+    const dlg = $("dashboard-yaml-editor");
+    if (!dlg) return;
+    try {
+      await loadDashboardYamlEditor();
+      if (typeof dlg.showModal === "function") dlg.showModal();
+      else dlg.setAttribute("open", "open");
+    } catch (e) {
+      dashboardBanner(e.message, "err");
+    }
+  }
+
+  async function saveDashboardYamlEditor() {
+    const ta = $("dashboard-yaml-text");
+    const dlg = $("dashboard-yaml-editor");
+    if (!ta) return;
+    try {
+      const data = await api("/api/dashboard/yaml", {
+        method: "PUT",
+        body: JSON.stringify({ yaml: ta.value }),
+      });
+      state.dashboard = data;
+      renderDashboard();
+      dashboardBanner("Dashboard YAML saved", "ok");
+      if (dlg) {
+        if (typeof dlg.close === "function") dlg.close();
+        else dlg.removeAttribute("open");
+      }
+    } catch (e) {
+      dashboardBanner(e.message, "err");
+    }
   }
 
   function openDashboardPicker(sectionId) {
@@ -5965,6 +6106,11 @@
     $("dashboard-customize")?.addEventListener("click", () =>
       setDashboardEdit(!state.dashboardEdit)
     );
+    $("dashboard-raw-yaml")?.addEventListener("click", () => openDashboardYamlEditor());
+    $("dashboard-yaml-reload")?.addEventListener("click", () =>
+      loadDashboardYamlEditor().catch((e) => dashboardBanner(e.message, "err"))
+    );
+    $("dashboard-yaml-save")?.addEventListener("click", () => saveDashboardYamlEditor());
     $("dashboard-add-section")?.addEventListener("click", () => {
       const title = window.prompt("Section title", "New section");
       if (title == null) return;

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from .. import db
 from .. import icons_store
 from ..app_settings import load_settings
+from ..dashboard_yaml import dashboard_to_yaml, yaml_to_dashboard
 from ..denon_client import DenonSetupClient
 from ..denon_control import SUPPORTED_MODELS, DenonControl
 from ..host_utils import host_label
@@ -217,6 +218,7 @@ class SectionPatchBody(BaseModel):
     layout_id: Optional[str] = None
     width_px: Optional[int] = None
     height_px: Optional[int] = None
+    card_mod: Optional[Any] = None
 
 
 class WidgetBody(BaseModel):
@@ -232,6 +234,7 @@ class WidgetBody(BaseModel):
     width_px: int = 0
     height_px: int = 0
     control_ui: str = "auto"
+    card_mod: Optional[Any] = None
 
 
 class WidgetPatchBody(BaseModel):
@@ -245,6 +248,11 @@ class WidgetPatchBody(BaseModel):
     width_px: Optional[int] = None
     height_px: Optional[int] = None
     control_ui: Optional[str] = None
+    card_mod: Optional[Any] = None
+
+
+class YamlBody(BaseModel):
+    yaml: str = ""
 
 
 class IconUrlBody(BaseModel):
@@ -299,19 +307,19 @@ def create_section(request: Request, body: SectionBody) -> Dict[str, Any]:
 def patch_section(
     request: Request, section_id: str, body: SectionPatchBody
 ) -> Dict[str, Any]:
-    data = db.update_section(
-        section_id,
-        {
-            "title": body.title,
-            "stack": body.stack,
-            "shape": body.shape,
-            "size": body.size,
-            "collapsed": body.collapsed,
-            "layout_id": body.layout_id,
-            "width_px": body.width_px,
-            "height_px": body.height_px,
-        },
-    )
+    fields: Dict[str, Any] = {
+        "title": body.title,
+        "stack": body.stack,
+        "shape": body.shape,
+        "size": body.size,
+        "collapsed": body.collapsed,
+        "layout_id": body.layout_id,
+        "width_px": body.width_px,
+        "height_px": body.height_px,
+    }
+    if body.card_mod is not None:
+        fields["card_mod"] = body.card_mod
+    data = db.update_section(section_id, fields)
     return _enrich_dashboard(data, _base(request))
 
 
@@ -338,6 +346,7 @@ def create_widget(request: Request, body: WidgetBody) -> Dict[str, Any]:
             width_px=body.width_px,
             height_px=body.height_px,
             control_ui=body.control_ui,
+            card_mod=body.card_mod,
         )
     except KeyError as e:
         raise HTTPException(404, str(e)) from e
@@ -350,27 +359,50 @@ def create_widget(request: Request, body: WidgetBody) -> Dict[str, Any]:
 def patch_widget(
     request: Request, widget_id: str, body: WidgetPatchBody
 ) -> Dict[str, Any]:
-    data = db.update_widget(
-        widget_id,
-        {
-            "shape": body.shape,
-            "size": body.size,
-            "icon_on": body.icon_on,
-            "icon_off": body.icon_off,
-            "color_on": body.color_on,
-            "color_off": body.color_off,
-            "control_layout": body.control_layout,
-            "width_px": body.width_px,
-            "height_px": body.height_px,
-            "control_ui": body.control_ui,
-        },
-    )
+    fields: Dict[str, Any] = {
+        "shape": body.shape,
+        "size": body.size,
+        "icon_on": body.icon_on,
+        "icon_off": body.icon_off,
+        "color_on": body.color_on,
+        "color_off": body.color_off,
+        "control_layout": body.control_layout,
+        "width_px": body.width_px,
+        "height_px": body.height_px,
+        "control_ui": body.control_ui,
+    }
+    if body.card_mod is not None:
+        fields["card_mod"] = body.card_mod
+    data = db.update_widget(widget_id, fields)
     return _enrich_dashboard(data, _base(request))
 
 
 @router.delete("/dashboard/widgets/{widget_id}")
 def remove_widget(request: Request, widget_id: str) -> Dict[str, Any]:
     data = db.delete_widget(widget_id)
+    return _enrich_dashboard(data, _base(request))
+
+
+@router.get("/dashboard/yaml")
+def get_dashboard_yaml(request: Request) -> Dict[str, Any]:
+    """Full dashboard as YAML (raw editor)."""
+    db.init_db()
+    raw = db.load_dashboard()
+    return {
+        "ok": True,
+        "yaml": dashboard_to_yaml(raw),
+        "db_path": str(db.db_path()),
+    }
+
+
+@router.put("/dashboard/yaml")
+def put_dashboard_yaml(request: Request, body: YamlBody) -> Dict[str, Any]:
+    """Replace entire dashboard from YAML text."""
+    try:
+        payload = yaml_to_dashboard(body.yaml or "")
+        data = db.replace_dashboard(payload)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     return _enrich_dashboard(data, _base(request))
 
 
