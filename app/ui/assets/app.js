@@ -5780,6 +5780,7 @@
 
     card.appendChild(icon);
     card.appendChild(name);
+    card.appendChild(stateEl);
 
     if (canSlide) {
       const valueBadge = document.createElement("span");

@@ -2479,7 +2479,8 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   white-space: nowrap;
 }
 .dash-card.has-slider .dash-card-state,
-.dash-card.has-value-badge .dash-card-state {
+.dash-card.has-value-badge .dash-card-state,
+.dash-card.has-inline-control .dash-card-state {
   display: none;
 }
 .dash-card.has-popup .dash-card-state::after {
