@@ -5777,7 +5777,6 @@
     const stateEl = document.createElement("span");
     stateEl.className = "dash-card-state";
     stateEl.dataset.role = "dash-state";
-    stateEl.textContent = "\u200b"; // zero-width spacer; hidden via CSS
 
     card.appendChild(icon);
     card.appendChild(name);
