@@ -2204,9 +2204,8 @@ body.eq-progress-open {
   grid-template-areas:
     "icon"
     "name"
-    "state"
     "control";
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto 1fr;
   align-items: stretch;
 }
 .dash-inline-control {
@@ -2464,6 +2463,10 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   font-weight: 600;
   line-height: 1.2;
   color: inherit;
+  max-width: calc(100% - 3rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .dash-card-state {
   grid-area: state;
@@ -2476,14 +2479,27 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dash-card.has-popup .dash-card-state::after {
-  content: "";
-}
+.dash-card.has-slider .dash-card-state,
 .dash-card.has-value-badge .dash-card-state {
   display: none;
 }
+.dash-card.has-popup .dash-card-state::after {
+  content: "";
+}
 .dash-card.has-value-badge .dash-card-name {
   max-width: calc(100% - 4.2rem);
+}
+.dash-card.has-inline-control .dashboard-slider-value.dash-inline-value,
+.dash-card.has-value-badge .dashboard-slider-value.dash-inline-value {
+  display: none;
+}
+.dash-card.has-inline-control {
+  grid-template-areas:
+    "icon"
+    "name"
+    "control";
+  grid-template-rows: auto auto 1fr;
+  align-items: stretch;
 }
 .dash-stepper-row {
   display: flex;

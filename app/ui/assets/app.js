@@ -5359,9 +5359,8 @@
       clearTimeout(timer);
       sendNow();
     });
-    wrap.appendChild(range);
-    wrap.appendChild(valEl);
-    card.appendChild(wrap);
+    card.appendChild(range);
+    card.appendChild(valEl);
   }
 
   function mountInlineEnum(card, control) {

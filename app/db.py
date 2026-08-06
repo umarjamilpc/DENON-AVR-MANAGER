@@ -303,7 +303,6 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     _migrate_px_sizes(conn)
     _migrate_layouts(conn)
 
-
 def init_db() -> None:
     """Create tables and migrate legacy JSON settings once."""
     global _initialized
