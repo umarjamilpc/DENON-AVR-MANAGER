@@ -4565,17 +4565,26 @@
         }
       }
       const valueBadge = shell.querySelector('[data-role="dash-value-badge"]');
-      if (valueBadge && (kind === "slider" || kind === "stepper")) {
-        let label = ent?.display || "";
-        if (!label && ent?.value != null && !Number.isNaN(Number(ent.value))) {
-          label = formatDashSliderLabel(
-            {
-              min: shell.dataset.sliderMin,
-              max: shell.dataset.sliderMax,
-              zero_db: shell.dataset.sliderZero,
-            },
-            ent.value
-          );
+      if (valueBadge) {
+        let label = "";
+        if (kind === "slider" || kind === "stepper") {
+          label = ent?.display || "";
+          if (!label && ent?.value != null && !Number.isNaN(Number(ent.value))) {
+            label = formatDashSliderLabel(
+              {
+                min: shell.dataset.sliderMin,
+                max: shell.dataset.sliderMax,
+                zero_db: shell.dataset.sliderZero,
+              },
+              ent.value
+            );
+          }
+        } else if (kind === "enum") {
+          label = ent?.display || ent?.command || ent?.raw || "";
+        } else if (kind === "toggle") {
+          label = inactive ? "—" : on
+            ? (shell.dataset.onLabel || (String(id).includes("mute") ? "Muted" : "On"))
+            : (shell.dataset.offLabel || (id === "pw_power" ? "Standby" : String(id).includes("mute") ? "Unmuted" : "Off"));
         }
         valueBadge.textContent = label || "—";
         valueBadge.hidden = Boolean(inactive && !label);
@@ -5782,7 +5791,8 @@
     card.appendChild(name);
     card.appendChild(stateEl);
 
-    if (canSlide) {
+    const hasBadge = canSlide || kind === "enum" || kind === "toggle";
+    if (hasBadge) {
       const valueBadge = document.createElement("span");
       valueBadge.className = "dash-card-value";
       valueBadge.dataset.role = "dash-value-badge";
