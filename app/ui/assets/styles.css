@@ -2477,9 +2477,13 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   white-space: nowrap;
 }
 .dash-card.has-popup .dash-card-state::after {
-  content: " ▾";
-  opacity: 0.6;
-  font-size: 0.7em;
+  content: "";
+}
+.dash-card.has-value-badge .dash-card-state {
+  display: none;
+}
+.dash-card.has-value-badge .dash-card-name {
+  max-width: calc(100% - 4.2rem);
 }
 .dash-stepper-row {
   display: flex;
