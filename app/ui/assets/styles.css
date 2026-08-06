@@ -2463,10 +2463,9 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   font-weight: 600;
   line-height: 1.2;
   color: inherit;
-  max-width: calc(100% - 3rem);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow: visible;
+  white-space: normal;
 }
 .dash-card-state {
   grid-area: state;
@@ -2487,7 +2486,9 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   content: "";
 }
 .dash-card.has-value-badge .dash-card-name {
-  max-width: calc(100% - 4.2rem);
+  max-width: calc(100% - 5rem);
+  overflow: visible;
+  white-space: normal;
 }
 .dash-card.has-inline-control .dashboard-slider-value.dash-inline-value,
 .dash-card.has-value-badge .dashboard-slider-value.dash-inline-value {
