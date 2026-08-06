@@ -2379,6 +2379,7 @@ html[data-theme="dark"] .dashboard-yaml-text {
 }
 .dash-card.dash-card-edit {
   cursor: pointer;
+  padding-top: 2rem;
 }
 .dash-card.dash-card-edit:hover {
   filter: brightness(1.06);
@@ -2559,11 +2560,20 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   display: none;
 }
 .dashboard-widget-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
   align-items: center;
   padding: 0 0.15rem;
+  pointer-events: none;
+}
+.dashboard-widget-toolbar > * {
+  pointer-events: auto;
 }
 .dash-color-field {
   display: inline-flex;
@@ -2590,7 +2600,7 @@ html[data-theme="system"] .dashboard-widget.is-entity-on .dash-card {
   position: absolute;
   top: 0.35rem;
   right: 0.35rem;
-  z-index: 2;
+  z-index: 4;
   width: 1.5rem;
   height: 1.5rem;
   border: 1px solid var(--line);
