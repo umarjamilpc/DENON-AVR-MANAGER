@@ -642,13 +642,20 @@ class DenonSetupClient:
                 "setZoneRenameDefault",
                 "setQuickSelectName",
                 "setQuickSelectNameAll",
-                "setBtnQuickSelectNameDefault",
                 "setLfeLevel",
             ):
                 if flag in current["fields"] and flag not in fields:
                     payload[flag] = "off"
 
         payload.update({k: str(v) for k, v in fields.items()})
+        # Never echo Denon submit/button names unless the caller set them explicitly.
+        for submit_only in (
+            "setBtnQuickSelectNameDefault",
+            "setbtnQuickSelectNameAll",
+            "setbtnLfeLevel",
+        ):
+            if submit_only not in fields:
+                payload.pop(submit_only, None)
         # Manual EQ: Denon listBox()/radioBtn() submit the whole form, but band values
         # must only apply when Set / Curve Copy / Set Defaults is pressed. Echoing
         # textGEQ* from a raced read-back (merge_defaults) flips curves between
