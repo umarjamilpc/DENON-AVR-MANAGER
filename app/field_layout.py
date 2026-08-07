@@ -78,6 +78,26 @@ FIELD_ORDER: Dict[str, Sequence[str]] = {
         "textDelayTimeSw",
         "textDelayTimeTML",
         "textDelayTimeTMR",
+        "_btn_distances_set",
+    ),
+    "network_friendlyname_s_network": (
+        "listFriendlyNameTemplete",
+        "Friendlyname",
+        "_btn_friendly_set",
+        "_btn_friendly_defaults",
+    ),
+    "general_zonerename_s_general": (
+        "_btn_zone_rename_defaults",
+        "textZoneRenameMainZone",
+        "_btn_zone_rename_set",
+    ),
+    "general_selectnames_s_general": (
+        "_btn_quick_select_defaults",
+        "textQuickSelectNameMainSelect1",
+        "textQuickSelectNameMainSelect2",
+        "textQuickSelectNameMainSelect3",
+        "textQuickSelectNameMainSelect4",
+        "_btn_quick_select_set",
     ),
     "speakers_levels_s_speakersetup": (
         # Denon Levels UI order (clockwise / on-screen sequence) + Set
@@ -1013,6 +1033,108 @@ def _enrich_volume_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _enrich_distances_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Match Denon Speakers/Distances: unit text fields + Set."""
+    mode = str((fields or {}).get("radioDelayTimeMode", {}).get("value") or "F")
+    unit = "ft" if mode.upper() == "F" else "m"
+    out: Dict[str, Any] = {}
+    for name, meta in (fields or {}).items():
+        if name in ("setDelayTimeAllSet",) or name.startswith("setbtn"):
+            continue
+        if name.startswith("textDelayTime") and isinstance(meta, dict):
+            m = dict(meta)
+            m["unit"] = unit
+            m["explicit_set"] = True
+            out[name] = m
+        else:
+            out[name] = meta
+    out["_btn_distances_set"] = _form_action_button(
+        "Set", {"setDelayTimeAllSet": "Set"}
+    )
+    return out
+
+
+def _enrich_friendly_name_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Match Denon Network/Friendly Name: template, edit name + Set, Set Defaults."""
+    out: Dict[str, Any] = {}
+    for name, meta in (fields or {}).items():
+        if name in ("FriendlySet", "FriendlyDef", "FriendlyErrMsg") or name.startswith(
+            ("setBtn", "defBtn")
+        ):
+            continue
+        if name == "Friendlyname" and isinstance(meta, dict):
+            m = dict(meta)
+            m["label"] = "Edit Name"
+            m["ui_label"] = "Edit Name"
+            m["explicit_set"] = True
+            out[name] = m
+            out["_btn_friendly_set"] = _form_action_button(
+                "Set", {"FriendlySet": "Set"}
+            )
+        else:
+            out[name] = meta
+    out["_btn_friendly_defaults"] = _form_action_button(
+        "Set Defaults", {"FriendlyDef": "Def"}
+    )
+    return out
+
+
+def _enrich_zone_rename_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Match Denon General/Zone Rename: Set Defaults (top) + names + Set."""
+    out: Dict[str, Any] = {
+        "_btn_zone_rename_defaults": _form_action_button(
+            "Set Defaults", {"setZoneRenameDefault": "on"}
+        ),
+    }
+    for name, meta in (fields or {}).items():
+        if (
+            name.startswith("set")
+            or name.startswith("setbtn")
+            or name.startswith("_btn_")
+        ):
+            continue
+        if name.startswith("textZoneRename") and isinstance(meta, dict):
+            m = dict(meta)
+            m["explicit_set"] = True
+            out[name] = m
+        else:
+            out[name] = meta
+    out["_btn_zone_rename_set"] = _form_action_button(
+        "Set", {"setZoneRenameAll": "on"}
+    )
+    return out
+
+
+def _enrich_quick_select_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Match Denon General/Quick Select Names: Set Defaults + names + Set."""
+    out: Dict[str, Any] = {
+        "_btn_quick_select_defaults": _form_action_button(
+            "Set Defaults",
+            {
+                "setBtnQuickSelectNameDefault": "Set Defaults",
+                "setQuickSelectName": "on",
+            },
+        ),
+    }
+    for name, meta in (fields or {}).items():
+        if (
+            name.startswith("set")
+            or name.startswith("setbtn")
+            or name.startswith("_btn_")
+        ):
+            continue
+        if name.startswith("textQuickSelectName") and isinstance(meta, dict):
+            m = dict(meta)
+            m["explicit_set"] = True
+            out[name] = m
+        else:
+            out[name] = meta
+    out["_btn_quick_select_set"] = _form_action_button(
+        "Set", {"setQuickSelectNameAll": "on"}
+    )
+    return out
+
+
 def _enrich_audyssey_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     """Ensure -Reference Level Offset sits under Dynamic EQ (gated On)."""
     ref = fields.get("listRefLevelOffset") if isinstance(fields, dict) else None
@@ -1253,6 +1375,18 @@ def layout_fields(
         laid = order_fields(laid, endpoint_id)
     elif endpoint_id == "speakers_levels_s_speakersetup":
         laid = _enrich_levels_fields(laid)
+        laid = order_fields(laid, endpoint_id)
+    elif endpoint_id == "speakers_distances_s_speakersetup":
+        laid = _enrich_distances_fields(laid)
+        laid = order_fields(laid, endpoint_id)
+    elif endpoint_id == "network_friendlyname_s_network":
+        laid = _enrich_friendly_name_fields(laid)
+        laid = order_fields(laid, endpoint_id)
+    elif endpoint_id == "general_zonerename_s_general":
+        laid = _enrich_zone_rename_fields(laid)
+        laid = order_fields(laid, endpoint_id)
+    elif endpoint_id == "general_selectnames_s_general":
+        laid = _enrich_quick_select_fields(laid)
         laid = order_fields(laid, endpoint_id)
     elif endpoint_id == "audio_surroundparameter_s_audio":
         laid = _enrich_surround_parameter_fields(laid)

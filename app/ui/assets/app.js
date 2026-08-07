@@ -11,6 +11,12 @@
     "setCLA",
     "setDelayTimeAllSet",
     "setLfeLevel",
+    "FriendlySet",
+    "FriendlyDef",
+    "setZoneRenameAll",
+    "setZoneRenameDefault",
+    "setQuickSelectName",
+    "setQuickSelectNameAll",
     "setUpdateCheck",
     "setAddNewFeature",
     "setFirmwareUpdateWebUpdate",
@@ -42,8 +48,23 @@
     "inputs_sourcerename_s_rename",
     "inputs_sourcelevel_s_inputsetup",
     "speakers_levels_s_speakersetup",
+    "general_zonerename_s_general",
+    "general_selectnames_s_general",
+    "audio_audiodelay_s_audio",
     ...NETWORK_EXPLICIT_SAVE,
   ]);
+  const PRIMARY_SAVE_ACTIONS = {
+    inputs_sourcerename_s_rename: { setFuncRenameAll: "on" },
+    inputs_sourcelevel_s_inputsetup: { setSourceLevelDigital: "on" },
+    speakers_levels_s_speakersetup: { setCLA: "Set" },
+    speakers_distances_s_speakersetup: { setDelayTimeAllSet: "Set" },
+    network_friendlyname_s_network: { FriendlySet: "Set" },
+    general_zonerename_s_general: { setZoneRenameAll: "on" },
+    general_selectnames_s_general: { setQuickSelectNameAll: "on" },
+    audio_audiodelay_s_audio: { setAudioDelay: "on" },
+    audio_surroundparameter_s_audio: { setLfeLevel: "on" },
+    audio_volume_s_audio: { setMainPwOnLevel: "on" },
+  };
   const PAGE_HELP = {
     inputs_sourcerename_s_rename:
       "Allows you to change the names of the source inputs",
@@ -53,6 +74,12 @@
       "Adjusts the input level for the current source",
     speakers_levels_s_speakersetup:
       "Manually adjust the levels for each channel — drag sliders for preview, then press Set",
+    speakers_distances_s_speakersetup:
+      "Select the distance for each speaker, then press Set",
+    network_friendlyname_s_network:
+      "Edits the name of the AVR that is displayed on the network",
+    general_zonerename_s_general: "Changes the name of each zone",
+    general_selectnames_s_general: "Changes the Quick Select display names",
     video_tvformat_s_video:
       "Selects the format used to send video to the TV",
     video_hdmisetup_s_video: "Adjusts the HDMI settings",
@@ -250,11 +277,49 @@
   }
 
   function shouldHideMergedSetButton(name, meta) {
-    if (!isSaveEditMode()) return false;
-    if (meta?.firmware_action) return false;
-    if (meta?.network_save_kind) return false;
-    const label = fieldLabel(name, meta) || meta?.value || name;
-    return isMergedSetLabel(label);
+    // Keep per-page Set / Set Defaults visible in both realtime and Save mode.
+    return false;
+  }
+
+  function primarySaveActionFields(endpointId) {
+    const id = endpointId || state.endpointId;
+    if (!id) return {};
+    const action = PRIMARY_SAVE_ACTIONS[id];
+    if (!action) return {};
+    const form = $("field-form");
+    if (id === "audio_surroundparameter_s_audio" && !form?.querySelector('[name="textLfeLevel"]')) {
+      return {};
+    }
+    if (id === "audio_volume_s_audio" && !form?.querySelector('[name="textMainPwOnLevel"]')) {
+      return {};
+    }
+    return { ...action };
+  }
+
+  function mergeSubmitFields(extra) {
+    const fields = { ...collectFields(), ...(extra || {}) };
+    const off_unless = [
+      "setFuncRenameDefault",
+      "setFuncRenameAll",
+      "setSourceLevelDigital",
+      "buttonNet",
+      "setLfeLevel",
+      "setAudioDelay",
+      "setMainPwOnLevel",
+      "setCLA",
+      "setDelayTimeAllSet",
+      "FriendlySet",
+      "FriendlyDef",
+      "setZoneRenameAll",
+      "setZoneRenameDefault",
+      "setQuickSelectName",
+      "setQuickSelectNameAll",
+      "setBtnQuickSelectNameDefault",
+    ];
+    for (const name of off_unless) {
+      if (!extra?.[name]) fields[name] = "off";
+    }
+    return fields;
   }
 
   function syncEditorPrimaryBtn() {
@@ -632,11 +697,6 @@
     for (const id of ["eq-set", "eq-curve-copy", "eq-defaults"]) {
       const btn = $(id);
       if (!btn) continue;
-      if (id === "eq-set" && isSaveEditMode()) {
-        btn.hidden = true;
-        btn.disabled = true;
-        continue;
-      }
       btn.disabled = standby || !state.eqEnabled;
     }
     for (const id of ["eq-export", "eq-import"]) {
@@ -1454,16 +1514,7 @@
     }
     state.realtimeBusy = true;
     try {
-      const fields = { ...collectFields(), ...(extra || {}) };
-      // Keep action flags off unless explicitly set by this button.
-      if (!extra?.setFuncRenameDefault) fields.setFuncRenameDefault = "off";
-      if (!extra?.setFuncRenameAll) fields.setFuncRenameAll = "off";
-      if (!extra?.setSourceLevelDigital) fields.setSourceLevelDigital = "off";
-      if (!extra?.buttonNet) fields.buttonNet = "off";
-      if (!extra?.setLfeLevel) fields.setLfeLevel = "off";
-      if (!extra?.setAudioDelay) fields.setAudioDelay = "off";
-      if (!extra?.setMainPwOnLevel) fields.setMainPwOnLevel = "off";
-      if (!extra?.setCLA) fields.setCLA = "off";
+      const fields = mergeSubmitFields(extra);
       const result = await api(`/api/endpoints/${encodeURIComponent(state.endpointId)}`, {
         method: "POST",
         body: JSON.stringify({ fields, merge_defaults: true }),
@@ -1472,6 +1523,7 @@
       const afterFields = result?.after?.fields;
       if (afterFields) renderFields(afterFields);
       markLocalWrite();
+      state.pageDirty = false;
       await refreshSetupLockState();
     } catch (err) {
       $("editor-banner").hidden = false;
@@ -2140,14 +2192,19 @@
     }
     state.realtimeBusy = true;
     try {
+      const extra = opts.fromPrimary ? primarySaveActionFields(state.endpointId) : {};
       const result = await api(`/api/endpoints/${encodeURIComponent(state.endpointId)}`, {
         method: "POST",
-        body: JSON.stringify({ fields: collectFields(), merge_defaults: true }),
+        body: JSON.stringify({
+          fields: mergeSubmitFields(extra),
+          merge_defaults: true,
+        }),
       });
       setStatus(opts.quiet && !isSaveEditMode() ? "Live update" : "Saved", "ok");
       const afterFields = result?.after?.fields;
       if (afterFields) renderFields(afterFields);
       markLocalWrite();
+      state.pageDirty = false;
       await refreshSetupLockState();
       syncPageSaveToolbar();
       return true;
@@ -2973,9 +3030,8 @@
     if (sp) sp.disabled = !on;
     const eqSet = $("eq-set");
     if (eqSet) {
-      // Save mode: editor Save replaces Set.
-      eqSet.hidden = isSaveEditMode();
-      eqSet.disabled = !on || isSaveEditMode();
+      eqSet.hidden = false;
+      eqSet.disabled = !on;
     }
     for (const id of ["eq-curve-copy", "eq-defaults"]) {
       const btn = $(id);
@@ -2985,9 +3041,7 @@
     if (hint) {
       hint.textContent = !on
         ? "Turn Manual EQ On to activate the band sliders."
-        : isSaveEditMode()
-          ? "Adjust sliders, then press Save. Curve Copy / Set Defaults stay separate."
-          : "Adjust sliders, then press Set. Curve Copy / Set Defaults apply immediately.";
+        : "Adjust sliders, then press Set. Curve Copy / Set Defaults apply immediately.";
     }
     syncEditorPrimaryBtn();
   }
