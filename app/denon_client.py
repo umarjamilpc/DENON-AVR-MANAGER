@@ -15,6 +15,16 @@ from .field_labels import clean_display_text
 
 ATTR = re.compile(r"""([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(['"])(.*?)\2""", re.S)
 
+# Denon Quick Select Names use fixed 16-char fields (trailing space padding).
+QUICK_SELECT_NAME_WIDTH = 16
+
+
+def _pad_quick_select_name(value: str, *, width: int = QUICK_SELECT_NAME_WIDTH) -> str:
+    s = str(value or "")
+    if len(s) > width:
+        return s[:width]
+    return s.ljust(width)
+
 
 def _attrs(tag_html: str) -> Dict[str, str]:
     out: Dict[str, str] = {}
@@ -648,6 +658,10 @@ class DenonSetupClient:
                     payload[flag] = "off"
 
         payload.update({k: str(v) for k, v in fields.items()})
+        if (endpoint_id or "").lower() == "general_selectnames_s_general":
+            for key in list(payload):
+                if key.startswith("textQuickSelectName"):
+                    payload[key] = _pad_quick_select_name(payload[key])
         # Never echo Denon submit/button names unless the caller set them explicitly.
         for submit_only in (
             "setBtnQuickSelectNameDefault",

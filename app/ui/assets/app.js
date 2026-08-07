@@ -60,7 +60,7 @@
     speakers_distances_s_speakersetup: { setDelayTimeAllSet: "Set" },
     network_friendlyname_s_network: { FriendlySet: "Set" },
     general_zonerename_s_general: { setZoneRenameAll: "on" },
-    general_selectnames_s_general: { setQuickSelectNameAll: "on" },
+    general_selectnames_s_general: { setbtnQuickSelectNameAll: " Set" },
     audio_audiodelay_s_audio: { setAudioDelay: "on" },
     audio_surroundparameter_s_audio: { setLfeLevel: "on" },
     audio_volume_s_audio: { setMainPwOnLevel: "on" },
@@ -296,8 +296,19 @@
     return { ...action };
   }
 
+  function padQuickSelectName(value) {
+    const s = String(value ?? "");
+    if (s.length >= 16) return s.slice(0, 16);
+    return s.padEnd(16, " ");
+  }
+
   function mergeSubmitFields(extra) {
     const fields = { ...collectFields(), ...(extra || {}) };
+    if (state.endpointId === "general_selectnames_s_general") {
+      for (const [name, value] of Object.entries(fields)) {
+        if (name.startsWith("textQuickSelectName")) fields[name] = padQuickSelectName(value);
+      }
+    }
     const hiddenOffUnless = [
       "setFuncRenameDefault",
       "setFuncRenameAll",
@@ -2074,6 +2085,8 @@
         inp.type = "text";
         inp.name = name;
         inp.value = meta.value ?? "";
+        if (meta.max_length != null) inp.maxLength = Number(meta.max_length);
+        else if (name.startsWith("textQuickSelectName")) inp.maxLength = 16;
         inp.disabled = inactive;
         if (!inactive && !meta.explicit_set) wireRealtime(inp);
         else if (!inactive && meta.explicit_set) {

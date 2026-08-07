@@ -1110,7 +1110,10 @@ def _enrich_quick_select_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {
         "_btn_quick_select_defaults": _form_action_button(
             "Set Defaults",
-            {"setBtnQuickSelectNameDefault": "Set Defaults"},
+            {
+                "setQuickSelectName": "Default",
+                "setBtnQuickSelectNameDefault": "Set Defaults",
+            },
         ),
     }
     for name, meta in (fields or {}).items():
@@ -1123,11 +1126,12 @@ def _enrich_quick_select_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
         if name.startswith("textQuickSelectName") and isinstance(meta, dict):
             m = dict(meta)
             m["explicit_set"] = True
+            m["max_length"] = 16
             out[name] = m
         else:
             out[name] = meta
     out["_btn_quick_select_set"] = _form_action_button(
-        "Set", {"setQuickSelectNameAll": "on"}
+        "Set", {"setbtnQuickSelectNameAll": " Set"}
     )
     return out
 
