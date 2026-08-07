@@ -636,6 +636,14 @@ class DenonSetupClient:
                 "setFuncRenameBD",
                 "setFuncRenameMPLAY",
                 "buttonNet",
+                "FriendlySet",
+                "FriendlyDef",
+                "setZoneRenameAll",
+                "setZoneRenameDefault",
+                "setQuickSelectName",
+                "setQuickSelectNameAll",
+                "setBtnQuickSelectNameDefault",
+                "setLfeLevel",
             ):
                 if flag in current["fields"] and flag not in fields:
                     payload[flag] = "off"
