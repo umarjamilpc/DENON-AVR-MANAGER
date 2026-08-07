@@ -968,7 +968,9 @@ def _enrich_surround_parameter_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
             m["unit"] = "dB"
             m["explicit_set"] = True
             out[name] = m
-            out["_btn_lfe_set"] = _form_action_button("Set", {"setLfeLevel": "on"})
+            out["_btn_lfe_set"] = _form_action_button(
+                "Set", {"setLfeLevel": "on", "setbtnLfeLevel": "Set"}
+            )
         else:
             out[name] = meta
 
@@ -986,7 +988,9 @@ def _enrich_surround_parameter_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
         out = rebuilt
 
     if "textLfeLevel" in (fields or {}) and "_btn_lfe_set" not in out:
-        out["_btn_lfe_set"] = _form_action_button("Set", {"setLfeLevel": "on"})
+        out["_btn_lfe_set"] = _form_action_button(
+            "Set", {"setLfeLevel": "on", "setbtnLfeLevel": "Set"}
+        )
     return out
 
 
@@ -1110,10 +1114,7 @@ def _enrich_quick_select_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {
         "_btn_quick_select_defaults": _form_action_button(
             "Set Defaults",
-            {
-                "setBtnQuickSelectNameDefault": "Set Defaults",
-                "setQuickSelectName": "on",
-            },
+            {"setBtnQuickSelectNameDefault": "Set Defaults"},
         ),
     }
     for name, meta in (fields or {}).items():
@@ -1130,7 +1131,8 @@ def _enrich_quick_select_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
         else:
             out[name] = meta
     out["_btn_quick_select_set"] = _form_action_button(
-        "Set", {"setQuickSelectNameAll": "on"}
+        "Set",
+        {"setQuickSelectNameAll": "on", "setbtnQuickSelectNameAll": " Set"},
     )
     return out
 
