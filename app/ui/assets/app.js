@@ -60,15 +60,9 @@
     speakers_distances_s_speakersetup: { setDelayTimeAllSet: "Set" },
     network_friendlyname_s_network: { FriendlySet: "Set" },
     general_zonerename_s_general: { setZoneRenameAll: "on" },
-    general_selectnames_s_general: {
-      setQuickSelectNameAll: "on",
-      setbtnQuickSelectNameAll: " Set",
-    },
+    general_selectnames_s_general: { setQuickSelectNameAll: "on" },
     audio_audiodelay_s_audio: { setAudioDelay: "on" },
-    audio_surroundparameter_s_audio: {
-      setLfeLevel: "on",
-      setbtnLfeLevel: "Set",
-    },
+    audio_surroundparameter_s_audio: { setLfeLevel: "on" },
     audio_volume_s_audio: { setMainPwOnLevel: "on" },
   };
   const PAGE_HELP = {
@@ -304,7 +298,7 @@
 
   function mergeSubmitFields(extra) {
     const fields = { ...collectFields(), ...(extra || {}) };
-    const off_unless = [
+    const hiddenOffUnless = [
       "setFuncRenameDefault",
       "setFuncRenameAll",
       "setSourceLevelDigital",
@@ -320,12 +314,19 @@
       "setZoneRenameDefault",
       "setQuickSelectName",
       "setQuickSelectNameAll",
+    ];
+    for (const name of hiddenOffUnless) {
+      if (!extra?.[name]) fields[name] = "off";
+    }
+    // Denon submit/button names — omit entirely unless this action set them.
+    // Posting setBtnQuickSelectNameDefault=off triggers Set Defaults on Quick Select.
+    const submitOnly = [
       "setBtnQuickSelectNameDefault",
       "setbtnQuickSelectNameAll",
       "setbtnLfeLevel",
     ];
-    for (const name of off_unless) {
-      if (!extra?.[name]) fields[name] = "off";
+    for (const name of submitOnly) {
+      if (!extra?.[name]) delete fields[name];
     }
     return fields;
   }
