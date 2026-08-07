@@ -60,9 +60,15 @@
     speakers_distances_s_speakersetup: { setDelayTimeAllSet: "Set" },
     network_friendlyname_s_network: { FriendlySet: "Set" },
     general_zonerename_s_general: { setZoneRenameAll: "on" },
-    general_selectnames_s_general: { setQuickSelectNameAll: "on" },
+    general_selectnames_s_general: {
+      setQuickSelectNameAll: "on",
+      setbtnQuickSelectNameAll: " Set",
+    },
     audio_audiodelay_s_audio: { setAudioDelay: "on" },
-    audio_surroundparameter_s_audio: { setLfeLevel: "on" },
+    audio_surroundparameter_s_audio: {
+      setLfeLevel: "on",
+      setbtnLfeLevel: "Set",
+    },
     audio_volume_s_audio: { setMainPwOnLevel: "on" },
   };
   const PAGE_HELP = {
@@ -315,6 +321,8 @@
       "setQuickSelectName",
       "setQuickSelectNameAll",
       "setBtnQuickSelectNameDefault",
+      "setbtnQuickSelectNameAll",
+      "setbtnLfeLevel",
     ];
     for (const name of off_unless) {
       if (!extra?.[name]) fields[name] = "off";
@@ -809,7 +817,10 @@
     }
   }
 
-  async function boot() {
+  async function boot({ preserveNav = false } = {}) {
+    const prevView = state.route?.view || "dashboard";
+    const prevMenuId = state.selectedMenuId;
+    const prevReload = state.reloadAction;
     setStatus("Loading app settings…");
     $("tabs").hidden = false;
     $("main").hidden = false;
@@ -839,7 +850,28 @@
       state.connected = true;
       await refreshPower().catch(() => {});
       await loadMenu();
-      await showView("dashboard", { loadInfo: false });
+      const targetView = preserveNav ? prevView : "dashboard";
+      await showView(targetView, { loadInfo: false });
+      if (preserveNav) {
+        if (targetView === "setup") {
+          if (typeof prevReload === "function") {
+            try {
+              await prevReload();
+            } catch (err) {
+              setStatus(err.message, "err");
+            }
+          } else if (prevMenuId) {
+            const node = findMenuNode(prevMenuId);
+            if (node) await openMenuNode(node);
+          }
+        } else if (targetView === "control") {
+          await loadControlPanel({ force: true });
+        } else if (targetView === "info") {
+          await loadInfoDashboard(true);
+        } else if (targetView === "dashboard") {
+          await loadDashboard({ force: true });
+        }
+      }
       startRemotePolling();
     } catch (err) {
       setStatus(err.message, "err");
@@ -6291,12 +6323,13 @@
 
   initTheme();
   wireTabs();
+  $("field-form")?.addEventListener("submit", (ev) => ev.preventDefault());
   wireControlPanel();
   wireDashboard();
   wireActivity();
   wireEditModeToggle();
   renderActivityBadge();
-  $("reconnect-btn").addEventListener("click", boot);
+  $("reconnect-btn").addEventListener("click", () => boot({ preserveNav: true }));
   $("editor-primary-btn").addEventListener("click", () => {
     onEditorPrimaryClick().catch((err) => setStatus(err.message, "err"));
   });

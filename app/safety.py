@@ -120,6 +120,13 @@ SAFE_FORCED_FIELDS: Dict[str, str] = {
     "setSetupLock": "OFF",
 }
 
+# Denon HTML submit/button names we intentionally POST (not scraped UI noise).
+ALLOWED_DENON_ACTION_BUTTONS: Set[str] = {
+    "setbtnQuickSelectNameAll",
+    "setBtnQuickSelectNameDefault",
+    "setbtnLfeLevel",
+}
+
 
 def is_write_blocked(endpoint_id: str, submit_url: str = "") -> Optional[str]:
     eid = (endpoint_id or "").lower()
@@ -152,7 +159,8 @@ def sanitize_write_fields(
     cleaned = {
         k: v
         for k, v in fields.items()
-        if k not in WRITE_BLOCKED_FIELDS and not k.lower().startswith("setbtn")
+        if k not in WRITE_BLOCKED_FIELDS
+        and (not k.lower().startswith("setbtn") or k in ALLOWED_DENON_ACTION_BUTTONS)
     }
     cleaned.update(SAFE_FORCED_FIELDS)
     if unlocked and "radioSetupLock" in fields:
