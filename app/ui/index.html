@@ -444,24 +444,28 @@
                   More = full discrete + cursor/menu actions + raw command.
                 </p>
               </div>
-              <div class="editor-actions mqtt-layout-actions">
-                <label class="mqtt-preset-label">
-                  Preset
-                  <select id="mqtt-preset-select" class="mqtt-preset-select" aria-label="MQTT entity preset">
-                    <option value="">Choose preset…</option>
-                  </select>
-                </label>
-                <button type="button" id="mqtt-preset-apply" class="btn-ghost">Load preset</button>
-                <button type="button" id="mqtt-preset-save-custom" class="btn-ghost">Save as custom</button>
-                <button type="button" id="mqtt-preset-duplicate" class="btn-ghost">Duplicate</button>
-                <button type="button" id="mqtt-preset-manage" class="btn-ghost">Manage presets</button>
-                <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
-                  <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less controls</button>
-                  <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More controls</button>
+              <div class="mqtt-toolbar">
+                <div class="mqtt-toolbar-row mqtt-toolbar-presets">
+                  <label class="mqtt-preset-label">
+                    Preset
+                    <select id="mqtt-preset-select" class="mqtt-preset-select" aria-label="MQTT entity preset">
+                      <option value="">Choose preset…</option>
+                    </select>
+                  </label>
+                  <button type="button" id="mqtt-preset-apply" class="btn-ghost">Load preset</button>
+                  <button type="button" id="mqtt-preset-save-custom" class="btn-ghost">Save as custom</button>
+                  <button type="button" id="mqtt-preset-duplicate" class="btn-ghost">Duplicate</button>
+                  <button type="button" id="mqtt-preset-manage" class="btn-ghost">Manage presets</button>
                 </div>
-                <button type="button" id="mqtt-entities-featured" class="btn-ghost">Enable featured</button>
-                <button type="button" id="mqtt-entities-all" class="btn-ghost">Enable all</button>
-                <button type="button" id="mqtt-entities-none" class="btn-ghost">Disable all</button>
+                <div class="mqtt-toolbar-row mqtt-toolbar-bulk">
+                  <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
+                    <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less controls</button>
+                    <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More controls</button>
+                  </div>
+                  <button type="button" id="mqtt-entities-featured" class="btn-ghost">Enable featured</button>
+                  <button type="button" id="mqtt-entities-all" class="btn-ghost">Enable all</button>
+                  <button type="button" id="mqtt-entities-none" class="btn-ghost">Disable all</button>
+                </div>
               </div>
             </header>
             <nav id="mqtt-section-nav" class="mqtt-section-nav tabs" aria-label="MQTT entity sections"></nav>

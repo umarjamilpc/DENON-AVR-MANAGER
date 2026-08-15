@@ -2898,6 +2898,50 @@ body.dashboard-editing .dashboard-widget {
   gap: 0.5rem;
 }
 
+.mqtt-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mqtt-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 100%;
+}
+
+.mqtt-entities-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.mqtt-entities-head > div:first-child {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.mqtt-entities-head .mqtt-toolbar {
+  flex: 1 1 100%;
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .mqtt-entities-head .mqtt-toolbar {
+    flex: 1 1 28rem;
+    width: auto;
+    max-width: calc(100% - 1rem);
+  }
+}
+
 .mqtt-entity-item.mqtt-entity-enabled {
   border-color: var(--accent, #3b82f6);
   background: color-mix(in srgb, var(--accent, #3b82f6) 8%, transparent);
@@ -2951,6 +2995,12 @@ body.dashboard-editing .dashboard-widget {
 
 .mqtt-preset-select {
   min-width: 11rem;
+  max-width: min(100%, 16rem);
+}
+
+.mqtt-entities {
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .mqtt-preset-manager {
@@ -3060,15 +3110,6 @@ body.dashboard-editing .dashboard-widget {
   color: #fff;
 }
 
-.mqtt-entities-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
 .mqtt-entities-head h3 {
   margin: 0 0 0.25rem;
 }
@@ -3092,6 +3133,9 @@ body.dashboard-editing .dashboard-widget {
 .mqtt-section-nav {
   margin-bottom: 0.5rem;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .mqtt-section-meta {
