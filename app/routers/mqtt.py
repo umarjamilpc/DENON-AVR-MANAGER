@@ -18,7 +18,17 @@ from ..denon_control import DenonControl, SUPPORTED_MODELS
 from ..host_utils import normalize_host
 from ..mqtt_service import get_mqtt_bridge, restart_mqtt_bridge
 from ..mqtt_lovelace import build_lovelace_card, catalog_with_enabled_map
-from ..mqtt_presets import apply_mqtt_preset, build_preset_enabled_map, list_mqtt_presets
+from ..mqtt_presets import (
+    apply_mqtt_preset,
+    build_preset_enabled_map,
+    create_custom_preset,
+    delete_custom_preset,
+    duplicate_preset,
+    get_preset,
+    list_mqtt_presets,
+    preset_detail,
+    update_custom_preset,
+)
 from ..mqtt_settings import (
     enabled_entities_for_layout,
     load_mqtt_settings,
@@ -60,6 +70,26 @@ class MqttExportBody(BaseModel):
     enabled_entities: Dict[str, Any] | None = None
     style: str = "rc1189"
     format: str = "json"
+
+
+class MqttCustomPresetBody(BaseModel):
+    label: str = Field(..., min_length=1, max_length=64)
+    description: str = Field(default="", max_length=512)
+    remote: str | None = Field(default=None, max_length=32)
+    entities: Dict[str, List[str]] | None = None
+    preset_id: str | None = Field(default=None, max_length=64)
+
+
+class MqttCustomPresetUpdateBody(BaseModel):
+    label: str | None = Field(default=None, max_length=64)
+    description: str | None = Field(default=None, max_length=512)
+    remote: str | None = Field(default=None, max_length=32)
+    entities: Dict[str, List[str]] | None = None
+
+
+class MqttDuplicatePresetBody(BaseModel):
+    label: str | None = Field(default=None, max_length=64)
+    enabled_entities: Dict[str, Any] | None = None
 
 
 def _control_catalog(layout: str) -> Dict[str, Any]:
@@ -143,6 +173,20 @@ def mqtt_list_presets() -> Dict[str, Any]:
     return {"presets": list_mqtt_presets()}
 
 
+def _preset_summary(preset_id: str) -> Dict[str, Any] | None:
+    preset = get_preset(preset_id)
+    if preset is None:
+        return None
+    return {
+        "id": preset["id"],
+        "label": preset.get("label"),
+        "description": preset.get("description") or "",
+        "remote": preset.get("remote"),
+        "builtin": bool(preset.get("builtin")),
+        "editable": bool(preset.get("editable")),
+    }
+
+
 def _preview_preset_response(
     preset_id: str, settings: Dict[str, Any], lay: str
 ) -> Dict[str, Any]:
@@ -150,13 +194,14 @@ def _preview_preset_response(
     entities = list(cat.get("entities") or [])
     try:
         enabled_map = build_preset_enabled_map(preset_id, lay, entities)
+        detail = preset_detail(preset_id, lay)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     merged = apply_mqtt_preset(
         preset_id, lay, entities, settings.get("enabled_entities")
     )
     preview_catalog = catalog_with_enabled_map(cat, enabled_map)
-    preset = next((p for p in list_mqtt_presets() if p["id"] == preset_id), None)
+    preset = _preset_summary(preset_id)
     return {
         "ok": True,
         "preview": True,
@@ -166,7 +211,87 @@ def _preview_preset_response(
         "enabled_map": enabled_map,
         "enabled_entities": merged,
         "catalog": preview_catalog,
+        "entity_labels": detail.get("entity_labels") or {},
+        "remote_regions": detail.get("remote_regions") or [],
     }
+
+
+@router.get("/mqtt/presets/{preset_id}")
+def mqtt_get_preset(
+    preset_id: str,
+    layout: str | None = Query(None, description="less | more"),
+) -> Dict[str, Any]:
+    settings = load_mqtt_settings()
+    lay = normalize_layout(layout or settings.get("control_layout") or "less")
+    try:
+        detail = preset_detail(preset_id, lay)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return {"ok": True, **detail}
+
+
+@router.post("/mqtt/presets/custom")
+def mqtt_create_custom_preset(body: MqttCustomPresetBody) -> Dict[str, Any]:
+    try:
+        preset = create_custom_preset(
+            label=body.label,
+            description=body.description,
+            entities=body.entities,
+            remote=body.remote,
+            preset_id=body.preset_id,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "preset": preset, "presets": list_mqtt_presets()}
+
+
+@router.put("/mqtt/presets/custom/{preset_id}")
+def mqtt_update_custom_preset(
+    preset_id: str, body: MqttCustomPresetUpdateBody
+) -> Dict[str, Any]:
+    partial: Dict[str, Any] = {}
+    if body.label is not None:
+        partial["label"] = body.label
+    if body.description is not None:
+        partial["description"] = body.description
+    if body.remote is not None:
+        partial["remote"] = body.remote or None
+    if body.entities is not None:
+        partial["entities"] = body.entities
+    try:
+        preset = update_custom_preset(preset_id, partial)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "preset": preset, "presets": list_mqtt_presets()}
+
+
+@router.delete("/mqtt/presets/custom/{preset_id}")
+def mqtt_delete_custom_preset(preset_id: str) -> Dict[str, Any]:
+    try:
+        delete_custom_preset(preset_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "presets": list_mqtt_presets()}
+
+
+@router.post("/mqtt/presets/{preset_id}/duplicate")
+def mqtt_duplicate_preset(
+    preset_id: str, body: MqttDuplicatePresetBody | None = None
+) -> Dict[str, Any]:
+    settings = load_mqtt_settings()
+    lay = normalize_layout(settings.get("control_layout") or "less")
+    cat = _catalog_response(settings, lay)
+    entities = list(cat.get("entities") or [])
+    try:
+        preset = duplicate_preset(
+            preset_id,
+            label=body.label if body else None,
+            entities=body.enabled_entities if body else None,
+            catalog_entities=entities,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "preset": preset, "presets": list_mqtt_presets()}
 
 
 @router.get("/mqtt/presets/{preset_id}/preview")

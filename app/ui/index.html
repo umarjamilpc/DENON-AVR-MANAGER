@@ -452,6 +452,9 @@
                   </select>
                 </label>
                 <button type="button" id="mqtt-preset-apply" class="btn-ghost">Load preset</button>
+                <button type="button" id="mqtt-preset-save-custom" class="btn-ghost">Save as custom</button>
+                <button type="button" id="mqtt-preset-duplicate" class="btn-ghost">Duplicate</button>
+                <button type="button" id="mqtt-preset-manage" class="btn-ghost">Manage presets</button>
                 <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
                   <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less controls</button>
                   <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More controls</button>
@@ -463,6 +466,33 @@
             </header>
             <nav id="mqtt-section-nav" class="mqtt-section-nav tabs" aria-label="MQTT entity sections"></nav>
             <p id="mqtt-section-meta" class="meta mqtt-section-meta"></p>
+            <div id="mqtt-preset-manager" class="mqtt-preset-manager" hidden>
+              <h4>Custom presets</h4>
+              <p class="meta">Save, rename, edit, or delete your own entity selections. Built-in presets (RC-1189) cannot be edited — duplicate first.</p>
+              <form id="mqtt-preset-form" class="mqtt-preset-form">
+                <input type="hidden" id="mqtt-preset-edit-id" value="" />
+                <label>
+                  Name
+                  <input type="text" id="mqtt-preset-name" maxlength="64" placeholder="My living room" required />
+                </label>
+                <label>
+                  Description
+                  <input type="text" id="mqtt-preset-desc" maxlength="512" placeholder="Optional notes" />
+                </label>
+                <label>
+                  Remote map (optional)
+                  <select id="mqtt-preset-remote">
+                    <option value="">None</option>
+                    <option value="RC-1189">RC-1189 button labels</option>
+                  </select>
+                </label>
+                <div class="mqtt-preset-form-actions">
+                  <button type="submit" id="mqtt-preset-form-save" class="btn-primary">Save preset</button>
+                  <button type="button" id="mqtt-preset-form-cancel" class="btn-ghost">Cancel</button>
+                </div>
+              </form>
+              <ul id="mqtt-custom-preset-list" class="mqtt-custom-preset-list"></ul>
+            </div>
             <div id="mqtt-entities-list" class="mqtt-entities-list"></div>
           </section>
 

@@ -2953,6 +2953,89 @@ body.dashboard-editing .dashboard-widget {
   min-width: 11rem;
 }
 
+.mqtt-preset-manager {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 8px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.06));
+}
+
+.mqtt-preset-manager h4 {
+  margin: 0 0 0.35rem;
+}
+
+.mqtt-preset-form {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 32rem;
+  margin: 0.75rem 0;
+}
+
+.mqtt-preset-form label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.mqtt-preset-form input,
+.mqtt-preset-form select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+}
+
+.mqtt-preset-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.mqtt-custom-preset-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mqtt-custom-preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--border, rgba(127, 127, 127, 0.15));
+}
+
+.mqtt-custom-preset-title {
+  font-weight: 500;
+}
+
+.mqtt-custom-preset-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.mqtt-remote-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent, #3b82f6);
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mqtt-entity-item {
+  flex-wrap: wrap;
+}
+
 .telnet-proxy-status {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;

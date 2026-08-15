@@ -173,6 +173,9 @@
     mqttPresets: [],
     mqttLayout: "less",
     mqttPresetPreviewId: null,
+    mqttPresetEntityLabels: {},
+    mqttPresetRemoteRegions: [],
+    mqttPresetManagerOpen: false,
     mqttExportMode: "mqtt",
     mqttLovelaceStyle: "rc1189",
     mqttSectionId: null,
@@ -1291,6 +1294,19 @@
     }
   }
 
+  function collectMqttPresetEntities() {
+    syncMqttEntityChecksToState();
+    const all = ensureMqttEnabledEntities();
+    const entities = { less: [], more: [] };
+    for (const lay of ["less", "more"]) {
+      entities[lay] = Object.entries(all[lay] || {})
+        .filter(([, on]) => on)
+        .map(([id]) => id)
+        .sort();
+    }
+    return entities;
+  }
+
   function mqttField(name) {
     return document.querySelector(`#mqtt-form [name="${name}"]`);
   }
@@ -1466,12 +1482,22 @@
         map[ent.id] = cb.checked;
         label.classList.toggle("mqtt-entity-enabled", cb.checked);
         state.mqttPresetPreviewId = null;
+        state.mqttPresetEntityLabels = {};
+        state.mqttPresetRemoteRegions = [];
         renderMqttSectionNav(catalog);
       });
       label.appendChild(cb);
       const text = document.createElement("span");
       text.textContent = ent.label || ent.id;
       label.appendChild(text);
+      const remoteLabel = state.mqttPresetEntityLabels?.[ent.id];
+      if (remoteLabel) {
+        const badge = document.createElement("span");
+        badge.className = "mqtt-remote-badge";
+        badge.textContent = remoteLabel;
+        badge.title = "RC-1189 remote button";
+        label.appendChild(badge);
+      }
       const kind = document.createElement("small");
       kind.textContent = ent.ha_component || ent.kind || "";
       label.appendChild(kind);
@@ -1496,16 +1522,194 @@
     placeholder.value = "";
     placeholder.textContent = "Choose preset…";
     sel.appendChild(placeholder);
-    for (const p of state.mqttPresets || []) {
-      const opt = document.createElement("option");
-      opt.value = p.id;
-      const remote = p.remote ? ` (${p.remote})` : "";
-      opt.textContent = `${p.label}${remote}`;
-      opt.title = p.description || "";
-      sel.appendChild(opt);
-    }
+    const builtin = (state.mqttPresets || []).filter((p) => p.builtin);
+    const custom = (state.mqttPresets || []).filter((p) => !p.builtin);
+    const addGroup = (label, items) => {
+      if (!items.length) return;
+      const grp = document.createElement("optgroup");
+      grp.label = label;
+      for (const p of items) {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        const remote = p.remote ? ` (${p.remote})` : "";
+        opt.textContent = `${p.label}${remote}`;
+        opt.title = p.description || "";
+        grp.appendChild(opt);
+      }
+      sel.appendChild(grp);
+    };
+    addGroup("Built-in", builtin);
+    addGroup("Custom", custom);
     if (current && [...sel.options].some((o) => o.value === current)) {
       sel.value = current;
+    }
+  }
+
+  function renderMqttCustomPresetList() {
+    const list = $("mqtt-custom-preset-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const custom = (state.mqttPresets || []).filter((p) => !p.builtin);
+    if (!custom.length) {
+      list.innerHTML = "<li class=\"meta\">No custom presets yet — tick entities and use Save as custom.</li>";
+      return;
+    }
+    for (const p of custom) {
+      const li = document.createElement("li");
+      li.className = "mqtt-custom-preset-item";
+      const title = document.createElement("span");
+      title.className = "mqtt-custom-preset-title";
+      title.textContent = p.label;
+      if (p.description) title.title = p.description;
+      li.appendChild(title);
+      const actions = document.createElement("span");
+      actions.className = "mqtt-custom-preset-actions";
+      const loadBtn = document.createElement("button");
+      loadBtn.type = "button";
+      loadBtn.className = "btn-ghost";
+      loadBtn.textContent = "Load";
+      loadBtn.addEventListener("click", () => {
+        const sel = $("mqtt-preset-select");
+        if (sel) sel.value = p.id;
+        void previewMqttPreset(p.id);
+      });
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn-ghost";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", () => {
+        void previewMqttPreset(p.id).then(() => openMqttPresetForm(p));
+      });
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn-ghost";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", () => deleteMqttCustomPreset(p.id));
+      actions.append(loadBtn, editBtn, delBtn);
+      li.appendChild(actions);
+      list.appendChild(li);
+    }
+  }
+
+  function toggleMqttPresetManager(show) {
+    const panel = $("mqtt-preset-manager");
+    state.mqttPresetManagerOpen = show ?? !state.mqttPresetManagerOpen;
+    if (panel) panel.hidden = !state.mqttPresetManagerOpen;
+    if (state.mqttPresetManagerOpen) renderMqttCustomPresetList();
+  }
+
+  function openMqttPresetForm(preset) {
+    toggleMqttPresetManager(true);
+    $("mqtt-preset-edit-id").value = preset?.id || "";
+    $("mqtt-preset-name").value = preset?.label || "";
+    $("mqtt-preset-desc").value = preset?.description || "";
+    const remoteSel = $("mqtt-preset-remote");
+    if (remoteSel) remoteSel.value = preset?.remote || "";
+    if (!preset?.id) {
+      const sel = $("mqtt-preset-select");
+      const current = state.mqttPresets?.find((p) => p.id === sel?.value);
+      if (remoteSel && current?.remote) remoteSel.value = current.remote;
+    }
+  }
+
+  function resetMqttPresetForm() {
+    $("mqtt-preset-edit-id").value = "";
+    $("mqtt-preset-name").value = "";
+    $("mqtt-preset-desc").value = "";
+    const remoteSel = $("mqtt-preset-remote");
+    if (remoteSel) remoteSel.value = "";
+  }
+
+  async function saveMqttCustomPreset(ev) {
+    ev?.preventDefault?.();
+    const editId = $("mqtt-preset-edit-id")?.value?.trim();
+    const label = $("mqtt-preset-name")?.value?.trim();
+    if (!label) {
+      setStatus("Preset name is required", "err");
+      return;
+    }
+    const description = $("mqtt-preset-desc")?.value?.trim() || "";
+    const remote = $("mqtt-preset-remote")?.value?.trim() || null;
+    const entities = collectMqttPresetEntities();
+    const banner = $("mqtt-banner");
+    try {
+      let data;
+      if (editId) {
+        data = await api(`/api/mqtt/presets/custom/${encodeURIComponent(editId)}`, {
+          method: "PUT",
+          body: JSON.stringify({ label, description, remote, entities }),
+        });
+      } else {
+        data = await api("/api/mqtt/presets/custom", {
+          method: "POST",
+          body: JSON.stringify({ label, description, remote, entities }),
+        });
+      }
+      state.mqttPresets = data.presets || state.mqttPresets;
+      renderMqttPresetSelect();
+      renderMqttCustomPresetList();
+      resetMqttPresetForm();
+      if (data.preset?.id) {
+        const sel = $("mqtt-preset-select");
+        if (sel) sel.value = data.preset.id;
+      }
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = editId ? "Custom preset updated." : "Custom preset saved.";
+      }
+      setStatus("Preset saved", "ok");
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+      setStatus(err.message, "err");
+    }
+  }
+
+  async function deleteMqttCustomPreset(presetId) {
+    if (!window.confirm("Delete this custom preset?")) return;
+    try {
+      const data = await api(`/api/mqtt/presets/custom/${encodeURIComponent(presetId)}`, {
+        method: "DELETE",
+      });
+      state.mqttPresets = data.presets || [];
+      renderMqttPresetSelect();
+      renderMqttCustomPresetList();
+      setStatus("Preset deleted", "ok");
+    } catch (err) {
+      setStatus(err.message, "err");
+    }
+  }
+
+  async function duplicateMqttPreset() {
+    const sel = $("mqtt-preset-select");
+    const presetId = sel?.value?.trim();
+    if (!presetId) {
+      setStatus("Choose a preset to duplicate", "err");
+      return;
+    }
+    const label = window.prompt("Name for the copy:", "My preset (copy)");
+    if (label === null) return;
+    syncMqttEntityChecksToState();
+    try {
+      const data = await api(`/api/mqtt/presets/${encodeURIComponent(presetId)}/duplicate`, {
+        method: "POST",
+        body: JSON.stringify({
+          label: label.trim() || undefined,
+          enabled_entities: ensureMqttEnabledEntities(),
+        }),
+      });
+      state.mqttPresets = data.presets || state.mqttPresets;
+      renderMqttPresetSelect();
+      renderMqttCustomPresetList();
+      if (data.preset?.id) {
+        if (sel) sel.value = data.preset.id;
+        await previewMqttPreset(data.preset.id);
+      }
+      setStatus("Preset duplicated", "ok");
+    } catch (err) {
+      setStatus(err.message, "err");
     }
   }
 
@@ -1518,6 +1722,11 @@
       all[mqttLayoutKey()] = { ...data.enabled_map };
     }
     state.mqttPresetPreviewId = data.preset?.id || state.mqttPresetPreviewId || "custom";
+    state.mqttPresetEntityLabels = data.entity_labels || {};
+    state.mqttPresetRemoteRegions = data.remote_regions || [];
+    if (data.preset?.remote !== "RC-1189" && !data.entity_labels) {
+      state.mqttPresetEntityLabels = {};
+    }
     if (data.catalog) {
       state.mqttCatalog = data.catalog;
       renderMqttEntities(data.catalog);
@@ -1527,6 +1736,8 @@
   async function previewMqttPreset(presetId) {
     if (!presetId) {
       state.mqttPresetPreviewId = null;
+      state.mqttPresetEntityLabels = {};
+      state.mqttPresetRemoteRegions = [];
       return;
     }
     const banner = $("mqtt-banner");
@@ -1572,6 +1783,7 @@
       else if (mode === "featured") map[ent.id] = Boolean(ent.featured);
     }
     state.mqttPresetPreviewId = null;
+    state.mqttPresetEntityLabels = {};
     renderMqttEntities(catalog);
     void refreshMqttExportOutput();
   }
@@ -1778,6 +1990,21 @@
       setMqttEntitySelection("featured")
     );
     $("mqtt-preset-apply")?.addEventListener("click", () => applyMqttPreset());
+    $("mqtt-preset-save-custom")?.addEventListener("click", () => {
+      openMqttPresetForm(null);
+      toggleMqttPresetManager(true);
+    });
+    $("mqtt-preset-duplicate")?.addEventListener("click", () =>
+      duplicateMqttPreset().catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-preset-manage")?.addEventListener("click", () => toggleMqttPresetManager());
+    $("mqtt-preset-form")?.addEventListener("submit", (ev) =>
+      saveMqttCustomPreset(ev).catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-preset-form-cancel")?.addEventListener("click", () => {
+      resetMqttPresetForm();
+      toggleMqttPresetManager(false);
+    });
     $("mqtt-preset-select")?.addEventListener("change", (ev) => {
       const id = ev.target?.value?.trim();
       if (id) void previewMqttPreset(id);
