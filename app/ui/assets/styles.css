@@ -2898,6 +2898,24 @@ body.dashboard-editing .dashboard-widget {
   gap: 0.5rem;
 }
 
+.mqtt-preset-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.mqtt-preset-select {
+  min-width: 11rem;
+}
+
+.telnet-proxy-status {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+}
+
 .mqtt-layout-switch {
   display: inline-flex;
   border: 1px solid var(--border, rgba(127, 127, 127, 0.25));

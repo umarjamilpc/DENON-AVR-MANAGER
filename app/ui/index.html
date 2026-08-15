@@ -316,6 +316,7 @@
           </header>
           <p id="settings-banner" class="banner" hidden></p>
           <p id="settings-path" class="meta settings-path"></p>
+          <p id="telnet-proxy-status" class="meta telnet-proxy-status">Telnet proxy: —</p>
           <form id="settings-form" class="settings-form"></form>
         </article>
       </section>
@@ -444,6 +445,13 @@
                 </p>
               </div>
               <div class="editor-actions mqtt-layout-actions">
+                <label class="mqtt-preset-label">
+                  Preset
+                  <select id="mqtt-preset-select" class="mqtt-preset-select" aria-label="MQTT entity preset">
+                    <option value="">Choose preset…</option>
+                  </select>
+                </label>
+                <button type="button" id="mqtt-preset-apply" class="btn-ghost">Apply preset</button>
                 <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
                   <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less controls</button>
                   <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More controls</button>
@@ -629,6 +637,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=86"></script>
+  <script src="/assets/app.js?v=87"></script>
 </body>
 </html>

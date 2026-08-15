@@ -23,8 +23,9 @@ DEFAULTS: Dict[str, Any] = {
     # HA denonavr-style: zones are opt-in (default off to keep Control Panel lean)
     "show_zone2": False,
     "show_zone3": False,
-    "telnet_proxy_enabled": False,
+    "telnet_proxy_enabled": True,
     "telnet_proxy_port": 2323,
+    "telnet_proxy_baud_rate": 9600,
 }
 
 # UI / API schema: label + short explanation for the Settings page.
@@ -178,7 +179,8 @@ SETTING_META: List[Dict[str, Any]] = [
         "description": (
             "Listen on the proxy port (default 2323) and forward multiple clients "
             "(PuTTY, scripts) through this manager's single AVR telnet session. "
-            "Point clients at this host — not the AVR — e.g. telnet nas-ip 2323."
+            "Point clients at this host — not the AVR — e.g. telnet nas-ip 2323. "
+            "In PuTTY use Connection type Raw or Telnet (not Serial)."
         ),
     },
     {
@@ -190,7 +192,18 @@ SETTING_META: List[Dict[str, Any]] = [
         "step": 1,
         "description": (
             "TCP port for the telnet proxy (default 2323). Expose this port in "
-            "Docker Compose when the proxy is enabled."
+            "Docker Compose when the proxy is enabled (dev: host 2324 → container 2323)."
+        ),
+    },
+    {
+        "key": "telnet_proxy_baud_rate",
+        "label": "Telnet proxy baud rate",
+        "type": "enum",
+        "options": ["9600", "19200", "38400", "57600", "115200"],
+        "description": (
+            "Reference baud for RS-232 serial adapters (default 9600, matches Denon "
+            "documentation). The TCP telnet proxy does not use baud — only PuTTY Serial "
+            "mode would. Use Raw/Telnet connection type in PuTTY."
         ),
     },
 ]
@@ -245,6 +258,15 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         65535,
         int(DEFAULTS["telnet_proxy_port"]),
     )
+
+    baud_raw = src.get("telnet_proxy_baud_rate", out.get("telnet_proxy_baud_rate", 9600))
+    try:
+        baud = int(baud_raw)
+    except (TypeError, ValueError):
+        baud = int(DEFAULTS["telnet_proxy_baud_rate"])
+    if baud not in {9600, 19200, 38400, 57600, 115200}:
+        baud = int(DEFAULTS["telnet_proxy_baud_rate"])
+    out["telnet_proxy_baud_rate"] = baud
 
     grouping = str(
         src.get("control_grouping", out.get("control_grouping", "less controls"))

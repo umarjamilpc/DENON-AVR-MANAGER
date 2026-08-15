@@ -14,17 +14,25 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 from .app_settings import load_settings
 from .denon_telnet import DenonTelnetError, get_telnet_hub
+from .telnet_protocol import greeting_banner, initial_negotiation, strip_telnet_protocol
 
 log = logging.getLogger("denon.telnet_proxy")
 
 DEFAULT_PROXY_PORT = 2323
+DEFAULT_BAUD_RATE = 9600
 READ_CHUNK = 4096
 
 
 class TelnetProxyServer:
-    def __init__(self, avr_host: str, listen_port: int = DEFAULT_PROXY_PORT) -> None:
+    def __init__(
+        self,
+        avr_host: str,
+        listen_port: int = DEFAULT_PROXY_PORT,
+        baud_rate: int = DEFAULT_BAUD_RATE,
+    ) -> None:
         self.avr_host = (avr_host or "").strip()
         self.listen_port = int(listen_port)
+        self.baud_rate = int(baud_rate)
         self._hub = get_telnet_hub(self.avr_host)
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -36,13 +44,26 @@ class TelnetProxyServer:
     def status(self) -> Dict[str, Any]:
         with self._clients_lock:
             client_count = len(self._clients)
+        running = self._thread is not None and self._thread.is_alive()
         return {
-            "enabled": self._thread is not None and self._thread.is_alive(),
+            "enabled": running,
+            "running": running,
             "listen_port": self.listen_port,
             "avr_host": self.avr_host,
+            "baud_rate": self.baud_rate,
             "client_count": client_count,
             "last_error": self._last_error,
             "hub_connected": bool(self._hub.snapshot_cache().get("connected")),
+            "putty": {
+                "connection_type": "Raw or Telnet",
+                "not_serial": True,
+                "baud_note": (
+                    f"Baud {self.baud_rate} applies to RS-232 serial adapters only; "
+                    "this TCP proxy ignores baud rate."
+                ),
+                "command_suffix": "CR/LF (Enter in PuTTY)",
+                "example": "PW?",
+            },
         }
 
     def start(self) -> None:
@@ -91,13 +112,19 @@ class TelnetProxyServer:
                 self._clients.discard(sock)
 
     def _serve_loop(self) -> None:
+        srv: Optional[socket.socket] = None
         try:
             srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             srv.bind(("0.0.0.0", self.listen_port))
-            srv.listen(8)
+            srv.listen(16)
             srv.settimeout(0.5)
-            log.info("Telnet proxy listening on 0.0.0.0:%s → %s:23", self.listen_port, self.avr_host)
+            log.info(
+                "Telnet proxy listening on 0.0.0.0:%s -> %s:23 (baud ref %s)",
+                self.listen_port,
+                self.avr_host,
+                self.baud_rate,
+            )
         except OSError as e:
             self._last_error = str(e)
             log.warning("Telnet proxy failed to bind port %s: %s", self.listen_port, e)
@@ -117,17 +144,27 @@ class TelnetProxyServer:
                 daemon=True,
             ).start()
 
-        try:
-            srv.close()
-        except OSError:
-            pass
+        if srv is not None:
+            try:
+                srv.close()
+            except OSError:
+                pass
 
     def _handle_client(self, sock: socket.socket, addr: Any) -> None:
         sock.settimeout(300.0)
         with self._clients_lock:
             self._clients.add(sock)
         log.info("Telnet proxy client connected: %s:%s", addr[0], addr[1])
-        buf = b""
+        try:
+            sock.sendall(
+                greeting_banner(self.listen_port, self.avr_host, self.baud_rate)
+                + initial_negotiation()
+            )
+        except OSError as e:
+            log.warning("Telnet proxy greeting failed for %s:%s: %s", addr[0], addr[1], e)
+
+        raw_buf = bytearray()
+        line_buf = b""
         try:
             while not self._stop.is_set():
                 try:
@@ -136,27 +173,39 @@ class TelnetProxyServer:
                     continue
                 if not chunk:
                     break
-                buf += chunk
-                while True:
-                    line, sep, rest = buf.partition(b"\r")
-                    if not sep:
-                        line, sep2, rest = buf.partition(b"\n")
-                        if not sep2:
-                            break
-                    buf = rest
-                    cmd = line.decode("ascii", errors="ignore").strip()
-                    if not cmd:
-                        continue
-                    try:
-                        result = self._hub.send(cmd)
-                        responses = list(result.get("responses") or [])
-                        if responses:
-                            out = "".join(f"{ln}\r\n" for ln in responses)
-                            sock.sendall(out.encode("ascii", errors="ignore"))
-                    except DenonTelnetError as e:
-                        sock.sendall(f"ERROR: {e}\r\n".encode("ascii", errors="ignore"))
-                    except Exception as e:
-                        sock.sendall(f"ERROR: {e}\r\n".encode("ascii", errors="ignore"))
+                raw_buf.extend(chunk)
+                while raw_buf:
+                    responses, payload, consumed = strip_telnet_protocol(bytes(raw_buf))
+                    if consumed <= 0:
+                        break
+                    del raw_buf[:consumed]
+                    if responses:
+                        try:
+                            sock.sendall(responses)
+                        except OSError:
+                            raise
+                    if payload:
+                        line_buf += payload
+                    while True:
+                        line, sep, rest = line_buf.partition(b"\r")
+                        if not sep:
+                            line, sep2, rest = line_buf.partition(b"\n")
+                            if not sep2:
+                                break
+                        line_buf = rest
+                        cmd = line.decode("ascii", errors="ignore").strip()
+                        if not cmd:
+                            continue
+                        try:
+                            result = self._hub.send(cmd)
+                            out_lines = list(result.get("responses") or [])
+                            if out_lines:
+                                out = "".join(f"{ln}\r\n" for ln in out_lines)
+                                sock.sendall(out.encode("ascii", errors="ignore"))
+                        except DenonTelnetError as e:
+                            sock.sendall(f"ERROR: {e}\r\n".encode("ascii", errors="ignore"))
+                        except Exception as e:
+                            sock.sendall(f"ERROR: {e}\r\n".encode("ascii", errors="ignore"))
         except OSError:
             pass
         finally:
@@ -178,12 +227,13 @@ def restart_telnet_proxy(avr_host: str) -> Dict[str, Any]:
     settings = load_settings()
     enabled = bool(settings.get("telnet_proxy_enabled"))
     port = int(settings.get("telnet_proxy_port") or DEFAULT_PROXY_PORT)
+    baud = int(settings.get("telnet_proxy_baud_rate") or DEFAULT_BAUD_RATE)
     with _proxy_lock:
         if _proxy is not None:
             _proxy.stop()
             _proxy = None
         if enabled and avr_host:
-            _proxy = TelnetProxyServer(avr_host, port)
+            _proxy = TelnetProxyServer(avr_host, port, baud)
             _proxy.start()
         return telnet_proxy_status()
 
@@ -198,16 +248,27 @@ def stop_telnet_proxy() -> None:
 
 def telnet_proxy_status() -> Dict[str, Any]:
     settings = load_settings()
+    port = int(settings.get("telnet_proxy_port") or DEFAULT_PROXY_PORT)
+    baud = int(settings.get("telnet_proxy_baud_rate") or DEFAULT_BAUD_RATE)
     with _proxy_lock:
         if _proxy is None:
             return {
                 "enabled": bool(settings.get("telnet_proxy_enabled")),
                 "running": False,
-                "listen_port": int(settings.get("telnet_proxy_port") or DEFAULT_PROXY_PORT),
+                "listen_port": port,
+                "baud_rate": baud,
                 "client_count": 0,
                 "last_error": None,
                 "hub_connected": False,
+                "putty": {
+                    "connection_type": "Raw or Telnet",
+                    "not_serial": True,
+                    "baud_note": (
+                        f"Baud {baud} applies to RS-232 serial adapters only; "
+                        "this TCP proxy ignores baud rate."
+                    ),
+                    "command_suffix": "CR/LF (Enter in PuTTY)",
+                    "example": "PW?",
+                },
             }
-        st = _proxy.status()
-        st["running"] = st.get("enabled", False)
-        return st
+        return _proxy.status()

@@ -17,6 +17,7 @@ from ..denon_client import DenonSetupClient
 from ..denon_control import DenonControl, SUPPORTED_MODELS
 from ..host_utils import normalize_host
 from ..mqtt_service import get_mqtt_bridge, restart_mqtt_bridge
+from ..mqtt_presets import apply_mqtt_preset, list_mqtt_presets
 from ..mqtt_settings import (
     enabled_entities_for_layout,
     load_mqtt_settings,
@@ -45,6 +46,11 @@ _CERT_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 class MqttSettingsBody(BaseModel):
     settings: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MqttPresetBody(BaseModel):
+    preset_id: str = Field(..., min_length=1)
+    layout: str | None = None
 
 
 def _control_catalog(layout: str) -> Dict[str, Any]:
@@ -120,6 +126,42 @@ def _catalog_response(settings: Dict[str, Any], layout: str) -> Dict[str, Any]:
         "enabled_count": sum(1 for e in entities if e.get("enabled")),
         "enabled_counts": counts,
         "entity_totals": totals,
+    }
+
+
+@router.get("/mqtt/presets")
+def mqtt_list_presets() -> Dict[str, Any]:
+    return {"presets": list_mqtt_presets()}
+
+
+@router.post("/mqtt/presets/apply")
+def mqtt_apply_preset(body: MqttPresetBody) -> Dict[str, Any]:
+    settings = load_mqtt_settings()
+    lay = normalize_layout(body.layout or settings.get("control_layout") or "less")
+    cat = _catalog_response(settings, lay)
+    entities = list(cat.get("entities") or [])
+    try:
+        enabled_entities = apply_mqtt_preset(
+            body.preset_id,
+            lay,
+            entities,
+            settings.get("enabled_entities"),
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    saved = save_mqtt_settings({"enabled_entities": enabled_entities})
+    restart_mqtt_bridge()
+    cat = _catalog_response(saved, lay)
+    preset = next((p for p in list_mqtt_presets() if p["id"] == body.preset_id), None)
+    enabled_count = sum(1 for e in cat.get("entities") or [] if e.get("enabled"))
+    return {
+        "ok": True,
+        "preset": preset,
+        "layout": lay,
+        "enabled_count": enabled_count,
+        "settings": saved,
+        "catalog": cat,
+        "status": get_mqtt_bridge().status(),
     }
 
 

@@ -170,6 +170,7 @@
     settingsDirty: false,
     mqttSettings: null,
     mqttCatalog: null,
+    mqttPresets: [],
     mqttLayout: "less",
     mqttSectionId: null,
     mqttHaFormat: "json",
@@ -1154,12 +1155,38 @@
     try {
       const data = await refreshAppSettings();
       renderSettingsForm();
+      await renderTelnetProxyStatus();
     } catch (err) {
       if (banner) {
         banner.hidden = false;
         banner.textContent = err.message;
       }
       renderSettingsForm();
+    }
+  }
+
+  async function renderTelnetProxyStatus() {
+    const el = $("telnet-proxy-status");
+    if (!el) return;
+    try {
+      const st = await api("/api/telnet-proxy/status");
+      const port = st.listen_port ?? 2323;
+      const baud = st.baud_rate ?? 9600;
+      if (!st.enabled) {
+        el.textContent =
+          "Telnet proxy: disabled — enable in settings above, then Save.";
+        return;
+      }
+      if (!st.running) {
+        const err = st.last_error ? ` (${st.last_error})` : "";
+        el.textContent =
+          `Telnet proxy: enabled but not listening${err}. Save settings or check Docker port mapping (host → ${port}).`;
+        return;
+      }
+      el.textContent =
+        `Telnet proxy: listening on TCP port ${port} → AVR:23 | clients ${st.client_count ?? 0} | hub ${st.hub_connected ? "connected" : "offline"} | PuTTY: Raw/Telnet (not Serial), baud ${baud} ref only`;
+    } catch (err) {
+      el.textContent = `Telnet proxy: ${err.message}`;
     }
   }
 
@@ -1177,6 +1204,7 @@
         banner.textContent = "Saved";
       }
       setStatus("Saved", "ok");
+      await renderTelnetProxyStatus();
       // Reload Control Panel when model, layout, or zone visibility changes
       if (
         state.appSettings?.avr_model !== prevModel ||
@@ -1435,6 +1463,69 @@
     root.appendChild(grid);
   }
 
+  function renderMqttPresetSelect() {
+    const sel = $("mqtt-preset-select");
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Choose preset…";
+    sel.appendChild(placeholder);
+    for (const p of state.mqttPresets || []) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      const remote = p.remote ? ` (${p.remote})` : "";
+      opt.textContent = `${p.label}${remote}`;
+      opt.title = p.description || "";
+      sel.appendChild(opt);
+    }
+    if (current && [...sel.options].some((o) => o.value === current)) {
+      sel.value = current;
+    }
+  }
+
+  async function applyMqttPreset() {
+    const sel = $("mqtt-preset-select");
+    const presetId = sel?.value?.trim();
+    if (!presetId) {
+      setStatus("Choose a preset first", "err");
+      return;
+    }
+    const banner = $("mqtt-banner");
+    try {
+      const data = await api("/api/mqtt/presets/apply", {
+        method: "POST",
+        body: JSON.stringify({
+          preset_id: presetId,
+          layout: mqttLayoutKey(),
+        }),
+      });
+      state.mqttSettings = data.settings || state.mqttSettings;
+      ensureMqttEnabledEntities();
+      if (data.catalog) {
+        state.mqttCatalog = data.catalog;
+        renderMqttEntities(data.catalog);
+      } else {
+        await loadMqttCatalog(state.mqttLayout);
+      }
+      renderMqttStatus(data.status);
+      await refreshMqttHaOutput();
+      const label = data.preset?.label || presetId;
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = `Preset applied: ${label} (${data.enabled_count ?? 0} entities)`;
+      }
+      setStatus(`MQTT preset: ${label}`, "ok");
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+      setStatus(err.message, "err");
+    }
+  }
+
   function setMqttEntitySelection(mode) {
     const catalog = state.mqttCatalog;
     if (!catalog?.entities?.length) return;
@@ -1470,7 +1561,9 @@
     try {
       const settingsData = await api("/api/mqtt/settings");
       state.mqttSettings = settingsData.settings || {};
+      state.mqttPresets = settingsData.presets || [];
       ensureMqttEnabledEntities();
+      renderMqttPresetSelect();
       state.mqttLayout =
         state.mqttSettings.control_layout === "more" ? "more" : "less";
       applyMqttForm(state.mqttSettings);
@@ -1599,6 +1692,7 @@
     $("mqtt-entities-featured")?.addEventListener("click", () =>
       setMqttEntitySelection("featured")
     );
+    $("mqtt-preset-apply")?.addEventListener("click", () => applyMqttPreset());
     $("mqtt-entities-all")?.addEventListener("click", () => setMqttEntitySelection("all"));
     $("mqtt-entities-none")?.addEventListener("click", () => setMqttEntitySelection("none"));
     $("mqtt-layout-less")?.addEventListener("click", () =>

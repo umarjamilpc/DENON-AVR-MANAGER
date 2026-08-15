@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .mqtt_presets import list_mqtt_presets
 from .db import data_dir, get_setting, upsert_setting
 from .protocol_loader import normalize_layout
 
@@ -206,6 +207,7 @@ def settings_response() -> Dict[str, Any]:
             "MQTT settings are stored in SQLite (/data/app.db) and survive reboots. "
             "Upload TLS certificates on this page; filenames are saved in settings."
         ),
+        "presets": list_mqtt_presets(),
     }
 
 
