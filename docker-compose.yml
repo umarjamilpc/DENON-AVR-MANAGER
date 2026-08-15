@@ -19,6 +19,8 @@ services:
     environment:
       # Required — your Denon AVR IP or hostname on the LAN
       DENON_HOST: "192.168.1.50"
+      # debug | info | warning — app logs + uvicorn console verbosity
+      LOG_LEVEL: "info"
       # Optional — match your host user so /data files look familiar on disk.
       # Defaults are already Unraid nobody:users (99:100). On Linux desktop use `id -u` / `id -g`.
       # /data is always chmod a+rwX so the host can edit app-settings.json either way.

@@ -36,7 +36,7 @@ ENV PYTHONUNBUFFERED=1 \
     PGID=100
 
 # DENON_HOST must be provided at runtime (docker compose environment).
-EXPOSE 8000
+EXPOSE 8000 2323
 
 # Entrypoint runs as root briefly to fix /data perms (rw for container + host),
 # then drops to PUID:PGID.

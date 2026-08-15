@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from .logging_config import configure_logging
 from .app_settings import ensure_settings_file, load_settings
 from .denon_client import DenonSetupClient
 from .denon_control import SUPPORTED_MODELS, DenonControl
@@ -29,7 +30,8 @@ from .telnet_proxy import restart_telnet_proxy, stop_telnet_proxy
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 ROOT_DIR = Path(__file__).resolve().parents[1]
-log = logging.getLogger("denon.preload")
+log = logging.getLogger("denon.startup")
+preload_log = logging.getLogger("denon.preload")
 
 
 def _settings_model() -> str:
@@ -39,6 +41,7 @@ def _settings_model() -> str:
 
 def _run_control_preload(app: FastAPI) -> None:
     """Background: query full AVR status once into the shared telnet cache."""
+    preload_log.info("Control preload: starting")
     state: Dict[str, Any] = getattr(app.state, "control_preload", {})
     state.update({"status": "running", "started_at": time.time(), "error": None})
     app.state.control_preload = state
@@ -64,13 +67,13 @@ def _run_control_preload(app: FastAPI) -> None:
             "transport": snap.get("transport"),
             "error": None,
         }
-        log.info(
+        preload_log.info(
             "Control preload ready: %s entities, %s queries",
             app.state.control_preload["entity_count"],
             app.state.control_preload["queried"],
         )
     except Exception as e:
-        log.warning("Control preload failed: %s", e)
+        preload_log.warning("Control preload failed: %s", e)
         app.state.control_preload = {
             "status": "error",
             "started_at": state.get("started_at"),
@@ -82,7 +85,38 @@ def _run_control_preload(app: FastAPI) -> None:
         }
 
 
+def _start_background_services(app: FastAPI, default_host: str) -> None:
+    """MQTT + telnet proxy must not block HTTP startup (broker/AVR may be slow)."""
+    try:
+        bridge = get_mqtt_bridge()
+        bridge.configure_app(app)
+        log.info("Startup services: MQTT bridge…")
+        restart_mqtt_bridge()
+        st = get_mqtt_bridge().status()
+        log.info(
+            "Startup services: MQTT done enabled=%s connected=%s error=%s",
+            st.get("enabled"),
+            st.get("connected"),
+            st.get("last_error"),
+        )
+    except Exception:
+        log.exception("Startup services: MQTT failed")
+
+    try:
+        log.info("Startup services: telnet proxy…")
+        st = restart_telnet_proxy(default_host)
+        log.info(
+            "Startup services: telnet proxy running=%s port=%s clients=%s",
+            st.get("running"),
+            st.get("listen_port"),
+            st.get("client_count"),
+        )
+    except Exception:
+        log.exception("Startup services: telnet proxy failed")
+
+
 def create_app(host: str | None = None) -> FastAPI:
+    configure_logging()
     # Host comes from the process environment (Docker Compose / systemd / shell).
     # No .env file is used.
     raw = host or os.environ.get("DENON_HOST")
@@ -101,19 +135,24 @@ def create_app(host: str | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        log.info("Lifespan: begin (DENON_HOST=%s)", default_host)
         app.state.control_preload = {"status": "pending", "error": None}
-        thread = threading.Thread(
+        threading.Thread(
             target=_run_control_preload,
             args=(app,),
             name="control-preload",
             daemon=True,
-        )
-        thread.start()
-        bridge = get_mqtt_bridge()
-        bridge.configure_app(app)
-        restart_mqtt_bridge()
-        restart_telnet_proxy(default_host)
+        ).start()
+        log.info("Lifespan: control preload thread started")
+        threading.Thread(
+            target=_start_background_services,
+            args=(app, default_host),
+            name="startup-services",
+            daemon=True,
+        ).start()
+        log.info("Lifespan: HTTP ready (MQTT/proxy starting in background)")
         yield
+        log.info("Lifespan: shutdown")
         stop_mqtt_bridge()
         stop_telnet_proxy()
 

@@ -9,6 +9,11 @@ set -e
 
 PUID="${PUID:-99}"
 PGID="${PGID:-100}"
+LOG_LEVEL="${LOG_LEVEL:-info}"
+
+echo "[entrypoint] DENON_HOST=${DENON_HOST:-<not set>}"
+echo "[entrypoint] LOG_LEVEL=${LOG_LEVEL}"
+echo "[entrypoint] PUID=${PUID} PGID=${PGID}"
 
 mkdir -p /data
 
@@ -17,5 +22,11 @@ chown -R "${PUID}:${PGID}" /data 2>/dev/null || true
 
 # Always world read/write/execute-on-dirs so host + container both work.
 chmod -R a+rwX /data 2>/dev/null || true
+
+# If CMD is default uvicorn, inject --log-level from LOG_LEVEL env.
+if [ "$1" = "uvicorn" ]; then
+  shift
+  exec su-exec "${PUID}:${PGID}" uvicorn "$@" --log-level "${LOG_LEVEL}"
+fi
 
 exec su-exec "${PUID}:${PGID}" "$@"

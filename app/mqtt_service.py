@@ -129,10 +129,14 @@ class MqttBridge:
         settings = load_mqtt_settings()
         self._settings = settings
         if not settings.get("enabled"):
+            log.debug("MQTT disabled — skip connect")
             return
-        if not str(settings.get("host") or "").strip():
+        host = str(settings.get("host") or "").strip()
+        if not host:
             self._last_error = "MQTT host is not configured"
+            log.warning("MQTT enabled but host is empty")
             return
+        log.info("MQTT connecting to %s:%s …", host, settings.get("port") or 1883)
         self._start_client(settings)
         self._start_poll_loop()
 
@@ -231,8 +235,9 @@ class MqttBridge:
             self._settings = settings
             self._last_error = None
         try:
-            client.connect(host, port, keepalive=60)
+            client.connect_async(host, port, keepalive=60)
             client.loop_start()
+            log.debug("MQTT connect_async issued for %s:%s", host, port)
         except Exception as e:
             self._last_error = str(e)
             log.warning("MQTT connect failed: %s", e)
@@ -269,9 +274,11 @@ class MqttBridge:
         if rc != 0:
             self._last_error = f"MQTT connect rc={rc}"
             self._connected = False
+            log.warning("MQTT on_connect failed rc=%s", rc)
             return
         self._connected = True
         self._last_error = None
+        log.info("MQTT connected to %s", self._settings.get("host"))
         self._refresh_control_index()
         self._publish_availability("online")
         self._publish_discovery()
@@ -279,6 +286,13 @@ class MqttBridge:
         client.subscribe(f"{topic}/+/set")
         client.subscribe(f"{topic}/command")
         self._subscribed = True
+        threading.Thread(
+            target=self._safe_initial_publish,
+            name="mqtt-initial-publish",
+            daemon=True,
+        ).start()
+
+    def _safe_initial_publish(self) -> None:
         try:
             self._refresh_and_publish()
         except Exception as e:

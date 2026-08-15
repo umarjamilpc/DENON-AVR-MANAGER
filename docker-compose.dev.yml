@@ -5,8 +5,8 @@
 
 services:
   denon-avr-manager-dev:
-    image: ghcr.io/umarjamilpc/denon-avr-manager:dev
-    # build: .
+    # image: ghcr.io/umarjamilpc/denon-avr-manager:dev
+    build: .
     container_name: denon-avr-manager-dev
     ports:
       - "8001:8000"
@@ -14,6 +14,7 @@ services:
     environment:
       DENON_HOST: "192.168.1.50"
       APP_BUILD_CHANNEL: "dev"
+      LOG_LEVEL: "debug"
       PUID: "99"
       PGID: "100"
     volumes:
