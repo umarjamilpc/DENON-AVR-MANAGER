@@ -10,8 +10,12 @@ WONT = 252
 SB = 250
 SE = 240
 
-# Options we accept when the client negotiates.
-_ACCEPT_DO = {1, 3}  # ECHO, Suppress Go Ahead
+# Telnet option codes
+ECHO = 1
+SGA = 3
+
+# Only negotiate Suppress Go Ahead — never offer ECHO (PuTTY hides local typing otherwise).
+_ACCEPT_DO = {SGA}
 
 
 def greeting_banner(
@@ -19,9 +23,10 @@ def greeting_banner(
     avr_host: str,
     baud_rate: int = 9600,
 ) -> bytes:
+    target = avr_host if ":" in avr_host else f"{avr_host}:23"
     text = (
-        f"\r\nDenon AVR Manager — telnet proxy (TCP {listen_port} -> {avr_host}:23)\r\n"
-        "Send Denon telnet commands ending with CR/LF (e.g. PW?\\r\\n).\r\n"
+        f"\r\nDenon AVR Manager — telnet proxy (TCP {listen_port} -> {target})\r\n"
+        "Send Denon telnet commands ending with CR/LF (e.g. PW? then Enter).\r\n"
         "PuTTY: Connection type = Raw or Telnet (not Serial).\r\n"
         f"Baud {baud_rate} is for RS-232 serial only; ignored on this TCP proxy.\r\n\r\n"
     )
@@ -29,8 +34,8 @@ def greeting_banner(
 
 
 def initial_negotiation() -> bytes:
-    """Proactive WILL for common options so PuTTY Telnet mode stays happy."""
-    return bytes([IAC, WILL, 1, IAC, WILL, 3])
+    """Offer SGA only — do not offer ECHO or PuTTY suppresses local typing."""
+    return bytes([IAC, WILL, SGA])
 
 
 def strip_telnet_protocol(data: bytes) -> tuple[bytes, bytes, int]:
@@ -62,7 +67,10 @@ def strip_telnet_protocol(data: bytes) -> tuple[bytes, bytes, int]:
                 else:
                     responses.extend([IAC, WONT, opt])
             elif cmd == DONT:
-                responses.extend([IAC, WONT, opt])
+                if opt == ECHO:
+                    responses.extend([IAC, WONT, opt])
+                else:
+                    responses.extend([IAC, WONT, opt])
             i += 3
             continue
         if cmd == SB:

@@ -376,13 +376,14 @@ _HUBS_LOCK = threading.Lock()
 
 
 def get_telnet_hub(host: str, port: int = DEFAULT_PORT) -> DenonTelnetHub:
-    key = f"{(host or '').strip()}:{int(port)}"
+    clean = host_from_base(host)
+    key = f"{clean}:{int(port)}"
     with _HUBS_LOCK:
         hub = _HUBS.get(key)
-        if hub is None or hub.host != (host or "").strip():
+        if hub is None or hub.host != clean:
             if hub is not None:
                 hub.close()
-            hub = DenonTelnetHub(host, port)
+            hub = DenonTelnetHub(clean, port)
             _HUBS[key] = hub
         return hub
 

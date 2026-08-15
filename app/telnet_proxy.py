@@ -13,7 +13,7 @@ import threading
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from .app_settings import load_settings
-from .denon_telnet import DenonTelnetError, get_telnet_hub
+from .denon_telnet import DenonTelnetError, get_telnet_hub, host_from_base
 from .telnet_protocol import greeting_banner, initial_negotiation, strip_telnet_protocol
 
 log = logging.getLogger("denon.telnet_proxy")
@@ -30,7 +30,7 @@ class TelnetProxyServer:
         listen_port: int = DEFAULT_PROXY_PORT,
         baud_rate: int = DEFAULT_BAUD_RATE,
     ) -> None:
-        self.avr_host = (avr_host or "").strip()
+        self.avr_host = host_from_base((avr_host or "").strip())
         self.listen_port = int(listen_port)
         self.baud_rate = int(baud_rate)
         self._hub = get_telnet_hub(self.avr_host)
@@ -185,6 +185,10 @@ class TelnetProxyServer:
                         except OSError:
                             raise
                     if payload:
+                        try:
+                            sock.sendall(payload)
+                        except OSError:
+                            raise
                         line_buf += payload
                     while True:
                         line, sep, rest = line_buf.partition(b"\r")
