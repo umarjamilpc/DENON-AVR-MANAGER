@@ -7,7 +7,7 @@
   <title>DENON AVR MANAGER</title>
   <link rel="stylesheet" href="/assets/fonts.css?v=75" />
   <link rel="stylesheet" href="/assets/mdi/materialdesignicons.min.css?v=75" />
-  <link rel="stylesheet" href="/assets/styles.css?v=78" />
+  <link rel="stylesheet" href="/assets/styles.css?v=79" />
 </head>
 <body>
   <div class="shell">
@@ -83,6 +83,7 @@
       <a class="tab" id="tab-control" href="#/control" data-view="control">Control Panel</a>
       <a class="tab" id="tab-info" href="#/info" data-view="info">Info</a>
       <a class="tab" id="tab-settings" href="#/settings" data-view="settings">Settings</a>
+      <a class="tab" id="tab-mqtt" href="#/mqtt" data-view="mqtt">MQTT</a>
       <a class="tab" id="tab-help" href="#/help" data-view="help">Help</a>
     </nav>
 
@@ -319,6 +320,160 @@
         </article>
       </section>
 
+      <section id="view-mqtt" class="view app-page" hidden>
+        <article class="app-sheet mqtt-sheet">
+          <header class="app-sheet-head">
+            <div>
+              <h2>MQTT</h2>
+              <p class="meta">
+                Bridge Control Panel entities to an MQTT broker for Home Assistant.
+                Settings are stored in SQLite and survive reboots.
+              </p>
+            </div>
+            <div class="editor-actions">
+              <button type="button" id="mqtt-test" class="btn-ghost">Test connection</button>
+              <button type="button" id="mqtt-reset" class="btn-ghost">Reset defaults</button>
+              <button type="button" id="mqtt-save" class="btn-primary">Save</button>
+            </div>
+          </header>
+          <p id="mqtt-banner" class="banner" hidden></p>
+          <p id="mqtt-status-line" class="meta mqtt-status-line">MQTT status: —</p>
+          <form id="mqtt-form" class="mqtt-form">
+            <table class="mqtt-table">
+              <tbody>
+                <tr>
+                  <th><label for="mqtt-enabled">Enabled</label></th>
+                  <td><input type="checkbox" id="mqtt-enabled" name="enabled" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-device-name">Device Name</label></th>
+                  <td><input type="text" id="mqtt-device-name" name="device_name" autocomplete="off" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-host">MQTT Server</label></th>
+                  <td><input type="text" id="mqtt-host" name="host" placeholder="192.168.1.10 or mqtt.example.com" autocomplete="off" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-port">MQTT Port</label></th>
+                  <td><input type="number" id="mqtt-port" name="port" min="1" max="65535" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-user">MQTT User</label></th>
+                  <td><input type="text" id="mqtt-user" name="username" autocomplete="off" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-password">MQTT Password</label></th>
+                  <td><input type="password" id="mqtt-password" name="password" autocomplete="new-password" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-topic">MQTT Topic</label></th>
+                  <td><input type="text" id="mqtt-topic" name="topic" autocomplete="off" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-refresh">MQTT Refresh (sec)</label></th>
+                  <td><input type="number" id="mqtt-refresh" name="refresh_sec" min="5" max="3600" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-control-layout">Control layout</label></th>
+                  <td>
+                    <select id="mqtt-control-layout" name="control_layout">
+                      <option value="less">Less controls (merged toggles)</option>
+                      <option value="more">More controls (full discrete)</option>
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-discovery-prefix">MQTT Discovery Prefix</label></th>
+                  <td><input type="text" id="mqtt-discovery-prefix" name="discovery_prefix" autocomplete="off" /></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-json-style">MQTT Json Style</label></th>
+                  <td><label class="mqtt-toggle"><input type="checkbox" id="mqtt-json-style" name="json_style" /><span>Publish full JSON entity payloads</span></label></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-ha-discovery">HA Discovery</label></th>
+                  <td><label class="mqtt-toggle"><input type="checkbox" id="mqtt-ha-discovery" name="ha_discovery" /><span>Auto-discover in Home Assistant</span></label></td>
+                </tr>
+                <tr>
+                  <th><label for="mqtt-tls-mode">Connection type</label></th>
+                  <td>
+                    <select id="mqtt-tls-mode" name="tls_mode">
+                      <option value="none">No TLS</option>
+                      <option value="tls_insecure">TLS no validation</option>
+                      <option value="tls_ca">User TLS (CA certificate)</option>
+                      <option value="tls_default">Default TLS</option>
+                      <option value="tls_client_cert">User client certificates TLS</option>
+                    </select>
+                  </td>
+                </tr>
+                <tr class="mqtt-cert-row">
+                  <th>CA certificate</th>
+                  <td>
+                    <span id="mqtt-ca-name" class="mqtt-cert-name">—</span>
+                    <input type="file" id="mqtt-ca-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
+                    <button type="button" id="mqtt-ca-upload" class="btn-ghost">Upload</button>
+                  </td>
+                </tr>
+                <tr class="mqtt-cert-row">
+                  <th>Client certificate</th>
+                  <td>
+                    <span id="mqtt-cert-name" class="mqtt-cert-name">—</span>
+                    <input type="file" id="mqtt-cert-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
+                    <button type="button" id="mqtt-cert-upload" class="btn-ghost">Upload</button>
+                  </td>
+                </tr>
+                <tr class="mqtt-cert-row">
+                  <th>Client key</th>
+                  <td>
+                    <span id="mqtt-key-name" class="mqtt-cert-name">—</span>
+                    <input type="file" id="mqtt-key-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
+                    <button type="button" id="mqtt-key-upload" class="btn-ghost">Upload</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </form>
+
+          <section class="mqtt-entities">
+            <header class="mqtt-entities-head">
+              <div>
+                <h3>Entities to publish</h3>
+                <p class="meta">
+                  Choose entities for the active layout. Less = merged toggles (like Control Panel).
+                  More = every discrete command. Selections are saved separately per layout.
+                </p>
+              </div>
+              <div class="editor-actions mqtt-layout-actions">
+                <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
+                  <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less controls</button>
+                  <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More controls</button>
+                </div>
+                <button type="button" id="mqtt-entities-featured" class="btn-ghost">Enable featured</button>
+                <button type="button" id="mqtt-entities-all" class="btn-ghost">Enable all</button>
+                <button type="button" id="mqtt-entities-none" class="btn-ghost">Disable all</button>
+              </div>
+            </header>
+            <div id="mqtt-entities-list" class="mqtt-entities-list"></div>
+          </section>
+
+          <section class="mqtt-ha-export">
+            <header class="mqtt-entities-head">
+              <div>
+                <h3>Home Assistant manual config</h3>
+                <p class="meta">JSON or YAML for manual MQTT entity setup (when HA Discovery is off).</p>
+              </div>
+              <div class="editor-actions">
+                <button type="button" id="mqtt-ha-format-json" class="btn-ghost active">JSON</button>
+                <button type="button" id="mqtt-ha-format-yaml" class="btn-ghost">YAML</button>
+                <button type="button" id="mqtt-ha-copy" class="btn-ghost">Copy</button>
+                <button type="button" id="mqtt-ha-refresh" class="btn-ghost">Refresh</button>
+              </div>
+            </header>
+            <textarea id="mqtt-ha-output" class="mqtt-ha-output" readonly spellcheck="false"></textarea>
+          </section>
+        </article>
+      </section>
+
       <section id="view-help" class="view app-page" hidden>
         <article class="app-sheet help-sheet">
           <header class="app-sheet-head">
@@ -472,6 +627,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=83"></script>
+  <script src="/assets/app.js?v=85"></script>
 </body>
 </html>

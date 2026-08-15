@@ -187,6 +187,12 @@ def control_command(request: Request, body: CommandBody) -> Dict[str, Any]:
         result["entities"] = parse_entities(
             lines, power=power, section_id=body.section, layout=layout
         )
+        try:
+            from ..mqtt_service import notify_entities
+
+            notify_entities(result["entities"])
+        except Exception:
+            pass
         result["host"] = host_label(_default_base(request))
         result["model"] = _model()
         result["layout"] = layout

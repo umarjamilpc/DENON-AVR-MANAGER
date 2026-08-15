@@ -1,0 +1,523 @@
+"""MQTT bridge — Home Assistant discovery, state publish, command subscribe."""
+
+from __future__ import annotations
+
+import json
+import logging
+import ssl
+import threading
+import time
+import uuid
+from typing import Any, Dict, List, Optional, Tuple
+
+import paho.mqtt.client as mqtt
+
+from .app_settings import load_settings
+from .denon_client import DenonSetupClient
+from .denon_control import (
+    DenonControl,
+    parse_entities,
+    resolve_command_from_id,
+)
+from .denon_power import read_main_zone_power
+from .mqtt_settings import (
+    cert_path,
+    entity_enabled,
+    load_mqtt_settings,
+    mqtt_control_layout,
+)
+from .protocol_loader import normalize_layout, load_telnet_commands
+
+log = logging.getLogger("denon.mqtt")
+
+_HA_COMPONENT = {
+    "toggle": "switch",
+    "enum": "select",
+    "slider": "number",
+    "stepper": "number",
+}
+
+
+class MqttBridge:
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._client: Optional[mqtt.Client] = None
+        self._settings: Dict[str, Any] = {}
+        self._app: Any = None
+        self._connected = False
+        self._last_error: Optional[str] = None
+        self._last_publish_at: Optional[float] = None
+        self._last_states: Dict[str, str] = {}
+        self._poll_stop = threading.Event()
+        self._poll_thread: Optional[threading.Thread] = None
+        self._device_id = f"denon_avr_{uuid.uuid4().hex[:8]}"
+        self._subscribed = False
+
+    def status(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "enabled": bool(self._settings.get("enabled")),
+                "connected": self._connected,
+                "last_error": self._last_error,
+                "last_publish_at": self._last_publish_at,
+                "host": self._settings.get("host"),
+                "topic": self._settings.get("topic"),
+                "control_layout": mqtt_control_layout(self._settings),
+            }
+
+    def configure_app(self, app: Any) -> None:
+        self._app = app
+
+    def restart(self) -> None:
+        self.stop()
+        settings = load_mqtt_settings()
+        self._settings = settings
+        if not settings.get("enabled"):
+            return
+        if not str(settings.get("host") or "").strip():
+            self._last_error = "MQTT host is not configured"
+            return
+        self._start_client(settings)
+        self._start_poll_loop()
+
+    def stop(self) -> None:
+        self._poll_stop.set()
+        if self._poll_thread and self._poll_thread.is_alive():
+            self._poll_thread.join(timeout=3)
+        self._poll_thread = None
+        self._poll_stop.clear()
+        with self._lock:
+            client = self._client
+            self._client = None
+            self._connected = False
+            self._subscribed = False
+        if client is not None:
+            try:
+                client.loop_stop()
+                client.disconnect()
+            except Exception:
+                pass
+
+    def notify_entities(self, entities: Dict[str, Any]) -> None:
+        if not self._settings.get("enabled") or not self._connected:
+            return
+        try:
+            self._publish_entities(entities)
+        except Exception as e:
+            log.warning("MQTT publish failed: %s", e)
+
+    def _start_poll_loop(self) -> None:
+        self._poll_stop.clear()
+        self._poll_thread = threading.Thread(
+            target=self._poll_worker,
+            name="mqtt-poll",
+            daemon=True,
+        )
+        self._poll_thread.start()
+
+    def _poll_worker(self) -> None:
+        while not self._poll_stop.is_set():
+            settings = load_mqtt_settings()
+            interval = max(5, int(settings.get("refresh_sec") or 30))
+            if settings.get("enabled") and self._connected:
+                try:
+                    self._refresh_and_publish()
+                except Exception as e:
+                    log.warning("MQTT poll refresh failed: %s", e)
+            if self._poll_stop.wait(interval):
+                break
+
+    def _refresh_and_publish(self) -> None:
+        app = self._app
+        if app is None:
+            return
+        host = getattr(app.state, "default_host", None)
+        if not host:
+            return
+        ctrl: Optional[DenonControl] = getattr(app.state, "denon_control", None)
+        if ctrl is None:
+            http = DenonSetupClient(host)
+            ctrl = DenonControl(http)
+        power = None
+        try:
+            power = read_main_zone_power(DenonSetupClient(host))
+        except Exception:
+            power = None
+        model = str(load_settings().get("avr_model") or "AVR-X1200W")
+        layout = mqtt_control_layout(self._settings)
+        snap = ctrl.status_snapshot(
+            refresh=False,
+            power=power,
+            model=model,
+            layout=layout,
+        )
+        self._publish_entities(snap.get("entities") or {})
+
+    def _start_client(self, settings: Dict[str, Any]) -> None:
+        host = str(settings.get("host") or "").strip()
+        port = int(settings.get("port") or 1883)
+        client_id = f"denon-avr-manager-{uuid.uuid4().hex[:10]}"
+        client = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=client_id,
+            protocol=mqtt.MQTTv311,
+        )
+        user = str(settings.get("username") or "").strip()
+        pwd = str(settings.get("password") or "")
+        if user:
+            client.username_pw_set(user, pwd or None)
+        self._apply_tls(client, settings)
+        client.on_connect = self._on_connect
+        client.on_disconnect = self._on_disconnect
+        client.on_message = self._on_message
+        with self._lock:
+            self._client = client
+            self._settings = settings
+            self._last_error = None
+        try:
+            client.connect(host, port, keepalive=60)
+            client.loop_start()
+        except Exception as e:
+            self._last_error = str(e)
+            log.warning("MQTT connect failed: %s", e)
+
+    def _apply_tls(self, client: mqtt.Client, settings: Dict[str, Any]) -> None:
+        mode = str(settings.get("tls_mode") or "none")
+        if mode == "none":
+            return
+        if mode == "tls_insecure":
+            client.tls_set(cert_reqs=ssl.CERT_NONE)
+            client.tls_insecure_set(True)
+            return
+        if mode == "tls_default":
+            client.tls_set()
+            return
+        ca = cert_path(settings.get("ca_cert_file") or "")
+        cert = cert_path(settings.get("client_cert_file") or "")
+        key = cert_path(settings.get("client_key_file") or "")
+        if mode == "tls_ca":
+            if ca:
+                client.tls_set(ca_certs=str(ca))
+            else:
+                client.tls_set()
+            return
+        if mode == "tls_client_cert":
+            client.tls_set(
+                ca_certs=str(ca) if ca else None,
+                certfile=str(cert) if cert else None,
+                keyfile=str(key) if key else None,
+            )
+
+    def _on_connect(self, client, userdata, flags, reason_code, properties=None) -> None:
+        rc = getattr(reason_code, "value", reason_code)
+        if rc != 0:
+            self._last_error = f"MQTT connect rc={rc}"
+            self._connected = False
+            return
+        self._connected = True
+        self._last_error = None
+        self._publish_availability("online")
+        self._publish_discovery()
+        topic = str(self._settings.get("topic") or "denon_avr")
+        client.subscribe(f"{topic}/+/set")
+        client.subscribe(f"{topic}/command")
+        self._subscribed = True
+        try:
+            self._refresh_and_publish()
+        except Exception as e:
+            log.warning("MQTT initial publish failed: %s", e)
+
+    def _on_disconnect(self, client, userdata, flags, reason_code, properties=None) -> None:
+        self._connected = False
+        rc = getattr(reason_code, "value", reason_code)
+        if rc != 0:
+            self._last_error = f"MQTT disconnected rc={rc}"
+
+    def _on_message(self, client, userdata, msg) -> None:
+        topic = str(msg.topic or "")
+        payload_raw = (msg.payload or b"").decode("utf-8", errors="replace").strip()
+        base = str(self._settings.get("topic") or "denon_avr")
+        if not topic.startswith(f"{base}/"):
+            return
+        suffix = topic[len(base) + 1 :]
+        if suffix == "command":
+            return
+        if not suffix.endswith("/set"):
+            return
+        control_id = suffix[: -len("/set")]
+        if not control_id:
+            return
+        if not entity_enabled(self._settings, control_id):
+            return
+        value: Any = payload_raw
+        if self._settings.get("json_style"):
+            try:
+                parsed = json.loads(payload_raw)
+                if isinstance(parsed, dict) and "value" in parsed:
+                    value = parsed["value"]
+                else:
+                    value = parsed
+            except json.JSONDecodeError:
+                pass
+        self._execute_control(control_id, value)
+
+    def _execute_control(self, control_id: str, value: Any) -> None:
+        app = self._app
+        if app is None:
+            return
+        host = getattr(app.state, "default_host", None)
+        if not host:
+            return
+        try:
+            cmd = resolve_command_from_id(control_id, value)
+            ctrl: Optional[DenonControl] = getattr(app.state, "denon_control", None)
+            if ctrl is None:
+                http = DenonSetupClient(host)
+                ctrl = DenonControl(http)
+                app.state.denon_control = ctrl
+            result = ctrl.send(cmd)
+            power = None
+            try:
+                power = read_main_zone_power(DenonSetupClient(host))
+            except Exception:
+                power = None
+            lines = list(result.get("responses") or []) + ctrl.telnet.cached_lines()
+            layout = mqtt_control_layout(self._settings)
+            entities = parse_entities(lines, power=power, layout=layout)
+            self._publish_entities(entities)
+        except Exception as e:
+            log.warning("MQTT command %s=%r failed: %s", control_id, value, e)
+
+    def _device_block(self) -> Dict[str, Any]:
+        settings = self._settings
+        app = self._app
+        avr_model = str(load_settings().get("avr_model") or "AVR-X1200W")
+        host = ""
+        if app is not None:
+            host = str(getattr(app.state, "default_host", "") or "")
+        block: Dict[str, Any] = {
+            "identifiers": [self._device_id],
+            "name": str(settings.get("device_name") or "Denon AVR"),
+            "manufacturer": "Denon",
+            "model": avr_model,
+            "sw_version": "DENON-AVR-MANAGER",
+        }
+        if host:
+            block["configuration_url"] = f"http://{host}/"
+        return block
+
+    def _controls_for_publish(self) -> List[Dict[str, Any]]:
+        from .denon_control import filter_controls_for_model
+
+        model = str(load_settings().get("avr_model") or "AVR-X1200W")
+        layout = mqtt_control_layout(self._settings)
+        controls = filter_controls_for_model(load_telnet_commands(layout), model)
+        out: List[Dict[str, Any]] = []
+        for c in controls:
+            cid = str(c.get("id") or "")
+            kind = c.get("kind")
+            if not cid or kind not in _HA_COMPONENT:
+                continue
+            if not entity_enabled(self._settings, cid):
+                continue
+            out.append(c)
+        return out
+
+    def _object_id(self, control_id: str) -> str:
+        base = str(self._settings.get("topic") or "denon_avr").replace("/", "_")
+        return f"{base}_{control_id}"
+
+    def _state_topic(self, control_id: str) -> str:
+        base = str(self._settings.get("topic") or "denon_avr")
+        return f"{base}/{control_id}/state"
+
+    def _command_topic(self, control_id: str) -> str:
+        base = str(self._settings.get("topic") or "denon_avr")
+        return f"{base}/{control_id}/set"
+
+    def _availability_topic(self) -> str:
+        base = str(self._settings.get("topic") or "denon_avr")
+        return f"{base}/status"
+
+    def _publish_availability(self, state: str) -> None:
+        client = self._client
+        if client is None:
+            return
+        topic = self._availability_topic()
+        client.publish(topic, state, retain=True)
+
+    def _discovery_config(self, control: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any]]]:
+        cid = str(control.get("id") or "")
+        kind = control.get("kind")
+        component = _HA_COMPONENT.get(kind)
+        if not component:
+            return None
+        name = str(control.get("label") or cid)
+        cfg: Dict[str, Any] = {
+            "name": name,
+            "unique_id": self._object_id(cid),
+            "object_id": self._object_id(cid),
+            "state_topic": self._state_topic(cid),
+            "command_topic": self._command_topic(cid),
+            "availability_topic": self._availability_topic(),
+            "payload_available": "online",
+            "payload_not_available": "offline",
+            "device": self._device_block(),
+        }
+        if kind == "toggle":
+            cfg.update(
+                {
+                    "payload_on": "ON",
+                    "payload_off": "OFF",
+                    "state_on": "ON",
+                    "state_off": "OFF",
+                }
+            )
+        elif kind == "enum":
+            options = [
+                str(o.get("label") or o.get("command") or "")
+                for o in (control.get("options") or [])
+            ]
+            options = [o for o in options if o]
+            if not options:
+                return None
+            cfg["options"] = options
+        elif kind in {"slider", "stepper"}:
+            lo = control.get("min")
+            hi = control.get("max")
+            if lo is not None:
+                cfg["min"] = float(lo)
+            if hi is not None:
+                cfg["max"] = float(hi)
+            cfg["step"] = 1.0
+            if control.get("unit"):
+                cfg["unit_of_measurement"] = str(control["unit"])
+        return component, cfg
+
+    def _publish_discovery(self) -> None:
+        if not self._settings.get("ha_discovery"):
+            return
+        client = self._client
+        if client is None:
+            return
+        prefix = str(self._settings.get("discovery_prefix") or "homeassistant")
+        for control in self._controls_for_publish():
+            built = self._discovery_config(control)
+            if not built:
+                continue
+            component, cfg = built
+            cid = str(control.get("id") or "")
+            topic = f"{prefix}/{component}/{self._object_id(cid)}/config"
+            client.publish(topic, json.dumps(cfg), retain=True)
+
+    def _entity_state_payload(self, control: Dict[str, Any], entity: Dict[str, Any]) -> Optional[str]:
+        kind = control.get("kind")
+        if self._settings.get("json_style"):
+            return json.dumps(entity)
+        if kind == "toggle":
+            return "ON" if entity.get("on") else "OFF"
+        if kind == "enum":
+            return str(entity.get("label") or entity.get("display") or "")
+        if kind in {"slider", "stepper"}:
+            val = entity.get("value")
+            if val is None:
+                return str(entity.get("display") or "")
+            return str(val)
+        return str(entity.get("display") or entity.get("value") or "")
+
+    def _publish_entities(self, entities: Dict[str, Any]) -> None:
+        client = self._client
+        if client is None or not self._connected:
+            return
+        controls_by_id = {
+            str(c.get("id")): c for c in self._controls_for_publish() if c.get("id")
+        }
+        changed = False
+        for cid, control in controls_by_id.items():
+            entity = entities.get(cid)
+            if not entity:
+                continue
+            payload = self._entity_state_payload(control, entity)
+            if payload is None:
+                continue
+            prev = self._last_states.get(cid)
+            if prev == payload:
+                continue
+            topic = self._state_topic(cid)
+            client.publish(topic, payload, retain=True)
+            self._last_states[cid] = payload
+            changed = True
+        if changed:
+            self._last_publish_at = time.time()
+
+    def build_ha_manual_config(self) -> Dict[str, Any]:
+        settings = self._settings or load_mqtt_settings()
+        base = str(settings.get("topic") or "denon_avr")
+        mqtt_block: Dict[str, List[Dict[str, Any]]] = {}
+        for control in self._controls_for_publish():
+            built = self._discovery_config(control)
+            if not built:
+                continue
+            component, cfg = built
+            entry: Dict[str, Any] = {
+                "name": cfg["name"],
+                "state_topic": cfg["state_topic"],
+                "command_topic": cfg["command_topic"],
+                "availability_topic": cfg["availability_topic"],
+                "payload_available": "online",
+                "payload_not_available": "offline",
+                "unique_id": cfg["unique_id"],
+            }
+            if component == "switch":
+                entry.update(
+                    {
+                        "payload_on": "ON",
+                        "payload_off": "OFF",
+                        "state_on": "ON",
+                        "state_off": "OFF",
+                    }
+                )
+            elif component == "select":
+                entry["options"] = cfg.get("options") or []
+            elif component == "number":
+                if "min" in cfg:
+                    entry["min"] = cfg["min"]
+                if "max" in cfg:
+                    entry["max"] = cfg["max"]
+                entry["step"] = cfg.get("step", 1)
+                if cfg.get("unit_of_measurement"):
+                    entry["unit_of_measurement"] = cfg["unit_of_measurement"]
+            mqtt_block.setdefault(component, []).append(entry)
+        return {
+            "mqtt": mqtt_block,
+            "topic_base": base,
+            "broker": {
+                "host": settings.get("host"),
+                "port": settings.get("port"),
+                "username": settings.get("username") or None,
+                "tls": settings.get("tls_mode") != "none",
+            },
+            "note": (
+                "Paste the mqtt: block into configuration.yaml or use MQTT Discovery "
+                "when HA Discovery is enabled in DENON AVR MANAGER."
+            ),
+        }
+
+
+_bridge = MqttBridge()
+
+
+def get_mqtt_bridge() -> MqttBridge:
+    return _bridge
+
+
+def notify_entities(entities: Dict[str, Any]) -> None:
+    _bridge.notify_entities(entities)
+
+
+def restart_mqtt_bridge() -> None:
+    _bridge.restart()
+
+
+def stop_mqtt_bridge() -> None:
+    _bridge.stop()

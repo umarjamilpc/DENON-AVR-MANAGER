@@ -22,7 +22,9 @@ from .host_utils import normalize_host
 from .icons_store import icons_dir
 from .routers import control as control_router
 from .routers import dashboard as dashboard_router
+from .routers import mqtt as mqtt_router
 from .routers import setup as setup_router
+from .mqtt_service import get_mqtt_bridge, restart_mqtt_bridge, stop_mqtt_bridge
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -106,7 +108,11 @@ def create_app(host: str | None = None) -> FastAPI:
             daemon=True,
         )
         thread.start()
+        bridge = get_mqtt_bridge()
+        bridge.configure_app(app)
+        restart_mqtt_bridge()
         yield
+        stop_mqtt_bridge()
 
     app = FastAPI(
         title="DENON AVR MANAGER",
@@ -135,6 +141,7 @@ def create_app(host: str | None = None) -> FastAPI:
     app.include_router(setup_router.router, prefix="/api")
     app.include_router(control_router.router, prefix="/api")
     app.include_router(dashboard_router.router, prefix="/api")
+    app.include_router(mqtt_router.router, prefix="/api")
 
     def spa_index():
         return FileResponse(UI_DIR / "index.html")

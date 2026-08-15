@@ -982,6 +982,13 @@ class DenonControl:
             }
             entities = {k: v for k, v in entities.items() if k in allowed}
 
+        try:
+            from .mqtt_service import notify_entities
+
+            notify_entities(entities)
+        except Exception:
+            pass
+
         cache = self.telnet.snapshot_cache()
         return {
             "ok": True,

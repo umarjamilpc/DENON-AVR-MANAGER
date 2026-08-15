@@ -443,6 +443,29 @@ def set_setting_rows(settings: Dict[str, Any]) -> None:
             )
 
 
+def get_setting(key: str, default: Any = None) -> Any:
+    init_db()
+    with _lock, connect() as conn:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?", (str(key),)
+        ).fetchone()
+    if not row:
+        return default
+    try:
+        return json.loads(row["value"])
+    except json.JSONDecodeError:
+        return row["value"]
+
+
+def upsert_setting(key: str, value: Any) -> None:
+    init_db()
+    with _lock, connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO app_settings(key, value) VALUES (?, ?)",
+            (str(key), json.dumps(value)),
+        )
+
+
 def new_id() -> str:
     return str(uuid.uuid4())
 

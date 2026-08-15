@@ -168,6 +168,10 @@
     appSettingsPath: "",
     appSettingsFileExists: false,
     settingsDirty: false,
+    mqttSettings: null,
+    mqttCatalog: null,
+    mqttLayout: "less",
+    mqttHaFormat: "json",
   };
 
   const DEFAULT_APP_SETTINGS = { ...state.appSettings };
@@ -640,6 +644,7 @@
     "control",
     "info",
     "settings",
+    "mqtt",
     "help",
   ]);
 
@@ -743,6 +748,7 @@
     $("tab-control")?.classList.toggle("active", next === "control");
     $("tab-info")?.classList.toggle("active", next === "info");
     $("tab-settings")?.classList.toggle("active", next === "settings");
+    $("tab-mqtt")?.classList.toggle("active", next === "mqtt");
     $("tab-help")?.classList.toggle("active", next === "help");
     if (prev === "control" && next !== "control") stopControlPoll();
     let loadPromise;
@@ -750,6 +756,8 @@
       loadPromise = loadDashboard({ force: changed || !state.dashboard });
     } else if (next === "settings") {
       loadPromise = loadSettingsPage();
+    } else if (next === "mqtt") {
+      loadPromise = loadMqttPage();
     } else if (next === "control") {
       loadPromise = loadControlPanel({ force: changed || !state.controlCatalog });
     } else if (
@@ -1216,6 +1224,407 @@
     }
   }
 
+  /* ---------- MQTT page ---------- */
+
+  function mqttLayoutKey() {
+    return state.mqttLayout === "more" ? "more" : "less";
+  }
+
+  function ensureMqttEnabledEntities() {
+    if (!state.mqttSettings) state.mqttSettings = {};
+    const raw = state.mqttSettings.enabled_entities;
+    if (!raw || typeof raw !== "object") {
+      state.mqttSettings.enabled_entities = { less: {}, more: {} };
+      return state.mqttSettings.enabled_entities;
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, "less") || Object.prototype.hasOwnProperty.call(raw, "more")) {
+      if (!raw.less) raw.less = {};
+      if (!raw.more) raw.more = {};
+      return raw;
+    }
+    state.mqttSettings.enabled_entities = { less: { ...raw }, more: {} };
+    return state.mqttSettings.enabled_entities;
+  }
+
+  function mqttEnabledMap() {
+    const all = ensureMqttEnabledEntities();
+    return all[mqttLayoutKey()] || {};
+  }
+
+  function syncMqttEntityChecksToState() {
+    const map = mqttEnabledMap();
+    for (const cb of document.querySelectorAll("#mqtt-entities-list input[data-entity-id]")) {
+      map[cb.dataset.entityId] = cb.checked;
+    }
+  }
+
+  function mqttField(name) {
+    return document.querySelector(`#mqtt-form [name="${name}"]`);
+  }
+
+  function applyMqttForm(settings) {
+    const s = settings || {};
+    const enabled = mqttField("enabled");
+    if (enabled) enabled.checked = Boolean(s.enabled);
+    for (const key of [
+      "device_name",
+      "host",
+      "port",
+      "username",
+      "password",
+      "topic",
+      "refresh_sec",
+      "discovery_prefix",
+      "tls_mode",
+    ]) {
+      const el = mqttField(key);
+      if (!el) continue;
+      el.value = s[key] != null ? String(s[key]) : "";
+    }
+    const jsonStyle = mqttField("json_style");
+    if (jsonStyle) jsonStyle.checked = Boolean(s.json_style);
+    const haDiscovery = mqttField("ha_discovery");
+    if (haDiscovery) haDiscovery.checked = s.ha_discovery !== false;
+    const layoutEl = mqttField("control_layout");
+    if (layoutEl) layoutEl.value = s.control_layout === "more" ? "more" : "less";
+    state.mqttLayout = s.control_layout === "more" ? "more" : "less";
+    syncMqttLayoutButtons();
+    $("mqtt-ca-name").textContent = s.ca_cert_file || "—";
+    $("mqtt-cert-name").textContent = s.client_cert_file || "—";
+    $("mqtt-key-name").textContent = s.client_key_file || "—";
+  }
+
+  function collectMqttForm() {
+    const num = (name, fallback) => {
+      const el = mqttField(name);
+      const n = Number(el?.value);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    return {
+      enabled: Boolean(mqttField("enabled")?.checked),
+      device_name: mqttField("device_name")?.value?.trim() || "Denon AVR",
+      host: mqttField("host")?.value?.trim() || "",
+      port: num("port", 1883),
+      username: mqttField("username")?.value?.trim() || "",
+      password: mqttField("password")?.value || "",
+      topic: mqttField("topic")?.value?.trim() || "denon_avr",
+      refresh_sec: num("refresh_sec", 30),
+      discovery_prefix: mqttField("discovery_prefix")?.value?.trim() || "homeassistant",
+      json_style: Boolean(mqttField("json_style")?.checked),
+      ha_discovery: Boolean(mqttField("ha_discovery")?.checked),
+      tls_mode: mqttField("tls_mode")?.value || "none",
+      control_layout: mqttField("control_layout")?.value === "more" ? "more" : "less",
+      enabled_entities: ensureMqttEnabledEntities(),
+    };
+  }
+
+  function syncMqttLayoutButtons() {
+    const lay = mqttLayoutKey();
+    $("mqtt-layout-less")?.classList.toggle("active", lay === "less");
+    $("mqtt-layout-more")?.classList.toggle("active", lay === "more");
+  }
+
+  async function loadMqttCatalog(layout) {
+    const lay = layout === "more" ? "more" : "less";
+    state.mqttCatalog = await api(`/api/mqtt/catalog?layout=${lay}`);
+    state.mqttLayout = lay;
+    syncMqttLayoutButtons();
+    renderMqttEntities(state.mqttCatalog);
+  }
+
+  async function setMqttLayout(layout) {
+    syncMqttEntityChecksToState();
+    const lay = layout === "more" ? "more" : "less";
+    state.mqttLayout = lay;
+    const layoutEl = mqttField("control_layout");
+    if (layoutEl) layoutEl.value = lay;
+    await loadMqttCatalog(lay);
+    await refreshMqttHaOutput();
+  }
+
+  function renderMqttStatus(status) {
+    const el = $("mqtt-status-line");
+    if (!el) return;
+    if (!status) {
+      el.textContent = "MQTT status: —";
+      return;
+    }
+    const parts = [];
+    parts.push(status.enabled ? "enabled" : "disabled");
+    if (status.enabled) {
+      parts.push(status.connected ? "connected" : "disconnected");
+      if (status.host) parts.push(String(status.host));
+      if (status.topic) parts.push(`topic ${status.topic}`);
+      if (status.last_error) parts.push(`error: ${status.last_error}`);
+    }
+    el.textContent = `MQTT status: ${parts.join(" · ")}`;
+  }
+
+  function renderMqttEntities(catalog) {
+    const root = $("mqtt-entities-list");
+    if (!root) return;
+    root.innerHTML = "";
+    const sections = catalog?.sections || {};
+    const enabled = mqttEnabledMap();
+    const order = Object.keys(sections).sort();
+    if (!order.length) {
+      root.innerHTML = "<p class=\"meta\">No publishable entities for this AVR model.</p>";
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    for (const sec of order) {
+      const items = sections[sec] || [];
+      if (!items.length) continue;
+      const block = document.createElement("div");
+      block.className = "mqtt-entity-section";
+      const title = document.createElement("h4");
+      title.textContent = sec.replace(/_/g, " ");
+      block.appendChild(title);
+      const grid = document.createElement("div");
+      grid.className = "mqtt-entity-grid";
+      for (const ent of items) {
+        const label = document.createElement("label");
+        label.className = "mqtt-entity-item";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.entityId = ent.id;
+        cb.checked = Boolean(enabled[ent.id]);
+        cb.addEventListener("change", () => {
+          const map = mqttEnabledMap();
+          map[ent.id] = cb.checked;
+        });
+        label.appendChild(cb);
+        const text = document.createElement("span");
+        text.textContent = ent.label || ent.id;
+        label.appendChild(text);
+        const kind = document.createElement("small");
+        kind.textContent = ent.ha_component || ent.kind || "";
+        label.appendChild(kind);
+        grid.appendChild(label);
+      }
+      block.appendChild(grid);
+      frag.appendChild(block);
+    }
+    root.appendChild(frag);
+  }
+
+  function setMqttEntitySelection(mode) {
+    const catalog = state.mqttCatalog;
+    if (!catalog?.entities?.length) return;
+    if (!state.mqttSettings) state.mqttSettings = {};
+    const map = mqttEnabledMap();
+    for (const ent of catalog.entities) {
+      if (mode === "all") map[ent.id] = true;
+      else if (mode === "none") map[ent.id] = false;
+      else if (mode === "featured") map[ent.id] = Boolean(ent.featured);
+    }
+    renderMqttEntities(catalog);
+  }
+
+  async function refreshMqttHaOutput() {
+    const out = $("mqtt-ha-output");
+    if (!out) return;
+    const fmt = state.mqttHaFormat === "yaml" ? "yaml" : "json";
+    try {
+      const data = await api(`/api/mqtt/ha-config?format=${fmt}`);
+      if (fmt === "yaml") {
+        out.value = data.yaml || "";
+      } else {
+        out.value = JSON.stringify(data, null, 2);
+      }
+    } catch (err) {
+      out.value = err.message;
+    }
+  }
+
+  async function loadMqttPage() {
+    const banner = $("mqtt-banner");
+    if (banner) banner.hidden = true;
+    try {
+      const settingsData = await api("/api/mqtt/settings");
+      state.mqttSettings = settingsData.settings || {};
+      ensureMqttEnabledEntities();
+      state.mqttLayout =
+        state.mqttSettings.control_layout === "more" ? "more" : "less";
+      applyMqttForm(state.mqttSettings);
+      renderMqttStatus(settingsData.status);
+      await loadMqttCatalog(state.mqttLayout);
+      await refreshMqttHaOutput();
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+    }
+  }
+
+  async function saveMqttPage() {
+    const banner = $("mqtt-banner");
+    try {
+      syncMqttEntityChecksToState();
+      const payload = collectMqttForm();
+      const data = await api("/api/mqtt/settings", {
+        method: "PUT",
+        body: JSON.stringify({ settings: payload }),
+      });
+      state.mqttSettings = data.settings || payload;
+      applyMqttForm(state.mqttSettings);
+      renderMqttStatus(data.status);
+      await loadMqttCatalog(state.mqttLayout);
+      await refreshMqttHaOutput();
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = "Saved";
+      }
+      setStatus("MQTT settings saved", "ok");
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+      setStatus(err.message, "err");
+    }
+  }
+
+  async function resetMqttPage() {
+    if (
+      !window.confirm(
+        "Reset all MQTT settings to defaults? Entity selections and broker config will be cleared."
+      )
+    ) {
+      return;
+    }
+    const banner = $("mqtt-banner");
+    try {
+      const data = await api("/api/mqtt/settings/reset", { method: "POST" });
+      state.mqttSettings = data.settings || {};
+      applyMqttForm(state.mqttSettings);
+      renderMqttStatus(data.status);
+      setMqttEntitySelection("none");
+      await refreshMqttHaOutput();
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = "Defaults restored.";
+      }
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+    }
+  }
+
+  async function testMqttConnection() {
+    const banner = $("mqtt-banner");
+    try {
+      await saveMqttPage();
+      const data = await api("/api/mqtt/test", { method: "POST" });
+      renderMqttStatus(data);
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = data.connected
+          ? "Connected to MQTT broker."
+          : `Connection failed: ${data.last_error || "unknown error"}`;
+      }
+    } catch (err) {
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = err.message;
+      }
+    }
+  }
+
+  async function uploadMqttCertificate(kind, file) {
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/mqtt/certificate?kind=${encodeURIComponent(kind)}`, {
+      method: "POST",
+      body: form,
+    });
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { detail: text };
+    }
+    if (!res.ok) {
+      throw new Error(
+        typeof data?.detail === "string" ? data.detail : res.statusText
+      );
+    }
+    state.mqttSettings = data.settings || state.mqttSettings;
+    applyMqttForm(state.mqttSettings);
+    return data;
+  }
+
+  function wireMqttPage() {
+    $("mqtt-save")?.addEventListener("click", () =>
+      saveMqttPage().catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-reset")?.addEventListener("click", () =>
+      resetMqttPage().catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-test")?.addEventListener("click", () =>
+      testMqttConnection().catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-entities-featured")?.addEventListener("click", () =>
+      setMqttEntitySelection("featured")
+    );
+    $("mqtt-entities-all")?.addEventListener("click", () => setMqttEntitySelection("all"));
+    $("mqtt-entities-none")?.addEventListener("click", () => setMqttEntitySelection("none"));
+    $("mqtt-layout-less")?.addEventListener("click", () =>
+      setMqttLayout("less").catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-layout-more")?.addEventListener("click", () =>
+      setMqttLayout("more").catch((err) => setStatus(err.message, "err"))
+    );
+    mqttField("control_layout")?.addEventListener("change", (ev) => {
+      setMqttLayout(ev.target.value).catch((err) => setStatus(err.message, "err"));
+    });
+    $("mqtt-ha-refresh")?.addEventListener("click", () =>
+      refreshMqttHaOutput().catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-ha-format-json")?.addEventListener("click", () => {
+      state.mqttHaFormat = "json";
+      $("mqtt-ha-format-json")?.classList.add("active");
+      $("mqtt-ha-format-yaml")?.classList.remove("active");
+      refreshMqttHaOutput().catch(() => {});
+    });
+    $("mqtt-ha-format-yaml")?.addEventListener("click", () => {
+      state.mqttHaFormat = "yaml";
+      $("mqtt-ha-format-yaml")?.classList.add("active");
+      $("mqtt-ha-format-json")?.classList.remove("active");
+      refreshMqttHaOutput().catch(() => {});
+    });
+    $("mqtt-ha-copy")?.addEventListener("click", async () => {
+      const text = $("mqtt-ha-output")?.value || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("Copied HA config", "ok");
+      } catch {
+        $("mqtt-ha-output")?.select();
+        document.execCommand("copy");
+      }
+    });
+    const bindCert = (btnId, inputId, kind) => {
+      $(btnId)?.addEventListener("click", () => $(inputId)?.click());
+      $(inputId)?.addEventListener("change", (ev) => {
+        const file = ev.target.files?.[0];
+        uploadMqttCertificate(kind, file)
+          .then(() => setStatus("Certificate uploaded", "ok"))
+          .catch((err) => setStatus(err.message, "err"))
+          .finally(() => {
+            ev.target.value = "";
+          });
+      });
+    };
+    bindCert("mqtt-ca-upload", "mqtt-ca-file", "ca");
+    bindCert("mqtt-cert-upload", "mqtt-cert-file", "cert");
+    bindCert("mqtt-key-upload", "mqtt-key-file", "key");
+  }
+
   async function softRefreshCurrentPage() {
     if (!state.endpointId || state.pageDirty) return;
     if (editorHasFocus()) return;
@@ -1254,7 +1663,7 @@
     // Longer quiet window after local EQ writes so Set / channel never fights poll.
     const quietMs = onEq ? 8000 : 2500;
     if (Date.now() - state.lastLocalWriteAt < quietMs) return;
-    if (["info", "settings", "help"].includes(state.route?.view)) return;
+    if (["info", "settings", "mqtt", "help"].includes(state.route?.view)) return;
     if (state.route?.view === "control") {
       // Setup poll must not fight the shared telnet session. Power uses goform HTTP only.
       state.pollInFlight = true;
@@ -6442,6 +6851,7 @@
 
   initTheme();
   wireTabs();
+  wireMqttPage();
   $("field-form")?.addEventListener("submit", (ev) => ev.preventDefault());
   wireControlPanel();
   wireDashboard();

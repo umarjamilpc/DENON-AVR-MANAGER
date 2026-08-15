@@ -2837,3 +2837,143 @@ body.dashboard-editing .dashboard-widget {
     flex-wrap: wrap;
   }
 }
+
+/* ---------- MQTT settings page ---------- */
+
+.mqtt-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.mqtt-status-line {
+  margin: 0;
+}
+
+.mqtt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.mqtt-table th,
+.mqtt-table td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  vertical-align: middle;
+  text-align: left;
+}
+
+.mqtt-table th {
+  width: 14rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mqtt-table input[type="text"],
+.mqtt-table input[type="number"],
+.mqtt-table input[type="password"],
+.mqtt-table select {
+  width: min(100%, 28rem);
+  max-width: 100%;
+}
+
+.mqtt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mqtt-cert-name {
+  display: inline-block;
+  min-width: 8rem;
+  margin-right: 0.5rem;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+}
+
+.mqtt-layout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mqtt-layout-switch {
+  display: inline-flex;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mqtt-layout-switch .btn-ghost {
+  border: 0;
+  border-radius: 0;
+}
+
+.mqtt-layout-switch .btn-ghost.active {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+}
+
+.mqtt-entities-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.mqtt-entities-head h3 {
+  margin: 0 0 0.25rem;
+}
+
+.mqtt-entities-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.mqtt-entity-section {
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.mqtt-entity-section h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.mqtt-entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.35rem 0.75rem;
+}
+
+.mqtt-entity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+}
+
+.mqtt-entity-item small {
+  opacity: 0.65;
+}
+
+.mqtt-ha-output {
+  width: 100%;
+  min-height: 220px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  resize: vertical;
+}
+
+.mqtt-ha-export .editor-actions .active {
+  font-weight: 700;
+}
