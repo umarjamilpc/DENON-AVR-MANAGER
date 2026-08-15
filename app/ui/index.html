@@ -439,8 +439,8 @@
               <div>
                 <h3>Entities to publish</h3>
                 <p class="meta">
-                  Choose entities for the active layout. Less = merged toggles (like Control Panel).
-                  More = every discrete command. Selections are saved separately per layout.
+                  Same sections, labels, and order as the Control Panel. Less = merged toggles;
+                  More = full discrete + cursor/menu actions + raw command.
                 </p>
               </div>
               <div class="editor-actions mqtt-layout-actions">
@@ -453,6 +453,8 @@
                 <button type="button" id="mqtt-entities-none" class="btn-ghost">Disable all</button>
               </div>
             </header>
+            <nav id="mqtt-section-nav" class="mqtt-section-nav tabs" aria-label="MQTT entity sections"></nav>
+            <p id="mqtt-section-meta" class="meta mqtt-section-meta"></p>
             <div id="mqtt-entities-list" class="mqtt-entities-list"></div>
           </section>
 
@@ -627,6 +629,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=85"></script>
+  <script src="/assets/app.js?v=86"></script>
 </body>
 </html>

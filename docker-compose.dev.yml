@@ -10,6 +10,7 @@ services:
     container_name: denon-avr-manager-dev
     ports:
       - "8001:8000"
+      - "2324:2323"
     environment:
       DENON_HOST: "192.168.1.50"
       APP_BUILD_CHANNEL: "dev"

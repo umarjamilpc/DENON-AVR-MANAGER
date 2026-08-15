@@ -9,7 +9,7 @@ from __future__ import annotations
 import socket
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 DEFAULT_PORT = 23
@@ -77,6 +77,24 @@ class DenonTelnetHub:
         self._last_error: Optional[str] = None
         self._reader_stop = threading.Event()
         self._reader: Optional[threading.Thread] = None
+        self._listeners: List[Callable[[List[str]], None]] = []
+
+    def add_listener(self, cb: Callable[[List[str]], None]) -> None:
+        with self._lock:
+            if cb not in self._listeners:
+                self._listeners.append(cb)
+
+    def remove_listener(self, cb: Callable[[List[str]], None]) -> None:
+        with self._lock:
+            if cb in self._listeners:
+                self._listeners.remove(cb)
+
+    def _notify_listeners(self, lines: List[str]) -> None:
+        for cb in list(self._listeners):
+            try:
+                cb(lines)
+            except Exception:
+                pass
 
     # ---- cache helpers ----
 
@@ -94,7 +112,7 @@ class DenonTelnetHub:
         with self._lock:
             return list(self._cache.values())
 
-    def _ingest(self, lines: List[str]) -> None:
+    def _ingest(self, lines: List[str], *, notify: bool = False) -> None:
         for ln in lines:
             if not ln:
                 continue
@@ -104,6 +122,8 @@ class DenonTelnetHub:
             key = self._cache_key(ln)
             if key:
                 self._cache[key] = ln
+        if notify and lines:
+            self._notify_listeners(lines)
 
     @staticmethod
     def _cache_key(line: str) -> Optional[str]:
@@ -279,7 +299,8 @@ class DenonTelnetHub:
                         self._close_unlocked()
                         self._last_error = "telnet disconnected"
                         continue
-                    self._ingest(_lines_from_buf(_strip_iac(chunk)))
+                    ingested = _lines_from_buf(_strip_iac(chunk))
+                    self._ingest(ingested, notify=True)
                 except socket.timeout:
                     pass
                 except OSError as e:

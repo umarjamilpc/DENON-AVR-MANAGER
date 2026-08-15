@@ -25,6 +25,7 @@ from .routers import dashboard as dashboard_router
 from .routers import mqtt as mqtt_router
 from .routers import setup as setup_router
 from .mqtt_service import get_mqtt_bridge, restart_mqtt_bridge, stop_mqtt_bridge
+from .telnet_proxy import restart_telnet_proxy, stop_telnet_proxy
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -111,8 +112,10 @@ def create_app(host: str | None = None) -> FastAPI:
         bridge = get_mqtt_bridge()
         bridge.configure_app(app)
         restart_mqtt_bridge()
+        restart_telnet_proxy(default_host)
         yield
         stop_mqtt_bridge()
+        stop_telnet_proxy()
 
     app = FastAPI(
         title="DENON AVR MANAGER",

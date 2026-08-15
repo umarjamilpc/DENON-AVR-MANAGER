@@ -23,6 +23,8 @@ DEFAULTS: Dict[str, Any] = {
     # HA denonavr-style: zones are opt-in (default off to keep Control Panel lean)
     "show_zone2": False,
     "show_zone3": False,
+    "telnet_proxy_enabled": False,
+    "telnet_proxy_port": 2323,
 }
 
 # UI / API schema: label + short explanation for the Settings page.
@@ -169,6 +171,28 @@ SETTING_META: List[Dict[str, Any]] = [
             "more controls includes Zone 3 when the model supports it."
         ),
     },
+    {
+        "key": "telnet_proxy_enabled",
+        "label": "Telnet proxy",
+        "type": "boolean",
+        "description": (
+            "Listen on the proxy port (default 2323) and forward multiple clients "
+            "(PuTTY, scripts) through this manager's single AVR telnet session. "
+            "Point clients at this host — not the AVR — e.g. telnet nas-ip 2323."
+        ),
+    },
+    {
+        "key": "telnet_proxy_port",
+        "label": "Telnet proxy port",
+        "type": "number",
+        "min": 1024,
+        "max": 65535,
+        "step": 1,
+        "description": (
+            "TCP port for the telnet proxy (default 2323). Expose this port in "
+            "Docker Compose when the proxy is enabled."
+        ),
+    },
 ]
 
 
@@ -212,6 +236,15 @@ def normalize_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         out["show_zone2"] = bool(src["show_zone2"])
     if "show_zone3" in src:
         out["show_zone3"] = bool(src["show_zone3"])
+    if "telnet_proxy_enabled" in src:
+        out["telnet_proxy_enabled"] = bool(src["telnet_proxy_enabled"])
+
+    out["telnet_proxy_port"] = _clamp_int(
+        src.get("telnet_proxy_port", out.get("telnet_proxy_port", 2323)),
+        1024,
+        65535,
+        int(DEFAULTS["telnet_proxy_port"]),
+    )
 
     grouping = str(
         src.get("control_grouping", out.get("control_grouping", "less controls"))

@@ -171,6 +171,7 @@
     mqttSettings: null,
     mqttCatalog: null,
     mqttLayout: "less",
+    mqttSectionId: null,
     mqttHaFormat: "json",
   };
 
@@ -1329,6 +1330,9 @@
     state.mqttCatalog = await api(`/api/mqtt/catalog?layout=${lay}`);
     state.mqttLayout = lay;
     syncMqttLayoutButtons();
+    if (!state.mqttSectionId && state.mqttCatalog?.sections?.length) {
+      state.mqttSectionId = state.mqttCatalog.sections[0].id;
+    }
     renderMqttEntities(state.mqttCatalog);
   }
 
@@ -1360,52 +1364,75 @@
     el.textContent = `MQTT status: ${parts.join(" · ")}`;
   }
 
-  function renderMqttEntities(catalog) {
-    const root = $("mqtt-entities-list");
-    if (!root) return;
-    root.innerHTML = "";
-    const sections = catalog?.sections || {};
-    const enabled = mqttEnabledMap();
-    const order = Object.keys(sections).sort();
-    if (!order.length) {
-      root.innerHTML = "<p class=\"meta\">No publishable entities for this AVR model.</p>";
-      return;
+  function renderMqttSectionNav(catalog) {
+    const nav = $("mqtt-section-nav");
+    if (!nav) return;
+    nav.innerHTML = "";
+    const sections = catalog?.sections || [];
+    if (!sections.length) return;
+    if (!state.mqttSectionId || !sections.some((s) => s.id === state.mqttSectionId)) {
+      state.mqttSectionId = sections[0].id;
     }
     const frag = document.createDocumentFragment();
-    for (const sec of order) {
-      const items = sections[sec] || [];
-      if (!items.length) continue;
-      const block = document.createElement("div");
-      block.className = "mqtt-entity-section";
-      const title = document.createElement("h4");
-      title.textContent = sec.replace(/_/g, " ");
-      block.appendChild(title);
-      const grid = document.createElement("div");
-      grid.className = "mqtt-entity-grid";
-      for (const ent of items) {
-        const label = document.createElement("label");
-        label.className = "mqtt-entity-item";
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.dataset.entityId = ent.id;
-        cb.checked = Boolean(enabled[ent.id]);
-        cb.addEventListener("change", () => {
-          const map = mqttEnabledMap();
-          map[ent.id] = cb.checked;
-        });
-        label.appendChild(cb);
-        const text = document.createElement("span");
-        text.textContent = ent.label || ent.id;
-        label.appendChild(text);
-        const kind = document.createElement("small");
-        kind.textContent = ent.ha_component || ent.kind || "";
-        label.appendChild(kind);
-        grid.appendChild(label);
-      }
-      block.appendChild(grid);
-      frag.appendChild(block);
+    for (const sec of sections) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "tab" + (sec.id === state.mqttSectionId ? " active" : "");
+      btn.textContent = sec.label || sec.id;
+      btn.dataset.sectionId = sec.id;
+      btn.addEventListener("click", () => {
+        state.mqttSectionId = sec.id;
+        renderMqttSectionNav(catalog);
+        renderMqttEntities(catalog);
+      });
+      frag.appendChild(btn);
     }
-    root.appendChild(frag);
+    nav.appendChild(frag);
+  }
+
+  function renderMqttEntities(catalog) {
+    const root = $("mqtt-entities-list");
+    const meta = $("mqtt-section-meta");
+    if (!root) return;
+    renderMqttSectionNav(catalog);
+    root.innerHTML = "";
+    const sections = catalog?.sections || [];
+    const sectionId = state.mqttSectionId || sections[0]?.id;
+    const navSec = sections.find((s) => s.id === sectionId);
+    const items = (catalog?.sections_map?.[sectionId] || []).slice();
+    const enabled = mqttEnabledMap();
+    if (meta) {
+      const model = catalog?.model || state.appSettings?.avr_model || "AVR";
+      const lay = state.mqttLayout === "more" ? "more controls" : "less controls";
+      meta.textContent = `${navSec?.label || sectionId || "—"} · ${items.length} entities · ${model} · ${lay}`;
+    }
+    if (!items.length) {
+      root.innerHTML = "<p class=\"meta\">No MQTT entities in this section for the current layout.</p>";
+      return;
+    }
+    const grid = document.createElement("div");
+    grid.className = "mqtt-entity-grid";
+    for (const ent of items) {
+      const label = document.createElement("label");
+      label.className = "mqtt-entity-item";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.dataset.entityId = ent.id;
+      cb.checked = Boolean(enabled[ent.id]);
+      cb.addEventListener("change", () => {
+        const map = mqttEnabledMap();
+        map[ent.id] = cb.checked;
+      });
+      label.appendChild(cb);
+      const text = document.createElement("span");
+      text.textContent = ent.label || ent.id;
+      label.appendChild(text);
+      const kind = document.createElement("small");
+      kind.textContent = ent.ha_component || ent.kind || "";
+      label.appendChild(kind);
+      grid.appendChild(label);
+    }
+    root.appendChild(grid);
   }
 
   function setMqttEntitySelection(mode) {

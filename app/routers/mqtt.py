@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 from pathlib import Path
@@ -12,7 +13,9 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from ..app_settings import load_settings
-from ..denon_control import filter_controls_for_model
+from ..denon_client import DenonSetupClient
+from ..denon_control import DenonControl, SUPPORTED_MODELS
+from ..host_utils import normalize_host
 from ..mqtt_service import get_mqtt_bridge, restart_mqtt_bridge
 from ..mqtt_settings import (
     enabled_entities_for_layout,
@@ -23,7 +26,7 @@ from ..mqtt_settings import (
     save_mqtt_settings,
     settings_response,
 )
-from ..protocol_loader import load_telnet_commands, normalize_layout
+from ..protocol_loader import normalize_layout
 
 router = APIRouter(tags=["mqtt"])
 
@@ -32,6 +35,9 @@ _HA_COMPONENT_MAP = {
     "enum": "select",
     "slider": "number",
     "stepper": "number",
+    "action": "button",
+    "query": "button",
+    "raw": "text",
 }
 
 _CERT_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -41,55 +47,79 @@ class MqttSettingsBody(BaseModel):
     settings: Dict[str, Any] = Field(default_factory=dict)
 
 
-def _catalog_entities(layout: str) -> List[Dict[str, Any]]:
-    model = str(load_settings().get("avr_model") or "AVR-X1200W")
+def _control_catalog(layout: str) -> Dict[str, Any]:
+    raw_host = os.environ.get("DENON_HOST") or ""
+    host = normalize_host(raw_host)
+    settings = load_settings()
+    model = str(settings.get("avr_model") or "AVR-X1200W")
+    if model not in SUPPORTED_MODELS:
+        model = "AVR-X1200W"
     lay = normalize_layout(layout)
-    controls = filter_controls_for_model(load_telnet_commands(lay), model)
-    out: List[Dict[str, Any]] = []
-    for c in controls:
-        kind = c.get("kind")
-        if kind not in _HA_COMPONENT_MAP:
-            continue
-        out.append(
-            {
-                "id": c.get("id"),
-                "label": c.get("label"),
-                "section": c.get("section"),
-                "kind": kind,
-                "ha_component": _HA_COMPONENT_MAP[kind],
-                "featured": bool(c.get("featured")),
-                "layout": lay,
-            }
-        )
-    return out
+    ctrl = DenonControl(DenonSetupClient(host))
+    return ctrl.catalog(
+        model=model,
+        show_zone2=bool(settings.get("show_zone2")),
+        show_zone3=bool(settings.get("show_zone3")),
+        layout=lay,
+    )
 
 
 def _catalog_response(settings: Dict[str, Any], layout: str) -> Dict[str, Any]:
     lay = normalize_layout(layout)
+    cat = _control_catalog(lay)
     enabled = enabled_entities_for_layout(settings, lay)
-    entities = _catalog_entities(lay)
+    sections_meta = list(cat.get("sections") or [])
+    entities: List[Dict[str, Any]] = []
     sections: Dict[str, List[Dict[str, Any]]] = {}
-    for ent in entities:
-        sec = str(ent.get("section") or "other")
-        ent["enabled"] = bool(enabled.get(ent["id"]))
-        sections.setdefault(sec, []).append(ent)
-    counts = {
-        l: sum(
-            1
-            for e in _catalog_entities(l)
-            if enabled_entities_for_layout(settings, l).get(e["id"])
-        )
-        for l in ("less", "more")
+    section_labels: Dict[str, str] = {
+        str(s.get("id")): str(s.get("label") or s.get("id") or "")
+        for s in sections_meta
     }
+
+    for c in cat.get("controls") or []:
+        kind = c.get("kind")
+        if kind not in _HA_COMPONENT_MAP:
+            continue
+        cid = str(c.get("id") or "")
+        sec = str(c.get("section") or "other")
+        ent = {
+            "id": cid,
+            "label": c.get("label"),
+            "section": sec,
+            "section_label": section_labels.get(sec, sec),
+            "kind": kind,
+            "ha_component": _HA_COMPONENT_MAP[kind],
+            "featured": bool(c.get("featured")),
+            "layout": lay,
+            "enabled": bool(enabled.get(cid)),
+            "command": c.get("command"),
+            "query": c.get("query"),
+        }
+        entities.append(ent)
+        sections.setdefault(sec, []).append(ent)
+
+    counts = {}
+    totals = {}
+    for l in ("less", "more"):
+        lay_ent = enabled_entities_for_layout(settings, l)
+        cat_l = _control_catalog(l)
+        ents = [
+            c
+            for c in (cat_l.get("controls") or [])
+            if c.get("kind") in _HA_COMPONENT_MAP
+        ]
+        totals[l] = len(ents)
+        counts[l] = sum(1 for c in ents if lay_ent.get(str(c.get("id"))))
+
     return {
         "layout": lay,
+        "model": cat.get("model"),
+        "sections": sections_meta,
         "entities": entities,
-        "sections": sections,
-        "enabled_count": sum(1 for e in entities if enabled.get(e["id"])),
+        "sections_map": sections,
+        "enabled_count": sum(1 for e in entities if e.get("enabled")),
         "enabled_counts": counts,
-        "entity_totals": {
-            l: len(_catalog_entities(l)) for l in ("less", "more")
-        },
+        "entity_totals": totals,
     }
 
 

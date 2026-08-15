@@ -16,7 +16,7 @@ from ..app_settings import (
     save_settings,
     settings_response,
 )
-from ..manual_eq_backup import export_manual_eq, import_manual_eq
+from ..telnet_proxy import restart_telnet_proxy, telnet_proxy_status
 from ..denon_client import DenonSetupClient
 from ..denon_power import (
     STANDBY_SETTINGS_BLOCKED,
@@ -173,7 +173,7 @@ def get_app_settings() -> Dict[str, Any]:
 
 
 @router.put("/app-settings")
-def put_app_settings(body: AppSettingsBody) -> Dict[str, Any]:
+def put_app_settings(body: AppSettingsBody, request: Request) -> Dict[str, Any]:
     """Merge and save manager settings to the mounted data volume."""
     try:
         save_settings(body.settings)
@@ -193,11 +193,17 @@ def put_app_settings(body: AppSettingsBody) -> Dict[str, Any]:
                 ),
             },
         ) from e
+    restart_telnet_proxy(_default_base(request))
     return settings_response()
 
 
+@router.get("/telnet-proxy/status")
+def get_telnet_proxy_status(request: Request) -> Dict[str, Any]:
+    return {"ok": True, **telnet_proxy_status()}
+
+
 @router.post("/app-settings/reset")
-def post_app_settings_reset() -> Dict[str, Any]:
+def post_app_settings_reset(request: Request) -> Dict[str, Any]:
     """Restore factory defaults and overwrite the settings file."""
     try:
         reset_settings()
@@ -215,6 +221,7 @@ def post_app_settings_reset() -> Dict[str, Any]:
                 ),
             },
         ) from e
+    restart_telnet_proxy(_default_base(request))
     return settings_response()
 
 

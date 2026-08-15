@@ -16,6 +16,7 @@ from .app_settings import load_settings
 from .denon_client import DenonSetupClient
 from .denon_control import (
     DenonControl,
+    SUPPORTED_MODELS,
     parse_entities,
     resolve_command_from_id,
 )
@@ -35,6 +36,9 @@ _HA_COMPONENT = {
     "enum": "select",
     "slider": "number",
     "stepper": "number",
+    "action": "button",
+    "query": "button",
+    "raw": "text",
 }
 
 
@@ -52,6 +56,58 @@ class MqttBridge:
         self._poll_thread: Optional[threading.Thread] = None
         self._device_id = f"denon_avr_{uuid.uuid4().hex[:8]}"
         self._subscribed = False
+        self._control_index: Dict[str, Dict[str, Any]] = {}
+
+    def _load_catalog(self) -> Dict[str, Any]:
+        app = self._app
+        host = getattr(app.state, "default_host", None) if app else None
+        if not host:
+            return {"sections": [], "controls": []}
+        settings = load_settings()
+        model = str(settings.get("avr_model") or "AVR-X1200W")
+        if model not in SUPPORTED_MODELS:
+            model = "AVR-X1200W"
+        layout = mqtt_control_layout(self._settings)
+        ctrl = DenonControl(DenonSetupClient(host))
+        return ctrl.catalog(
+            model=model,
+            show_zone2=bool(settings.get("show_zone2")),
+            show_zone3=bool(settings.get("show_zone3")),
+            layout=layout,
+        )
+
+    def _refresh_control_index(self) -> None:
+        cat = self._load_catalog()
+        self._control_index = {
+            str(c.get("id")): c for c in (cat.get("controls") or []) if c.get("id")
+        }
+
+    def _resolve_mqtt_command(self, control_id: str, value: Any) -> tuple[str, bool]:
+        if not self._control_index:
+            self._refresh_control_index()
+        control = self._control_index.get(control_id)
+        if not control:
+            raise KeyError(f"unknown control id: {control_id}")
+        kind = control.get("kind")
+        allow_raw = bool(control.get("allow_raw"))
+        if kind == "raw":
+            cmd = str(value or "").strip()
+            if not cmd:
+                raise ValueError("raw command requires a telnet payload")
+            return cmd, True
+        if kind == "action":
+            cmd = str(control.get("command") or "").strip()
+            if not cmd:
+                raise ValueError(f"action {control_id} has no command")
+            return cmd, False
+        if kind == "query":
+            cmd = str(control.get("query") or control.get("command") or "").strip()
+            if not cmd:
+                raise ValueError(f"query {control_id} has no query")
+            if "?" not in cmd:
+                cmd = f"{cmd}?"
+            return cmd, True
+        return resolve_command_from_id(control_id, value), allow_raw
 
     def status(self) -> Dict[str, Any]:
         with self._lock:
@@ -216,6 +272,7 @@ class MqttBridge:
             return
         self._connected = True
         self._last_error = None
+        self._refresh_control_index()
         self._publish_availability("online")
         self._publish_discovery()
         topic = str(self._settings.get("topic") or "denon_avr")
@@ -269,13 +326,13 @@ class MqttBridge:
         if not host:
             return
         try:
-            cmd = resolve_command_from_id(control_id, value)
+            cmd, allow_raw = self._resolve_mqtt_command(control_id, value)
             ctrl: Optional[DenonControl] = getattr(app.state, "denon_control", None)
             if ctrl is None:
                 http = DenonSetupClient(host)
                 ctrl = DenonControl(http)
                 app.state.denon_control = ctrl
-            result = ctrl.send(cmd)
+            result = ctrl.send(cmd, allow_raw=allow_raw)
             power = None
             try:
                 power = read_main_zone_power(DenonSetupClient(host))
@@ -285,6 +342,14 @@ class MqttBridge:
             layout = mqtt_control_layout(self._settings)
             entities = parse_entities(lines, power=power, layout=layout)
             self._publish_entities(entities)
+            responses = list(result.get("responses") or [])
+            if responses:
+                payload = " | ".join(responses)
+                client = self._client
+                if client is not None and self._connected:
+                    topic = self._state_topic(control_id)
+                    client.publish(topic, payload, retain=False)
+                    self._last_states[control_id] = payload
         except Exception as e:
             log.warning("MQTT command %s=%r failed: %s", control_id, value, e)
 
@@ -307,13 +372,9 @@ class MqttBridge:
         return block
 
     def _controls_for_publish(self) -> List[Dict[str, Any]]:
-        from .denon_control import filter_controls_for_model
-
-        model = str(load_settings().get("avr_model") or "AVR-X1200W")
-        layout = mqtt_control_layout(self._settings)
-        controls = filter_controls_for_model(load_telnet_commands(layout), model)
+        cat = self._load_catalog()
         out: List[Dict[str, Any]] = []
-        for c in controls:
+        for c in cat.get("controls") or []:
             cid = str(c.get("id") or "")
             kind = c.get("kind")
             if not cid or kind not in _HA_COMPONENT:
@@ -392,6 +453,19 @@ class MqttBridge:
             cfg["step"] = 1.0
             if control.get("unit"):
                 cfg["unit_of_measurement"] = str(control["unit"])
+        elif kind == "action":
+            cmd = str(control.get("command") or "")
+            if cmd:
+                cfg["payload_press"] = cmd
+        elif kind == "query":
+            cmd = str(control.get("query") or control.get("command") or "")
+            if cmd and "?" not in cmd:
+                cmd = f"{cmd}?"
+            if cmd:
+                cfg["payload_press"] = cmd
+        elif kind == "raw":
+            cfg["mode"] = "text"
+            cfg["max"] = 64
         return component, cfg
 
     def _publish_discovery(self) -> None:
@@ -423,6 +497,8 @@ class MqttBridge:
             if val is None:
                 return str(entity.get("display") or "")
             return str(val)
+        if kind in {"action", "query", "raw"}:
+            return str(entity.get("display") or entity.get("raw") or "")
         return str(entity.get("display") or entity.get("value") or "")
 
     def _publish_entities(self, entities: Dict[str, Any]) -> None:
@@ -487,6 +563,11 @@ class MqttBridge:
                 entry["step"] = cfg.get("step", 1)
                 if cfg.get("unit_of_measurement"):
                     entry["unit_of_measurement"] = cfg["unit_of_measurement"]
+            elif component == "button":
+                if cfg.get("payload_press"):
+                    entry["payload_press"] = cfg["payload_press"]
+            elif component == "text":
+                entry["mode"] = cfg.get("mode", "text")
             mqtt_block.setdefault(component, []).append(entry)
         return {
             "mqtt": mqtt_block,
