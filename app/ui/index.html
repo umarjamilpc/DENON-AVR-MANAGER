@@ -451,7 +451,7 @@
                     <option value="">Choose preset…</option>
                   </select>
                 </label>
-                <button type="button" id="mqtt-preset-apply" class="btn-ghost">Apply preset</button>
+                <button type="button" id="mqtt-preset-apply" class="btn-ghost">Load preset</button>
                 <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
                   <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less controls</button>
                   <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More controls</button>
@@ -469,16 +469,27 @@
           <section class="mqtt-ha-export">
             <header class="mqtt-entities-head">
               <div>
-                <h3>Home Assistant manual config</h3>
-                <p class="meta">JSON or YAML for manual MQTT entity setup (when HA Discovery is off).</p>
+                <h3>Home Assistant export</h3>
+                <p class="meta" id="mqtt-export-desc">
+                  MQTT entity config or responsive Lovelace dashboard YAML (RC-1189 remote layout).
+                </p>
               </div>
-              <div class="editor-actions">
-                <button type="button" id="mqtt-ha-format-json" class="btn-ghost active">JSON</button>
-                <button type="button" id="mqtt-ha-format-yaml" class="btn-ghost">YAML</button>
+              <div class="editor-actions mqtt-export-actions">
+                <div class="mqtt-export-switch" role="group" aria-label="Export type">
+                  <button type="button" id="mqtt-export-mqtt" class="btn-ghost active">MQTT config</button>
+                  <button type="button" id="mqtt-export-lovelace" class="btn-ghost">Lovelace card</button>
+                </div>
+                <select id="mqtt-lovelace-style" class="mqtt-lovelace-style" aria-label="Lovelace layout style" hidden>
+                  <option value="rc1189">RC-1189 remote (responsive)</option>
+                  <option value="grid">Enabled entities grid</option>
+                </select>
+                <button type="button" id="mqtt-ha-format-json" class="btn-ghost active mqtt-mqtt-only">JSON</button>
+                <button type="button" id="mqtt-ha-format-yaml" class="btn-ghost mqtt-mqtt-only">YAML</button>
                 <button type="button" id="mqtt-ha-copy" class="btn-ghost">Copy</button>
                 <button type="button" id="mqtt-ha-refresh" class="btn-ghost">Refresh</button>
               </div>
             </header>
+            <p id="mqtt-export-note" class="meta mqtt-export-note"></p>
             <textarea id="mqtt-ha-output" class="mqtt-ha-output" readonly spellcheck="false"></textarea>
           </section>
         </article>
@@ -637,6 +648,6 @@ docker compose up -d</pre>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=88"></script>
+  <script src="/assets/app.js?v=89"></script>
 </body>
 </html>

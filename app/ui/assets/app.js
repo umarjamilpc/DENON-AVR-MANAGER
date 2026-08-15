@@ -172,6 +172,9 @@
     mqttCatalog: null,
     mqttPresets: [],
     mqttLayout: "less",
+    mqttPresetPreviewId: null,
+    mqttExportMode: "mqtt",
+    mqttLovelaceStyle: "rc1189",
     mqttSectionId: null,
     mqttHaFormat: "json",
   };
@@ -1372,7 +1375,7 @@
     const layoutEl = mqttField("control_layout");
     if (layoutEl) layoutEl.value = lay;
     await loadMqttCatalog(lay);
-    await refreshMqttHaOutput();
+    await refreshMqttExportOutput();
   }
 
   function renderMqttStatus(status) {
@@ -1402,12 +1405,16 @@
     if (!state.mqttSectionId || !sections.some((s) => s.id === state.mqttSectionId)) {
       state.mqttSectionId = sections[0].id;
     }
+    const enabled = mqttEnabledMap();
     const frag = document.createDocumentFragment();
     for (const sec of sections) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "tab" + (sec.id === state.mqttSectionId ? " active" : "");
-      btn.textContent = sec.label || sec.id;
+      const items = catalog?.sections_map?.[sec.id] || [];
+      const onCount = items.filter((e) => enabled[e.id]).length;
+      const label = sec.label || sec.id;
+      btn.textContent = onCount > 0 ? `${label} (${onCount})` : label;
       btn.dataset.sectionId = sec.id;
       btn.addEventListener("click", () => {
         state.mqttSectionId = sec.id;
@@ -1430,10 +1437,14 @@
     const navSec = sections.find((s) => s.id === sectionId);
     const items = (catalog?.sections_map?.[sectionId] || []).slice();
     const enabled = mqttEnabledMap();
+    const totalOn = Object.values(enabled).filter(Boolean).length;
     if (meta) {
       const model = catalog?.model || state.appSettings?.avr_model || "AVR";
       const lay = state.mqttLayout === "more" ? "more controls" : "less controls";
-      meta.textContent = `${navSec?.label || sectionId || "—"} · ${items.length} entities · ${model} · ${lay}`;
+      const preview = state.mqttPresetPreviewId
+        ? " · preset preview (Save to persist)"
+        : "";
+      meta.textContent = `${navSec?.label || sectionId || "—"} · ${items.length} in section · ${totalOn} enabled total · ${model} · ${lay}${preview}`;
     }
     if (!items.length) {
       root.innerHTML = "<p class=\"meta\">No MQTT entities in this section for the current layout.</p>";
@@ -1444,13 +1455,18 @@
     for (const ent of items) {
       const label = document.createElement("label");
       label.className = "mqtt-entity-item";
+      const isOn = Boolean(enabled[ent.id]);
+      label.classList.toggle("mqtt-entity-enabled", isOn);
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.dataset.entityId = ent.id;
-      cb.checked = Boolean(enabled[ent.id]);
+      cb.checked = isOn;
       cb.addEventListener("change", () => {
         const map = mqttEnabledMap();
         map[ent.id] = cb.checked;
+        label.classList.toggle("mqtt-entity-enabled", cb.checked);
+        state.mqttPresetPreviewId = null;
+        renderMqttSectionNav(catalog);
       });
       label.appendChild(cb);
       const text = document.createElement("span");
@@ -1459,6 +1475,13 @@
       const kind = document.createElement("small");
       kind.textContent = ent.ha_component || ent.kind || "";
       label.appendChild(kind);
+      if (isOn && ent.ha_component) {
+        const eid = document.createElement("code");
+        eid.className = "mqtt-entity-id";
+        const topic = (state.mqttSettings?.topic || "denon_avr").replace(/\//g, "_");
+        eid.textContent = `${ent.ha_component}.${topic}_${ent.id}`;
+        label.appendChild(eid);
+      }
       grid.appendChild(label);
     }
     root.appendChild(grid);
@@ -1486,38 +1509,39 @@
     }
   }
 
-  async function applyMqttPreset() {
-    const sel = $("mqtt-preset-select");
-    const presetId = sel?.value?.trim();
+  function applyPresetPreviewData(data) {
+    if (!state.mqttSettings) state.mqttSettings = {};
+    if (data.enabled_entities) {
+      state.mqttSettings.enabled_entities = data.enabled_entities;
+    } else if (data.enabled_map) {
+      const all = ensureMqttEnabledEntities();
+      all[mqttLayoutKey()] = { ...data.enabled_map };
+    }
+    state.mqttPresetPreviewId = data.preset?.id || state.mqttPresetPreviewId || "custom";
+    if (data.catalog) {
+      state.mqttCatalog = data.catalog;
+      renderMqttEntities(data.catalog);
+    }
+  }
+
+  async function previewMqttPreset(presetId) {
     if (!presetId) {
-      setStatus("Choose a preset first", "err");
+      state.mqttPresetPreviewId = null;
       return;
     }
     const banner = $("mqtt-banner");
     try {
-      const data = await api("/api/mqtt/presets/apply", {
-        method: "POST",
-        body: JSON.stringify({
-          preset_id: presetId,
-          layout: mqttLayoutKey(),
-        }),
-      });
-      state.mqttSettings = data.settings || state.mqttSettings;
-      ensureMqttEnabledEntities();
-      if (data.catalog) {
-        state.mqttCatalog = data.catalog;
-        renderMqttEntities(data.catalog);
-      } else {
-        await loadMqttCatalog(state.mqttLayout);
-      }
-      renderMqttStatus(data.status);
-      await refreshMqttHaOutput();
+      const data = await api(
+        `/api/mqtt/presets/${encodeURIComponent(presetId)}/preview?layout=${mqttLayoutKey()}`
+      );
+      applyPresetPreviewData(data);
+      await refreshMqttExportOutput();
       const label = data.preset?.label || presetId;
       if (banner) {
         banner.hidden = false;
-        banner.textContent = `Preset applied: ${label} (${data.enabled_count ?? 0} entities)`;
+        banner.textContent = `Preset loaded: ${label} (${data.enabled_count ?? 0} checked) — add more entities, then Save.`;
       }
-      setStatus(`MQTT preset: ${label}`, "ok");
+      setStatus(`Preset preview: ${label}`, "ok");
     } catch (err) {
       if (banner) {
         banner.hidden = false;
@@ -1525,6 +1549,16 @@
       }
       setStatus(err.message, "err");
     }
+  }
+
+  async function applyMqttPreset() {
+    const sel = $("mqtt-preset-select");
+    const presetId = sel?.value?.trim();
+    if (!presetId) {
+      setStatus("Choose a preset first", "err");
+      return;
+    }
+    await previewMqttPreset(presetId);
   }
 
   function setMqttEntitySelection(mode) {
@@ -1537,15 +1571,59 @@
       else if (mode === "none") map[ent.id] = false;
       else if (mode === "featured") map[ent.id] = Boolean(ent.featured);
     }
+    state.mqttPresetPreviewId = null;
     renderMqttEntities(catalog);
+    void refreshMqttExportOutput();
   }
 
-  async function refreshMqttHaOutput() {
+  function updateMqttExportUi() {
+    const isLovelace = state.mqttExportMode === "lovelace";
+    $("mqtt-export-mqtt")?.classList.toggle("active", !isLovelace);
+    $("mqtt-export-lovelace")?.classList.toggle("active", isLovelace);
+    $("mqtt-lovelace-style")?.toggleAttribute("hidden", !isLovelace);
+    for (const el of document.querySelectorAll(".mqtt-mqtt-only")) {
+      el.toggleAttribute("hidden", isLovelace);
+    }
+    const desc = $("mqtt-export-desc");
+    if (desc) {
+      desc.textContent = isLovelace
+        ? "Responsive Lovelace dashboard YAML — RC-1189 remote layout for phone, tablet, and desktop."
+        : "MQTT entity config JSON/YAML for manual setup (when HA Discovery is off).";
+    }
+  }
+
+  async function refreshMqttExportOutput() {
     const out = $("mqtt-ha-output");
+    const note = $("mqtt-export-note");
     if (!out) return;
-    const fmt = state.mqttHaFormat === "yaml" ? "yaml" : "json";
+    updateMqttExportUi();
+    syncMqttEntityChecksToState();
+    const exportBody = {
+      layout: mqttLayoutKey(),
+      enabled_entities: ensureMqttEnabledEntities(),
+    };
     try {
-      const data = await api(`/api/mqtt/ha-config?format=${fmt}`);
+      if (state.mqttExportMode === "lovelace") {
+        const style = $("mqtt-lovelace-style")?.value || state.mqttLovelaceStyle || "rc1189";
+        state.mqttLovelaceStyle = style;
+        const data = await api("/api/mqtt/lovelace", {
+          method: "POST",
+          body: JSON.stringify({ ...exportBody, style }),
+        });
+        out.value = data.yaml || "";
+        if (note) {
+          note.textContent = data.note
+            ? `${data.note} (${data.entity_count ?? 0} entities in card.)`
+            : "";
+        }
+        return;
+      }
+      const fmt = state.mqttHaFormat === "yaml" ? "yaml" : "json";
+      const data = await api("/api/mqtt/ha-config", {
+        method: "POST",
+        body: JSON.stringify({ ...exportBody, format: fmt }),
+      });
+      if (note) note.textContent = data.note || "";
       if (fmt === "yaml") {
         out.value = data.yaml || "";
       } else {
@@ -1553,7 +1631,12 @@
       }
     } catch (err) {
       out.value = err.message;
+      if (note) note.textContent = "";
     }
+  }
+
+  async function refreshMqttHaOutput() {
+    return refreshMqttExportOutput();
   }
 
   async function loadMqttPage() {
@@ -1570,7 +1653,7 @@
       applyMqttForm(state.mqttSettings);
       renderMqttStatus(settingsData.status);
       await loadMqttCatalog(state.mqttLayout);
-      await refreshMqttHaOutput();
+      await refreshMqttExportOutput();
     } catch (err) {
       if (banner) {
         banner.hidden = false;
@@ -1592,11 +1675,12 @@
       applyMqttForm(state.mqttSettings);
       renderMqttStatus(data.status);
       await loadMqttCatalog(state.mqttLayout);
-      await refreshMqttHaOutput();
+      await refreshMqttExportOutput();
       if (banner) {
         banner.hidden = false;
         banner.textContent = "Saved";
       }
+      state.mqttPresetPreviewId = null;
       setStatus("MQTT settings saved", "ok");
     } catch (err) {
       if (banner) {
@@ -1622,7 +1706,7 @@
       applyMqttForm(state.mqttSettings);
       renderMqttStatus(data.status);
       setMqttEntitySelection("none");
-      await refreshMqttHaOutput();
+      await refreshMqttExportOutput();
       if (banner) {
         banner.hidden = false;
         banner.textContent = "Defaults restored.";
@@ -1694,6 +1778,21 @@
       setMqttEntitySelection("featured")
     );
     $("mqtt-preset-apply")?.addEventListener("click", () => applyMqttPreset());
+    $("mqtt-preset-select")?.addEventListener("change", (ev) => {
+      const id = ev.target?.value?.trim();
+      if (id) void previewMqttPreset(id);
+    });
+    $("mqtt-export-mqtt")?.addEventListener("click", () => {
+      state.mqttExportMode = "mqtt";
+      updateMqttExportUi();
+      void refreshMqttExportOutput();
+    });
+    $("mqtt-export-lovelace")?.addEventListener("click", () => {
+      state.mqttExportMode = "lovelace";
+      updateMqttExportUi();
+      void refreshMqttExportOutput();
+    });
+    $("mqtt-lovelace-style")?.addEventListener("change", () => refreshMqttExportOutput());
     $("mqtt-entities-all")?.addEventListener("click", () => setMqttEntitySelection("all"));
     $("mqtt-entities-none")?.addEventListener("click", () => setMqttEntitySelection("none"));
     $("mqtt-layout-less")?.addEventListener("click", () =>
@@ -1706,19 +1805,19 @@
       setMqttLayout(ev.target.value).catch((err) => setStatus(err.message, "err"));
     });
     $("mqtt-ha-refresh")?.addEventListener("click", () =>
-      refreshMqttHaOutput().catch((err) => setStatus(err.message, "err"))
+      refreshMqttExportOutput().catch((err) => setStatus(err.message, "err"))
     );
     $("mqtt-ha-format-json")?.addEventListener("click", () => {
       state.mqttHaFormat = "json";
       $("mqtt-ha-format-json")?.classList.add("active");
       $("mqtt-ha-format-yaml")?.classList.remove("active");
-      refreshMqttHaOutput().catch(() => {});
+      refreshMqttExportOutput().catch(() => {});
     });
     $("mqtt-ha-format-yaml")?.addEventListener("click", () => {
       state.mqttHaFormat = "yaml";
       $("mqtt-ha-format-yaml")?.classList.add("active");
       $("mqtt-ha-format-json")?.classList.remove("active");
-      refreshMqttHaOutput().catch(() => {});
+      refreshMqttExportOutput().catch(() => {});
     });
     $("mqtt-ha-copy")?.addEventListener("click", async () => {
       const text = $("mqtt-ha-output")?.value || "";

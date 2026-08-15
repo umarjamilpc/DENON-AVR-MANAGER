@@ -2898,6 +2898,50 @@ body.dashboard-editing .dashboard-widget {
   gap: 0.5rem;
 }
 
+.mqtt-entity-item.mqtt-entity-enabled {
+  border-color: var(--accent, #3b82f6);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 8%, transparent);
+}
+
+.mqtt-entity-id {
+  display: block;
+  font-size: 0.72rem;
+  opacity: 0.85;
+  margin-top: 0.15rem;
+  word-break: break-all;
+}
+
+.mqtt-export-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mqtt-export-switch {
+  display: inline-flex;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mqtt-export-switch .btn-ghost {
+  border: 0;
+  border-radius: 0;
+}
+
+.mqtt-export-switch .btn-ghost.active {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+}
+
+.mqtt-lovelace-style {
+  min-width: 12rem;
+}
+
+.mqtt-export-note {
+  margin: 0 0 0.5rem;
+}
+
 .mqtt-preset-label {
   display: inline-flex;
   align-items: center;
