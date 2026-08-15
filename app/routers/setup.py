@@ -199,7 +199,7 @@ def put_app_settings(body: AppSettingsBody, request: Request) -> Dict[str, Any]:
 
 @router.get("/telnet-proxy/status")
 def get_telnet_proxy_status(request: Request) -> Dict[str, Any]:
-    return {"ok": True, **telnet_proxy_status()}
+    return {"ok": True, **telnet_proxy_status(_default_base(request))}
 
 
 @router.post("/app-settings/reset")

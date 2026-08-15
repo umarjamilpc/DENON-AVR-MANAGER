@@ -1172,7 +1172,8 @@
       const st = await api("/api/telnet-proxy/status");
       const port = st.listen_port ?? 2323;
       const baud = st.baud_rate ?? 9600;
-      if (!st.enabled) {
+      const configured = st.configured ?? st.enabled;
+      if (!configured) {
         el.textContent =
           "Telnet proxy: disabled — enable in settings above, then Save.";
         return;

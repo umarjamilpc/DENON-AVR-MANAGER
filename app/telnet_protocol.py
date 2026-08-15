@@ -67,10 +67,15 @@ def strip_telnet_protocol(data: bytes) -> tuple[bytes, bytes, int]:
                 else:
                     responses.extend([IAC, WONT, opt])
             elif cmd == DONT:
-                if opt == ECHO:
-                    responses.extend([IAC, WONT, opt])
+                responses.extend([IAC, WONT, opt])
+            elif cmd == WILL:
+                if opt == SGA:
+                    responses.extend([IAC, DO, opt])
                 else:
-                    responses.extend([IAC, WONT, opt])
+                    # Never accept remote ECHO — PuTTY should use local echo.
+                    responses.extend([IAC, DONT, opt])
+            elif cmd == WONT:
+                responses.extend([IAC, DONT, opt])
             i += 3
             continue
         if cmd == SB:
