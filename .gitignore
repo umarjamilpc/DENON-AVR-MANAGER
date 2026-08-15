@@ -1,6 +1,7 @@
 # Secrets / local env (use docker-compose.yml environment instead)
 .env
 .env.*
+!.env.example
 
 # Local app settings (Docker uses /data volume instead)
 data/
@@ -35,3 +36,8 @@ agent-transcripts/
 
 # graphify local index (regenerate with: graphify extract . --code-only)
 graphify-out/
+
+# DENON-REFERENCE probe/session artifacts (never commit)
+DENON-REFERENCE/**/cookies.txt
+DENON-REFERENCE/**/__pycache__/
+DENON-REFERENCE/**/scrape_out/
