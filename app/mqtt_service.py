@@ -21,6 +21,11 @@ from .denon_control import (
     resolve_command_from_id,
 )
 from .denon_power import read_main_zone_power
+from .mqtt_ha_naming import (
+    build_ha_entity_id_map,
+    discovery_topic_id,
+    unique_id,
+)
 from .mqtt_settings import (
     cert_path,
     entity_enabled,
@@ -399,8 +404,25 @@ class MqttBridge:
         return out
 
     def _object_id(self, control_id: str) -> str:
-        base = str(self._settings.get("topic") or "denon_avr").replace("/", "_")
-        return f"{base}_{control_id}"
+        """Legacy alias — stable unique_id for MQTT topics."""
+        return unique_id(self._settings, control_id)
+
+    def _entity_id_map(self) -> Dict[str, str]:
+        controls = self._controls_for_publish()
+        items: List[Dict[str, Any]] = []
+        for c in controls:
+            kind = c.get("kind")
+            component = _HA_COMPONENT.get(kind)
+            if not component:
+                continue
+            items.append(
+                {
+                    "id": c.get("id"),
+                    "label": c.get("label"),
+                    "ha_component": component,
+                }
+            )
+        return build_ha_entity_id_map(self._settings, items)
 
     def _state_topic(self, control_id: str) -> str:
         base = str(self._settings.get("topic") or "denon_avr")
@@ -421,17 +443,19 @@ class MqttBridge:
         topic = self._availability_topic()
         client.publish(topic, state, retain=True)
 
-    def _discovery_config(self, control: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any]]]:
+    def _discovery_config(
+        self, control: Dict[str, Any], entity_id_map: Dict[str, str]
+    ) -> Optional[Tuple[str, Dict[str, Any]]]:
         cid = str(control.get("id") or "")
         kind = control.get("kind")
         component = _HA_COMPONENT.get(kind)
         if not component:
             return None
         name = str(control.get("label") or cid)
+        default_eid = entity_id_map.get(cid)
         cfg: Dict[str, Any] = {
             "name": name,
             "unique_id": self._object_id(cid),
-            "object_id": self._object_id(cid),
             "state_topic": self._state_topic(cid),
             "command_topic": self._command_topic(cid),
             "availability_topic": self._availability_topic(),
@@ -439,6 +463,8 @@ class MqttBridge:
             "payload_not_available": "offline",
             "device": self._device_block(),
         }
+        if default_eid:
+            cfg["default_entity_id"] = default_eid
         if kind == "toggle":
             cfg.update(
                 {
@@ -489,13 +515,14 @@ class MqttBridge:
         if client is None:
             return
         prefix = str(self._settings.get("discovery_prefix") or "homeassistant")
+        entity_id_map = self._entity_id_map()
         for control in self._controls_for_publish():
-            built = self._discovery_config(control)
+            built = self._discovery_config(control, entity_id_map)
             if not built:
                 continue
             component, cfg = built
             cid = str(control.get("id") or "")
-            topic = f"{prefix}/{component}/{self._object_id(cid)}/config"
+            topic = f"{prefix}/{component}/{discovery_topic_id(self._settings, cid)}/config"
             client.publish(topic, json.dumps(cfg), retain=True)
 
     def _entity_state_payload(self, control: Dict[str, Any], entity: Dict[str, Any]) -> Optional[str]:
@@ -543,9 +570,10 @@ class MqttBridge:
     def build_ha_manual_config(self) -> Dict[str, Any]:
         settings = self._settings or load_mqtt_settings()
         base = str(settings.get("topic") or "denon_avr")
+        entity_id_map = self._entity_id_map()
         mqtt_block: Dict[str, List[Dict[str, Any]]] = {}
         for control in self._controls_for_publish():
-            built = self._discovery_config(control)
+            built = self._discovery_config(control, entity_id_map)
             if not built:
                 continue
             component, cfg = built
@@ -558,6 +586,8 @@ class MqttBridge:
                 "payload_not_available": "offline",
                 "unique_id": cfg["unique_id"],
             }
+            if cfg.get("default_entity_id"):
+                entry["default_entity_id"] = cfg["default_entity_id"]
             if component == "switch":
                 entry.update(
                     {

@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from .mqtt_ha_naming import build_ha_entity_id_map
+
 _HA_COMPONENT = {
     "toggle": "switch",
     "enum": "select",
@@ -18,26 +20,31 @@ _HA_COMPONENT = {
 
 
 def ha_object_id(settings: Dict[str, Any], control_id: str) -> str:
-    base = str(settings.get("topic") or "denon_avr").replace("/", "_")
-    return f"{base}_{control_id}"
+    """Entity id without domain — for backwards-compatible call sites."""
+    from .mqtt_ha_naming import unique_id
+
+    return unique_id(settings, control_id)
 
 
 def ha_entity_id(settings: Dict[str, Any], control_id: str, component: str) -> str:
-    return f"{component}.{ha_object_id(settings, control_id)}"
+    """Deprecated single-entity helper — prefer build_entity_refs."""
+    base = str(settings.get("topic") or "denon_avr").replace("/", "_")
+    return f"{component}.{base}_{control_id}"
 
 
 def build_entity_refs(
     settings: Dict[str, Any], catalog_entities: List[Dict[str, Any]]
 ) -> Dict[str, str]:
+    # Use full catalog order for collision suffixes (_2, _3) matching HA discovery.
+    id_map = build_ha_entity_id_map(settings, catalog_entities)
     refs: Dict[str, str] = {}
     for ent in catalog_entities:
         if not ent.get("enabled"):
             continue
         cid = str(ent.get("id") or "")
-        if not cid:
-            continue
-        comp = str(ent.get("ha_component") or _HA_COMPONENT.get(ent.get("kind") or "", "switch"))
-        refs[cid] = ha_entity_id(settings, cid, comp)
+        eid = id_map.get(cid)
+        if cid and eid:
+            refs[cid] = eid
     return refs
 
 
@@ -361,8 +368,8 @@ def build_lovelace_card(
         "note": (
             "Paste into a new dashboard YAML file (Settings → Dashboards → Add dashboard → "
             "New from YAML) or merge the views: entry into an existing lovelace YAML. "
-            "Entity IDs match MQTT discovery object_id ({topic}_{control_id}). "
-            "Responsive layout uses HA screen conditions: phone (≤600px), tablet, desktop."
+            "Entity IDs match Home Assistant MQTT discovery (topic slug + control label, "
+            "e.g. switch.denon_avr_x1200w_power). Responsive layout uses HA screen conditions."
         ),
     }
 

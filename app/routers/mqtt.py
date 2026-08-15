@@ -17,6 +17,7 @@ from ..denon_client import DenonSetupClient
 from ..denon_control import DenonControl, SUPPORTED_MODELS
 from ..host_utils import normalize_host
 from ..mqtt_service import get_mqtt_bridge, restart_mqtt_bridge
+from ..mqtt_ha_naming import build_ha_entity_id_map
 from ..mqtt_lovelace import build_lovelace_card, catalog_with_enabled_map
 from ..mqtt_presets import (
     apply_mqtt_preset,
@@ -121,6 +122,20 @@ def _catalog_response(settings: Dict[str, Any], layout: str) -> Dict[str, Any]:
         for s in sections_meta
     }
 
+    mqtt_controls: List[Dict[str, Any]] = []
+    for c in cat.get("controls") or []:
+        kind = c.get("kind")
+        if kind not in _HA_COMPONENT_MAP:
+            continue
+        mqtt_controls.append(
+            {
+                "id": c.get("id"),
+                "label": c.get("label"),
+                "ha_component": _HA_COMPONENT_MAP[kind],
+            }
+        )
+    ha_entity_ids = build_ha_entity_id_map(settings, mqtt_controls)
+
     for c in cat.get("controls") or []:
         kind = c.get("kind")
         if kind not in _HA_COMPONENT_MAP:
@@ -134,6 +149,7 @@ def _catalog_response(settings: Dict[str, Any], layout: str) -> Dict[str, Any]:
             "section_label": section_labels.get(sec, sec),
             "kind": kind,
             "ha_component": _HA_COMPONENT_MAP[kind],
+            "ha_entity_id": ha_entity_ids.get(cid),
             "featured": bool(c.get("featured")),
             "layout": lay,
             "enabled": bool(enabled.get(cid)),

@@ -1501,11 +1501,15 @@
       const kind = document.createElement("small");
       kind.textContent = ent.ha_component || ent.kind || "";
       label.appendChild(kind);
-      if (isOn && ent.ha_component) {
+      if (isOn && ent.ha_entity_id) {
         const eid = document.createElement("code");
         eid.className = "mqtt-entity-id";
-        const topic = (state.mqttSettings?.topic || "denon_avr").replace(/\//g, "_");
-        eid.textContent = `${ent.ha_component}.${topic}_${ent.id}`;
+        eid.textContent = ent.ha_entity_id;
+        label.appendChild(eid);
+      } else if (isOn && ent.ha_component) {
+        const eid = document.createElement("code");
+        eid.className = "mqtt-entity-id";
+        eid.textContent = `${ent.ha_component}.${(state.mqttSettings?.topic || "denon_avr").replace(/\//g, "_")}_${ent.id}`;
         label.appendChild(eid);
       }
       grid.appendChild(label);
