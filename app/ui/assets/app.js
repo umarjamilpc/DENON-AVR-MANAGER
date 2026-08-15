@@ -632,7 +632,7 @@
     }
   }
 
-  /* ---------- In-page views (no /ui path, no hash in the URL) ---------- */
+  /* ---------- In-page views + hash permalinks (#/dashboard, #/setup/menu_id, …) ---------- */
 
   const APP_VIEWS = new Set([
     "dashboard",
@@ -643,7 +643,94 @@
     "help",
   ]);
 
-  function showView(view, { loadInfo = true } = {}) {
+  let _routeFromCode = false;
+
+  function parseRouteFromHash() {
+    const raw = (location.hash || "").replace(/^#\/?/, "").trim();
+    if (!raw) return { view: "dashboard" };
+    const parts = raw.split("/").filter(Boolean);
+    const view = parts[0];
+    if (!APP_VIEWS.has(view)) return { view: "dashboard" };
+    const route = { view };
+    if (view === "setup" && parts[1]) {
+      route.menuId = decodeURIComponent(parts.slice(1).join("/"));
+    }
+    if (view === "control" && parts[1]) {
+      route.controlSection = decodeURIComponent(parts[1]);
+    }
+    return route;
+  }
+
+  function routeToHash(route) {
+    const view = route?.view || "dashboard";
+    if (view === "setup" && route.menuId) {
+      return `#/setup/${encodeURIComponent(route.menuId)}`;
+    }
+    if (view === "control" && route.controlSection) {
+      return `#/control/${encodeURIComponent(route.controlSection)}`;
+    }
+    return `#/${view}`;
+  }
+
+  function syncRouteToUrl({ replace = false } = {}) {
+    const next = routeToHash({
+      view: state.route.view,
+      menuId: state.route.view === "setup" ? state.selectedMenuId : null,
+      controlSection: state.route.view === "control" ? state.controlSectionId : null,
+    });
+    const url = `${location.pathname}${location.search}${next}`;
+    if (`${location.pathname}${location.search}${location.hash}` === url) return;
+    _routeFromCode = true;
+    if (replace) history.replaceState({ route: next }, "", url);
+    else history.pushState({ route: next }, "", url);
+    queueMicrotask(() => {
+      _routeFromCode = false;
+    });
+  }
+
+  function findSectionForMenuId(menuId) {
+    for (const section of state.menu?.sections || []) {
+      for (const node of section.children || []) {
+        if (node.id === menuId) return section.id;
+        for (const child of node.children || []) {
+          if (child.id === menuId) return section.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  async function restoreRouteSubNav(route) {
+    if (!route || !state.connected) return;
+    if (route.view === "setup" && route.menuId) {
+      const sec = findSectionForMenuId(route.menuId);
+      if (sec) {
+        state.sectionId = sec;
+        renderSections();
+        renderMenuItems();
+      }
+      const node = findMenuNode(route.menuId);
+      if (node) await openMenuNode(node, { skipRouteSync: true });
+    } else if (route.view === "control") {
+      await loadControlPanel({ force: true });
+      if (route.controlSection) await selectControlSection(route.controlSection, { skipRouteSync: true });
+    } else if (route.view === "info") {
+      await loadInfoDashboard(true);
+    } else if (route.view === "dashboard") {
+      await loadDashboard({ force: true });
+    }
+  }
+
+  async function applyRouteFromHash() {
+    if (!state.connected) return;
+    const route = parseRouteFromHash();
+    state.route.view = route.view;
+    await showView(route.view, { loadInfo: false, skipRouteSync: true });
+    await restoreRouteSubNav(route);
+    syncRouteToUrl({ replace: true });
+  }
+
+  function showView(view, { loadInfo = true, skipRouteSync = false } = {}) {
     const next = APP_VIEWS.has(view) ? view : "dashboard";
     const changed = state.route.view !== next;
     const prev = state.route.view;
@@ -658,24 +745,27 @@
     $("tab-settings")?.classList.toggle("active", next === "settings");
     $("tab-help")?.classList.toggle("active", next === "help");
     if (prev === "control" && next !== "control") stopControlPoll();
+    let loadPromise;
     if (next === "dashboard") {
-      return loadDashboard({ force: changed || !state.dashboard });
-    }
-    if (next === "settings") {
-      return loadSettingsPage();
-    }
-    if (next === "control") {
-      return loadControlPanel({ force: changed || !state.controlCatalog });
-    }
-    if (
+      loadPromise = loadDashboard({ force: changed || !state.dashboard });
+    } else if (next === "settings") {
+      loadPromise = loadSettingsPage();
+    } else if (next === "control") {
+      loadPromise = loadControlPanel({ force: changed || !state.controlCatalog });
+    } else if (
       loadInfo &&
       state.connected &&
       next === "info" &&
       (changed || !state.infoLoaded)
     ) {
-      return loadInfoDashboard();
+      loadPromise = loadInfoDashboard();
+    } else {
+      loadPromise = Promise.resolve();
     }
-    return Promise.resolve();
+    if (!skipRouteSync) {
+      loadPromise = loadPromise.then(() => syncRouteToUrl());
+    }
+    return loadPromise;
   }
 
   function wireTabs() {
@@ -830,9 +920,12 @@
   }
 
   async function boot({ preserveNav = false } = {}) {
-    const prevView = state.route?.view || "dashboard";
-    const prevMenuId = state.selectedMenuId;
+    const urlRoute = preserveNav ? null : parseRouteFromHash();
+    const prevView = preserveNav ? state.route?.view || "dashboard" : urlRoute.view;
+    const prevMenuId = preserveNav ? state.selectedMenuId : urlRoute.menuId;
+    const prevControlSection = preserveNav ? state.controlSectionId : urlRoute.controlSection;
     const prevReload = state.reloadAction;
+    state.route = { view: prevView };
     setStatus("Loading app settings…");
     $("tabs").hidden = false;
     $("main").hidden = false;
@@ -862,28 +955,27 @@
       state.connected = true;
       await refreshPower().catch(() => {});
       await loadMenu();
-      const targetView = preserveNav ? prevView : "dashboard";
-      await showView(targetView, { loadInfo: false });
-      if (preserveNav) {
-        if (targetView === "setup") {
-          if (typeof prevReload === "function") {
-            try {
-              await prevReload();
-            } catch (err) {
-              setStatus(err.message, "err");
-            }
-          } else if (prevMenuId) {
-            const node = findMenuNode(prevMenuId);
-            if (node) await openMenuNode(node);
+      await showView(prevView, { loadInfo: false, skipRouteSync: true });
+      if (prevView === "setup") {
+        if (typeof prevReload === "function") {
+          try {
+            await prevReload();
+          } catch (err) {
+            setStatus(err.message, "err");
           }
-        } else if (targetView === "control") {
-          await loadControlPanel({ force: true });
-        } else if (targetView === "info") {
-          await loadInfoDashboard(true);
-        } else if (targetView === "dashboard") {
-          await loadDashboard({ force: true });
+        } else {
+          await restoreRouteSubNav({
+            view: "setup",
+            menuId: prevMenuId,
+          });
         }
+      } else {
+        await restoreRouteSubNav({
+          view: prevView,
+          controlSection: prevControlSection,
+        });
       }
+      syncRouteToUrl({ replace: true });
       startRemotePolling();
     } catch (err) {
       setStatus(err.message, "err");
@@ -1300,7 +1392,7 @@
         renderSections();
         renderMenuItems();
         updateItemsCaption();
-        showView("setup", { loadInfo: false });
+        showView("setup", { loadInfo: false }).catch(() => {});
       });
       side.appendChild(b);
     }
@@ -1379,8 +1471,18 @@
     return null;
   }
 
-  async function openMenuNode(node) {
-    if (state.route.view !== "setup") await showView("setup", { loadInfo: false });
+  async function openMenuNode(node, { skipRouteSync = false } = {}) {
+    try {
+    const sec = findSectionForMenuId(node.id);
+    if (sec && sec !== state.sectionId) {
+      state.sectionId = sec;
+      renderSections();
+      renderMenuItems();
+    }
+    state.selectedMenuId = node.id;
+    if (state.route.view !== "setup") {
+      await showView("setup", { loadInfo: false, skipRouteSync: true });
+    }
 
     // Setup Lock On → only Setup Lock is editable; redirect other clicks there
     if (
@@ -1393,7 +1495,7 @@
       const lockNode = findMenuNode("general_lock");
       if (lockNode && lockNode !== node) {
         setStatus("Setup Lock is On — redirected to Setup Lock", "warn");
-        await openMenuNode(lockNode);
+        await openMenuNode(lockNode, { skipRouteSync: true });
         $("editor-banner").hidden = false;
         $("editor-banner").textContent =
           "Setup Lock is On. Set Lock to Off to edit other settings.";
@@ -1401,7 +1503,6 @@
       }
     }
 
-    state.selectedMenuId = node.id;
     state.endpointId = node.endpoint_id || node.endpoint?.id || null;
     renderMenuItems();
     $("editor").hidden = false;
@@ -1472,6 +1573,9 @@
     }
 
     await openEndpoint(eid, node);
+    } finally {
+      if (!skipRouteSync) syncRouteToUrl();
+    }
   }
 
   async function openEndpoint(id, menuNode) {
@@ -3798,13 +3902,14 @@
     }
   }
 
-  async function selectControlSection(sectionId) {
+  async function selectControlSection(sectionId, { skipRouteSync = false } = {}) {
     state.controlSectionId = sectionId;
     renderControlNav();
     renderControlSectionPage();
     // Prefetched at server startup — section clicks use cache only (no AVR traffic).
     await refreshControlStatus({ quiet: true, refresh: false });
     startControlPoll();
+    if (!skipRouteSync) syncRouteToUrl();
   }
 
   async function toggleSectionLayout() {
@@ -6351,6 +6456,11 @@
   $("power-btn")?.addEventListener("click", () => togglePower());
   $("settings-save")?.addEventListener("click", () => saveSettingsPage());
   $("settings-reset")?.addEventListener("click", () => resetSettingsPage());
+
+  window.addEventListener("hashchange", () => {
+    if (_routeFromCode || !state.connected) return;
+    applyRouteFromHash().catch((err) => setStatus(err.message, "err"));
+  });
 
   boot();
 })();
