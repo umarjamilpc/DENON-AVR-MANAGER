@@ -32,3 +32,6 @@ Thumbs.db
 # Cursor / agent local state (do not commit)
 .cursor/
 agent-transcripts/
+
+# graphify local index (regenerate with: graphify extract . --code-only)
+graphify-out/
