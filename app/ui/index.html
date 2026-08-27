@@ -323,219 +323,277 @@
 
       <section id="view-mqtt" class="view app-page" hidden>
         <article class="app-sheet mqtt-sheet">
-          <header class="app-sheet-head">
-            <div>
-              <h2>MQTT</h2>
+          <header class="mqtt-hero">
+            <div class="mqtt-hero-text">
+              <h2>MQTT bridge</h2>
               <p class="meta">
-                Bridge Control Panel entities to an MQTT broker for Home Assistant.
-                Settings are stored in SQLite and survive reboots.
+                Publish Control Panel entities to your broker for Home Assistant. Settings persist in SQLite.
               </p>
             </div>
-            <div class="editor-actions">
+            <div class="mqtt-hero-actions editor-actions">
               <button type="button" id="mqtt-test" class="btn-ghost">Test connection</button>
               <button type="button" id="mqtt-reset" class="btn-ghost">Reset defaults</button>
-              <button type="button" id="mqtt-save" class="btn-primary">Save</button>
+              <button type="button" id="mqtt-save" class="btn-primary">Save settings</button>
             </div>
           </header>
-          <p id="mqtt-banner" class="banner" hidden></p>
-          <p id="mqtt-status-line" class="meta mqtt-status-line">MQTT status: —</p>
-          <form id="mqtt-form" class="mqtt-form">
-            <table class="mqtt-table">
-              <tbody>
-                <tr>
-                  <th><label for="mqtt-enabled">Enabled</label></th>
-                  <td><input type="checkbox" id="mqtt-enabled" name="enabled" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-device-name">Device Name</label></th>
-                  <td><input type="text" id="mqtt-device-name" name="device_name" autocomplete="off" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-host">MQTT Server</label></th>
-                  <td><input type="text" id="mqtt-host" name="host" placeholder="192.168.1.10 or mqtt.example.com" autocomplete="off" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-port">MQTT Port</label></th>
-                  <td><input type="number" id="mqtt-port" name="port" min="1" max="65535" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-user">MQTT User</label></th>
-                  <td><input type="text" id="mqtt-user" name="username" autocomplete="off" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-password">MQTT Password</label></th>
-                  <td><input type="password" id="mqtt-password" name="password" autocomplete="new-password" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-topic">MQTT Topic</label></th>
-                  <td><input type="text" id="mqtt-topic" name="topic" autocomplete="off" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-refresh">MQTT Refresh (sec)</label></th>
-                  <td><input type="number" id="mqtt-refresh" name="refresh_sec" min="5" max="3600" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-control-layout">Control layout</label></th>
-                  <td>
-                    <select id="mqtt-control-layout" name="control_layout">
-                      <option value="less">Less controls (merged toggles)</option>
-                      <option value="more">More controls (full discrete)</option>
-                      <option value="both">Both (hybrid — dashboard style)</option>
-                    </select>
-                  </td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-discovery-prefix">MQTT Discovery Prefix</label></th>
-                  <td><input type="text" id="mqtt-discovery-prefix" name="discovery_prefix" autocomplete="off" /></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-json-style">MQTT Json Style</label></th>
-                  <td><label class="mqtt-toggle"><input type="checkbox" id="mqtt-json-style" name="json_style" /><span>Publish full JSON entity payloads</span></label></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-ha-discovery">HA Discovery</label></th>
-                  <td><label class="mqtt-toggle"><input type="checkbox" id="mqtt-ha-discovery" name="ha_discovery" /><span>Auto-discover in Home Assistant</span></label></td>
-                </tr>
-                <tr>
-                  <th><label for="mqtt-tls-mode">Connection type</label></th>
-                  <td>
-                    <select id="mqtt-tls-mode" name="tls_mode">
-                      <option value="none">No TLS</option>
-                      <option value="tls_insecure">TLS no validation</option>
-                      <option value="tls_ca">User TLS (CA certificate)</option>
-                      <option value="tls_default">Default TLS</option>
-                      <option value="tls_client_cert">User client certificates TLS</option>
-                    </select>
-                  </td>
-                </tr>
-                <tr class="mqtt-cert-row">
-                  <th>CA certificate</th>
-                  <td>
-                    <span id="mqtt-ca-name" class="mqtt-cert-name">—</span>
-                    <input type="file" id="mqtt-ca-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
-                    <button type="button" id="mqtt-ca-upload" class="btn-ghost">Upload</button>
-                  </td>
-                </tr>
-                <tr class="mqtt-cert-row">
-                  <th>Client certificate</th>
-                  <td>
-                    <span id="mqtt-cert-name" class="mqtt-cert-name">—</span>
-                    <input type="file" id="mqtt-cert-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
-                    <button type="button" id="mqtt-cert-upload" class="btn-ghost">Upload</button>
-                  </td>
-                </tr>
-                <tr class="mqtt-cert-row">
-                  <th>Client key</th>
-                  <td>
-                    <span id="mqtt-key-name" class="mqtt-cert-name">—</span>
-                    <input type="file" id="mqtt-key-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
-                    <button type="button" id="mqtt-key-upload" class="btn-ghost">Upload</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </form>
 
-          <section class="mqtt-entities">
-            <header class="mqtt-entities-head">
-              <div>
-                <h3>Entities to publish</h3>
-                <p class="meta">
-                  Same sections, labels, and order as the Control Panel. Less = merged toggles;
-                  More = full discrete + cursor/menu actions + raw command.
-                </p>
+          <div class="mqtt-status-card" aria-live="polite">
+            <div class="mqtt-status-row">
+              <span id="mqtt-status-pill" class="mqtt-status-pill mqtt-status-pill--idle">Disabled</span>
+              <p id="mqtt-status-line" class="mqtt-status-detail meta">MQTT status: —</p>
+            </div>
+            <p id="mqtt-banner" class="mqtt-banner banner" hidden></p>
+          </div>
+
+          <nav class="mqtt-steps" role="tablist" aria-label="MQTT setup steps">
+            <button type="button" class="mqtt-step active" data-mqtt-step="broker" role="tab" aria-selected="true">
+              <span class="mqtt-step-num">1</span>
+              <span class="mqtt-step-label">Broker</span>
+            </button>
+            <button type="button" class="mqtt-step" data-mqtt-step="entities" role="tab" aria-selected="false">
+              <span class="mqtt-step-num">2</span>
+              <span class="mqtt-step-label">Entities</span>
+            </button>
+            <button type="button" class="mqtt-step" data-mqtt-step="export" role="tab" aria-selected="false">
+              <span class="mqtt-step-num">3</span>
+              <span class="mqtt-step-label">Export</span>
+            </button>
+          </nav>
+
+          <div id="mqtt-panel-broker" class="mqtt-panel active" role="tabpanel">
+            <form id="mqtt-form" class="mqtt-form">
+              <div class="mqtt-cards">
+                <section class="mqtt-card">
+                  <header class="mqtt-card-head">
+                    <h3>Connection</h3>
+                    <p class="meta">Broker host, credentials, and publish topic.</p>
+                  </header>
+                  <div class="mqtt-field-grid">
+                    <label class="mqtt-field mqtt-field--switch">
+                      <span class="mqtt-field-label">Bridge enabled</span>
+                      <input type="checkbox" id="mqtt-enabled" name="enabled" />
+                    </label>
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">Device name</span>
+                      <input type="text" id="mqtt-device-name" name="device_name" autocomplete="off" />
+                    </label>
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">MQTT server</span>
+                      <input type="text" id="mqtt-host" name="host" placeholder="192.168.1.10" autocomplete="off" />
+                    </label>
+                    <label class="mqtt-field mqtt-field--narrow">
+                      <span class="mqtt-field-label">Port</span>
+                      <input type="number" id="mqtt-port" name="port" min="1" max="65535" />
+                    </label>
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">Username</span>
+                      <input type="text" id="mqtt-user" name="username" autocomplete="off" />
+                    </label>
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">Password</span>
+                      <input type="password" id="mqtt-password" name="password" autocomplete="new-password" />
+                    </label>
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">Topic prefix</span>
+                      <input type="text" id="mqtt-topic" name="topic" autocomplete="off" />
+                    </label>
+                    <label class="mqtt-field mqtt-field--narrow">
+                      <span class="mqtt-field-label">Refresh (sec)</span>
+                      <input type="number" id="mqtt-refresh" name="refresh_sec" min="5" max="3600" />
+                    </label>
+                  </div>
+                </section>
+
+                <section class="mqtt-card">
+                  <header class="mqtt-card-head">
+                    <h3>Home Assistant</h3>
+                    <p class="meta">Discovery, layout mode, and payload style.</p>
+                  </header>
+                  <div class="mqtt-field-grid">
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">Control layout</span>
+                      <select id="mqtt-control-layout" name="control_layout">
+                        <option value="less">Less — merged toggles</option>
+                        <option value="more">More — full discrete controls</option>
+                        <option value="both">Both — hybrid dashboard</option>
+                      </select>
+                    </label>
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">Discovery prefix</span>
+                      <input type="text" id="mqtt-discovery-prefix" name="discovery_prefix" autocomplete="off" />
+                    </label>
+                    <label class="mqtt-field mqtt-field--switch">
+                      <span class="mqtt-field-label">HA auto-discovery</span>
+                      <input type="checkbox" id="mqtt-ha-discovery" name="ha_discovery" />
+                    </label>
+                    <label class="mqtt-field mqtt-field--switch">
+                      <span class="mqtt-field-label">JSON entity payloads</span>
+                      <input type="checkbox" id="mqtt-json-style" name="json_style" />
+                    </label>
+                  </div>
+                </section>
+
+                <details class="mqtt-card mqtt-card--advanced">
+                  <summary class="mqtt-card-head mqtt-card-summary">
+                    <div>
+                      <h3>Security &amp; TLS</h3>
+                      <p class="meta">Optional certificates for encrypted broker connections.</p>
+                    </div>
+                  </summary>
+                  <div class="mqtt-field-grid">
+                    <label class="mqtt-field">
+                      <span class="mqtt-field-label">Connection type</span>
+                      <select id="mqtt-tls-mode" name="tls_mode">
+                        <option value="none">No TLS</option>
+                        <option value="tls_insecure">TLS no validation</option>
+                        <option value="tls_ca">User TLS (CA certificate)</option>
+                        <option value="tls_default">Default TLS</option>
+                        <option value="tls_client_cert">User client certificates TLS</option>
+                      </select>
+                    </label>
+                    <div class="mqtt-field mqtt-field--cert">
+                      <span class="mqtt-field-label">CA certificate</span>
+                      <div class="mqtt-cert-row">
+                        <span id="mqtt-ca-name" class="mqtt-cert-name">—</span>
+                        <input type="file" id="mqtt-ca-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
+                        <button type="button" id="mqtt-ca-upload" class="btn-ghost btn-sm">Upload</button>
+                      </div>
+                    </div>
+                    <div class="mqtt-field mqtt-field--cert">
+                      <span class="mqtt-field-label">Client certificate</span>
+                      <div class="mqtt-cert-row">
+                        <span id="mqtt-cert-name" class="mqtt-cert-name">—</span>
+                        <input type="file" id="mqtt-cert-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
+                        <button type="button" id="mqtt-cert-upload" class="btn-ghost btn-sm">Upload</button>
+                      </div>
+                    </div>
+                    <div class="mqtt-field mqtt-field--cert">
+                      <span class="mqtt-field-label">Client key</span>
+                      <div class="mqtt-cert-row">
+                        <span id="mqtt-key-name" class="mqtt-cert-name">—</span>
+                        <input type="file" id="mqtt-key-file" accept=".pem,.crt,.cer,.key,.txt" hidden />
+                        <button type="button" id="mqtt-key-upload" class="btn-ghost btn-sm">Upload</button>
+                      </div>
+                    </div>
+                  </div>
+                </details>
               </div>
-              <div class="mqtt-toolbar">
-                <div class="mqtt-toolbar-row mqtt-toolbar-presets">
-                  <label class="mqtt-preset-label">
-                    Preset
-                    <select id="mqtt-preset-select" class="mqtt-preset-select" aria-label="MQTT entity preset">
-                      <option value="">Choose preset…</option>
-                    </select>
-                  </label>
-                  <button type="button" id="mqtt-preset-apply" class="btn-ghost">Load preset</button>
-                  <button type="button" id="mqtt-preset-save-custom" class="btn-ghost">Save as custom</button>
-                  <button type="button" id="mqtt-preset-duplicate" class="btn-ghost">Duplicate</button>
-                  <button type="button" id="mqtt-preset-manage" class="btn-ghost">Manage presets</button>
+            </form>
+          </div>
+
+          <div id="mqtt-panel-entities" class="mqtt-panel" role="tabpanel" hidden>
+            <p class="mqtt-workflow-hint meta">
+              <strong>Workflow:</strong> choose a preset → adjust entities → click <em>Save settings</em> to publish.
+              Use <em>Export preset</em> / <em>Import preset</em> to share your current checkbox selection (preview only until you save).
+            </p>
+
+            <section class="mqtt-card mqtt-entities">
+              <header class="mqtt-entities-head">
+                <div>
+                  <h3>Entities to publish</h3>
+                  <p class="meta">Same sections and order as the Control Panel.</p>
                 </div>
+              </header>
+
+              <div class="mqtt-preset-bar">
+                <label class="mqtt-preset-label">
+                  Preset
+                  <select id="mqtt-preset-select" class="mqtt-preset-select" aria-label="MQTT entity preset">
+                    <option value="">Choose preset…</option>
+                  </select>
+                </label>
+                <div class="mqtt-preset-actions">
+                  <button type="button" id="mqtt-preset-apply" class="btn-ghost btn-sm">Load</button>
+                  <button type="button" id="mqtt-preset-export-current" class="btn-ghost btn-sm">Export preset</button>
+                  <label class="btn-ghost btn-sm mqtt-preset-import-label">
+                    Import preset
+                    <input type="file" id="mqtt-preset-import-current" accept=".json,application/json" hidden />
+                  </label>
+                  <button type="button" id="mqtt-preset-save-custom" class="btn-ghost btn-sm">Save as custom</button>
+                  <button type="button" id="mqtt-preset-duplicate" class="btn-ghost btn-sm">Duplicate</button>
+                  <button type="button" id="mqtt-preset-manage" class="btn-ghost btn-sm">Manage</button>
+                </div>
+              </div>
+
+              <div class="mqtt-toolbar">
                 <div class="mqtt-toolbar-row mqtt-toolbar-bulk">
-                  <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
+                  <div class="mqtt-layout-switch" role="group" aria-label="Entity list layout filter">
                     <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less</button>
                     <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More</button>
                     <button type="button" id="mqtt-layout-both" class="btn-ghost" data-layout="both">Both</button>
                   </div>
-                  <button type="button" id="mqtt-entities-featured" class="btn-ghost">Enable featured</button>
-                  <button type="button" id="mqtt-entities-all" class="btn-ghost">Enable all</button>
-                  <button type="button" id="mqtt-entities-none" class="btn-ghost">Disable all</button>
+                  <button type="button" id="mqtt-entities-featured" class="btn-ghost btn-sm">Featured</button>
+                  <button type="button" id="mqtt-entities-all" class="btn-ghost btn-sm">Enable all</button>
+                  <button type="button" id="mqtt-entities-none" class="btn-ghost btn-sm">Disable all</button>
                 </div>
               </div>
-            </header>
-            <nav id="mqtt-section-nav" class="mqtt-section-nav tabs" aria-label="MQTT entity sections"></nav>
-            <p id="mqtt-section-meta" class="meta mqtt-section-meta"></p>
-            <div id="mqtt-preset-manager" class="mqtt-preset-manager" hidden>
-              <h4>Custom presets</h4>
-              <p class="meta">Save, rename, edit, or delete your own entity selections. Built-in presets (RC-1189) cannot be edited — duplicate first.</p>
-              <form id="mqtt-preset-form" class="mqtt-preset-form">
-                <input type="hidden" id="mqtt-preset-edit-id" value="" />
-                <label>
-                  Name
-                  <input type="text" id="mqtt-preset-name" maxlength="64" placeholder="My living room" required />
-                </label>
-                <label>
-                  Description
-                  <input type="text" id="mqtt-preset-desc" maxlength="512" placeholder="Optional notes" />
-                </label>
-                <label>
-                  Remote map (optional)
-                  <select id="mqtt-preset-remote">
-                    <option value="">None</option>
-                    <option value="RC-1189">RC-1189 button labels</option>
-                  </select>
-                </label>
-                <div class="mqtt-preset-form-actions">
-                  <button type="submit" id="mqtt-preset-form-save" class="btn-primary">Save preset</button>
-                  <button type="button" id="mqtt-preset-form-cancel" class="btn-ghost">Cancel</button>
-                  <button type="button" id="mqtt-preset-export-file" class="btn-ghost">Export presets file</button>
-                  <label class="btn-ghost mqtt-preset-import-label">
-                    Import presets
-                    <input type="file" id="mqtt-preset-import-file" accept=".json,application/json" hidden />
-                  </label>
-                </div>
-              </form>
-              <ul id="mqtt-custom-preset-list" class="mqtt-custom-preset-list"></ul>
-            </div>
-            <div id="mqtt-entities-list" class="mqtt-entities-list"></div>
-          </section>
 
-          <section class="mqtt-ha-export">
-            <header class="mqtt-entities-head">
-              <div>
-                <h3>Home Assistant export</h3>
-                <p class="meta" id="mqtt-export-desc">
-                  MQTT entity config or responsive Lovelace dashboard YAML (RC-1189 remote layout).
-                </p>
+              <nav id="mqtt-section-nav" class="mqtt-section-nav tabs" aria-label="MQTT entity sections"></nav>
+              <p id="mqtt-section-meta" class="meta mqtt-section-meta"></p>
+
+              <div id="mqtt-preset-manager" class="mqtt-preset-manager" hidden>
+                <h4>Custom presets</h4>
+                <p class="meta">Create, rename, or delete saved entity selections. Built-in presets cannot be edited — duplicate first.</p>
+                <form id="mqtt-preset-form" class="mqtt-preset-form">
+                  <input type="hidden" id="mqtt-preset-edit-id" value="" />
+                  <label>
+                    Name
+                    <input type="text" id="mqtt-preset-name" maxlength="64" placeholder="My living room" required />
+                  </label>
+                  <label>
+                    Description
+                    <input type="text" id="mqtt-preset-desc" maxlength="512" placeholder="Optional notes" />
+                  </label>
+                  <label>
+                    Remote map (optional)
+                    <select id="mqtt-preset-remote">
+                      <option value="">None</option>
+                      <option value="RC-1189">RC-1189 button labels</option>
+                    </select>
+                  </label>
+                  <div class="mqtt-preset-form-actions">
+                    <button type="submit" id="mqtt-preset-form-save" class="btn-primary">Save preset</button>
+                    <button type="button" id="mqtt-preset-form-cancel" class="btn-ghost">Cancel</button>
+                  </div>
+                </form>
+                <ul id="mqtt-custom-preset-list" class="mqtt-custom-preset-list"></ul>
               </div>
-              <div class="editor-actions mqtt-export-actions">
-                <div class="mqtt-export-switch" role="group" aria-label="Export type">
-                  <button type="button" id="mqtt-export-mqtt" class="btn-ghost active">MQTT config</button>
-                  <button type="button" id="mqtt-export-lovelace" class="btn-ghost">Lovelace card</button>
+
+              <div id="mqtt-entities-list" class="mqtt-entities-list"></div>
+            </section>
+          </div>
+
+          <div id="mqtt-panel-export" class="mqtt-panel" role="tabpanel" hidden>
+            <section class="mqtt-card mqtt-ha-export">
+              <header class="mqtt-entities-head">
+                <div>
+                  <h3>Home Assistant export</h3>
+                  <p class="meta" id="mqtt-export-desc">
+                    MQTT entity config or responsive Lovelace dashboard YAML.
+                  </p>
                 </div>
-                <select id="mqtt-lovelace-style" class="mqtt-lovelace-style" aria-label="Lovelace layout style" hidden>
-                  <option value="rc1189">RC-1189 remote (responsive)</option>
-                  <option value="theater">Theater mode (hero + sections)</option>
-                  <option value="sections">Section cards (grouped tiles)</option>
-                  <option value="compact">Compact control bar</option>
-                  <option value="grid">Enabled entities grid</option>
-                </select>
-                <button type="button" id="mqtt-ha-format-json" class="btn-ghost active mqtt-mqtt-only">JSON</button>
-                <button type="button" id="mqtt-ha-format-yaml" class="btn-ghost mqtt-mqtt-only">YAML</button>
-                <button type="button" id="mqtt-ha-copy" class="btn-ghost">Copy</button>
-                <button type="button" id="mqtt-ha-refresh" class="btn-ghost">Refresh</button>
-              </div>
-            </header>
-            <p id="mqtt-export-note" class="meta mqtt-export-note"></p>
-            <textarea id="mqtt-ha-output" class="mqtt-ha-output" readonly spellcheck="false"></textarea>
-          </section>
+                <div class="editor-actions mqtt-export-actions">
+                  <div class="mqtt-export-switch" role="group" aria-label="Export type">
+                    <button type="button" id="mqtt-export-mqtt" class="btn-ghost active">MQTT config</button>
+                    <button type="button" id="mqtt-export-lovelace" class="btn-ghost">Lovelace card</button>
+                  </div>
+                  <select id="mqtt-lovelace-style" class="mqtt-lovelace-style" aria-label="Lovelace layout style" hidden>
+                    <option value="rc1189">RC-1189 remote (responsive)</option>
+                    <option value="theater">Theater mode (hero + sections)</option>
+                    <option value="sections">Section cards (grouped tiles)</option>
+                    <option value="compact">Compact control bar</option>
+                    <option value="grid">Enabled entities grid</option>
+                  </select>
+                  <button type="button" id="mqtt-ha-format-json" class="btn-ghost active mqtt-mqtt-only">JSON</button>
+                  <button type="button" id="mqtt-ha-format-yaml" class="btn-ghost mqtt-mqtt-only">YAML</button>
+                  <button type="button" id="mqtt-ha-copy" class="btn-ghost">Copy</button>
+                  <button type="button" id="mqtt-ha-refresh" class="btn-ghost">Refresh</button>
+                </div>
+              </header>
+              <p id="mqtt-export-note" class="meta mqtt-export-note"></p>
+              <textarea id="mqtt-ha-output" class="mqtt-ha-output" readonly spellcheck="false"></textarea>
+            </section>
+          </div>
         </article>
       </section>
 

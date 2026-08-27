@@ -25,8 +25,10 @@ from ..mqtt_presets import (
     create_custom_preset,
     delete_custom_preset,
     duplicate_preset,
+    export_preset_snapshot,
     export_presets_bundle,
     get_preset,
+    import_preset_snapshot,
     import_presets_bundle,
     list_mqtt_presets,
     preset_detail,
@@ -93,6 +95,19 @@ class MqttCustomPresetUpdateBody(BaseModel):
 class MqttDuplicatePresetBody(BaseModel):
     label: str | None = Field(default=None, max_length=64)
     enabled_entities: Dict[str, Any] | None = None
+
+
+class MqttPresetSnapshotExportBody(BaseModel):
+    label: str = Field(default="Current preset", max_length=64)
+    description: str = Field(default="", max_length=512)
+    remote: str | None = Field(default=None, max_length=32)
+    control_layout: str = Field(default="both")
+    source_preset_id: str | None = Field(default=None, max_length=64)
+    entities: Dict[str, Any] | None = None
+
+
+class MqttPresetSnapshotImportBody(BaseModel):
+    data: Dict[str, Any] = Field(default_factory=dict)
 
 
 def _control_catalog(layout: str) -> Dict[str, Any]:
@@ -204,6 +219,27 @@ def mqtt_export_presets_file(
     include_builtin: bool = Query(False, description="Include built-in preset definitions"),
 ) -> Dict[str, Any]:
     return export_presets_bundle(include_builtin=include_builtin)
+
+
+@router.post("/mqtt/presets/export/current")
+def mqtt_export_current_preset(body: MqttPresetSnapshotExportBody) -> Dict[str, Any]:
+    return export_preset_snapshot(
+        label=body.label,
+        description=body.description,
+        remote=body.remote,
+        control_layout=body.control_layout,
+        source_preset_id=body.source_preset_id,
+        entities=body.entities,
+    )
+
+
+@router.post("/mqtt/presets/import/current")
+def mqtt_import_current_preset(body: MqttPresetSnapshotImportBody) -> Dict[str, Any]:
+    try:
+        preview = import_preset_snapshot(body.data)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "preview": True, **preview}
 
 
 class MqttPresetImportBody(BaseModel):

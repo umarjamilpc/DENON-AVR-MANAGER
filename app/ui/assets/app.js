@@ -1425,20 +1425,64 @@
 
   function renderMqttStatus(status) {
     const el = $("mqtt-status-line");
-    if (!el) return;
+    const pill = $("mqtt-status-pill");
+    if (!el && !pill) return;
     if (!status) {
-      el.textContent = "MQTT status: —";
+      if (el) el.textContent = "MQTT status: —";
+      if (pill) {
+        pill.textContent = "Unknown";
+        pill.className = "mqtt-status-pill mqtt-status-pill--idle";
+      }
       return;
     }
     const parts = [];
-    parts.push(status.enabled ? "enabled" : "disabled");
     if (status.enabled) {
       parts.push(status.connected ? "connected" : "disconnected");
       if (status.host) parts.push(String(status.host));
       if (status.topic) parts.push(`topic ${status.topic}`);
       if (status.last_error) parts.push(`error: ${status.last_error}`);
+    } else {
+      parts.push("bridge disabled");
     }
-    el.textContent = `MQTT status: ${parts.join(" · ")}`;
+    if (el) {
+      el.textContent = parts.length ? parts.join(" · ") : "MQTT status: —";
+    }
+    if (pill) {
+      let pillClass = "mqtt-status-pill mqtt-status-pill--idle";
+      let pillText = "Disabled";
+      if (status.enabled) {
+        if (status.last_error) {
+          pillClass = "mqtt-status-pill mqtt-status-pill--error";
+          pillText = "Error";
+        } else if (status.connected) {
+          pillClass = "mqtt-status-pill mqtt-status-pill--connected";
+          pillText = "Connected";
+        } else {
+          pillClass = "mqtt-status-pill mqtt-status-pill--disconnected";
+          pillText = "Disconnected";
+        }
+      } else {
+        pillClass = "mqtt-status-pill mqtt-status-pill--disabled";
+        pillText = "Disabled";
+      }
+      pill.className = pillClass;
+      pill.textContent = pillText;
+    }
+  }
+
+  function collectMqttPresetSnapshotPayload() {
+    syncMqttEntityChecksToState();
+    const sel = $("mqtt-preset-select");
+    const presetId = sel?.value?.trim() || state.mqttPresetPreviewId || null;
+    const preset = (state.mqttPresets || []).find((p) => p.id === presetId);
+    return {
+      label: preset?.label || "Current selection",
+      description: preset?.description || "",
+      remote: preset?.remote || null,
+      source_preset_id: presetId,
+      control_layout: mqttField("control_layout")?.value || "both",
+      entities: ensureMqttEnabledEntities(),
+    };
   }
 
   function renderMqttSectionNav(catalog) {
@@ -1804,7 +1848,7 @@
       const label = data.preset?.label || presetId;
       if (banner) {
         banner.hidden = false;
-        banner.textContent = `Preset loaded: ${label} (${data.enabled_count ?? 0} checked) — add more entities, then Save.`;
+        banner.textContent = `Preset loaded: ${label} (${data.enabled_count ?? 0} checked) — adjust entities, then Save settings.`;
       }
       setStatus(`Preset preview: ${label}`, "ok");
     } catch (err) {
@@ -1816,23 +1860,31 @@
     }
   }
 
-  async function exportMqttPresetsFile() {
+  async function exportMqttPresetCurrent() {
     try {
-      const data = await api("/api/mqtt/presets/export/file");
+      const payload = collectMqttPresetSnapshotPayload();
+      const data = await api("/api/mqtt/presets/export/current", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `denon-mqtt-presets-${new Date().toISOString().slice(0, 10)}.json`;
+      const slug = String(payload.label || "preset")
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-|-$/g, "")
+        .toLowerCase();
+      a.download = `denon-mqtt-preset-${slug || "current"}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setStatus("Presets exported", "ok");
+      setStatus("Current preset exported", "ok");
     } catch (err) {
       setStatus(err.message, "err");
     }
   }
 
-  async function importMqttPresetsFile(file) {
+  async function importMqttPresetCurrent(file) {
     if (!file) return;
     const text = await file.text();
     let data;
@@ -1843,14 +1895,30 @@
       return;
     }
     try {
-      const result = await api("/api/mqtt/presets/import/file", {
+      const preview = await api("/api/mqtt/presets/import/current", {
         method: "POST",
-        body: JSON.stringify({ merge: true, data }),
+        body: JSON.stringify({ data }),
       });
-      state.mqttPresets = result.presets || state.mqttPresets;
-      renderMqttPresetSelect();
-      renderMqttCustomPresetList();
-      setStatus(`Imported ${result.imported ?? 0} preset(s)`, "ok");
+      applyPresetPreviewData(preview);
+      if (preview.control_layout) {
+        const layoutEl = mqttField("control_layout");
+        if (layoutEl) layoutEl.value = preview.control_layout;
+        state.mqttLayout = preview.control_layout;
+        syncMqttLayoutButtons();
+        await loadMqttCatalog(preview.control_layout);
+      } else if (state.mqttCatalog) {
+        renderMqttEntities(state.mqttCatalog);
+      }
+      await refreshMqttExportOutput();
+      const banner = $("mqtt-banner");
+      const total = preview.enabled_counts?.total ?? 0;
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = `Import preview: ${preview.label} (${total} checked) — click Save settings to persist.`;
+      }
+      state.mqttPresetPreviewId = preview.source_preset_id || "imported";
+      setMqttStep("entities");
+      setStatus(`Preset imported: ${preview.label}`, "ok");
     } catch (err) {
       setStatus(err.message, "err");
     }
@@ -1966,6 +2034,7 @@
       renderMqttStatus(settingsData.status);
       await loadMqttCatalog(state.mqttLayout);
       await refreshMqttExportOutput();
+      setMqttStep(state.mqttStep || "broker");
     } catch (err) {
       if (banner) {
         banner.hidden = false;
@@ -2076,6 +2145,22 @@
     return data;
   }
 
+  function setMqttStep(step) {
+    const target = step === "entities" || step === "export" ? step : "broker";
+    state.mqttStep = target;
+    for (const btn of document.querySelectorAll(".mqtt-step")) {
+      const active = btn.dataset.mqttStep === target;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    }
+    for (const panel of document.querySelectorAll(".mqtt-panel")) {
+      const panelStep = panel.id?.replace("mqtt-panel-", "") || "";
+      const active = panelStep === target;
+      panel.classList.toggle("active", active);
+      panel.hidden = !active;
+    }
+  }
+
   function wireMqttPage() {
     $("mqtt-save")?.addEventListener("click", () =>
       saveMqttPage().catch((err) => setStatus(err.message, "err"))
@@ -2105,12 +2190,12 @@
       resetMqttPresetForm();
       toggleMqttPresetManager(false);
     });
-    $("mqtt-preset-export-file")?.addEventListener("click", () =>
-      exportMqttPresetsFile().catch((err) => setStatus(err.message, "err"))
+    $("mqtt-preset-export-current")?.addEventListener("click", () =>
+      exportMqttPresetCurrent().catch((err) => setStatus(err.message, "err"))
     );
-    $("mqtt-preset-import-file")?.addEventListener("change", (ev) => {
+    $("mqtt-preset-import-current")?.addEventListener("change", (ev) => {
       const file = ev.target?.files?.[0];
-      importMqttPresetsFile(file).catch((err) => setStatus(err.message, "err"));
+      importMqttPresetCurrent(file).catch((err) => setStatus(err.message, "err"));
       ev.target.value = "";
     });
     $("mqtt-preset-select")?.addEventListener("change", (ev) => {
@@ -2182,6 +2267,10 @@
     bindCert("mqtt-ca-upload", "mqtt-ca-file", "ca");
     bindCert("mqtt-cert-upload", "mqtt-cert-file", "cert");
     bindCert("mqtt-key-upload", "mqtt-key-file", "key");
+    for (const btn of document.querySelectorAll(".mqtt-step")) {
+      btn.addEventListener("click", () => setMqttStep(btn.dataset.mqttStep));
+    }
+    setMqttStep(state.mqttStep || "broker");
   }
 
   async function softRefreshCurrentPage() {

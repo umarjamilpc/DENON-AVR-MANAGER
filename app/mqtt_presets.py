@@ -579,8 +579,86 @@ def remote_label_for_entity(control_id: str, preset: Optional[Dict[str, Any]] = 
     return None
 
 
+def _normalize_preset_entities(raw: Any) -> Dict[str, Dict[str, bool]]:
+    """Accept bool maps or id lists under less/more keys."""
+    from .mqtt_settings import _normalize_enabled_entities
+
+    out: Dict[str, Dict[str, bool]] = {"less": {}, "more": {}}
+    if isinstance(raw, dict) and ("less" in raw or "more" in raw):
+        for lay in ("less", "more"):
+            ent = raw.get(lay)
+            if isinstance(ent, dict):
+                out[lay] = {str(k): bool(v) for k, v in ent.items() if str(k).strip()}
+            elif isinstance(ent, list):
+                out[lay] = {str(x): True for x in ent if str(x).strip()}
+        return out
+    return _normalize_enabled_entities(raw)
+
+
 PRESET_FILE_FORMAT = "denon-avr-manager-mqtt-presets"
+PRESET_SNAPSHOT_FORMAT = "denon-avr-manager-mqtt-preset"
 PRESET_FILE_VERSION = 1
+
+
+def export_preset_snapshot(
+    *,
+    label: str = "Current preset",
+    description: str = "",
+    remote: Optional[str] = None,
+    control_layout: str = "both",
+    source_preset_id: Optional[str] = None,
+    entities: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Export a single preset snapshot (entity selections) for file share — not persisted."""
+    from datetime import datetime, timezone
+
+    ent = entities if isinstance(entities, dict) else {"less": {}, "more": {}}
+    normalized = _normalize_preset_entities(ent)
+    return {
+        "format": PRESET_SNAPSHOT_FORMAT,
+        "version": PRESET_FILE_VERSION,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "label": str(label or "Current preset").strip()[:64],
+        "description": str(description or "").strip()[:512],
+        "remote": str(remote or "").strip()[:32] or None,
+        "control_layout": normalize_layout(control_layout or "both"),
+        "source_preset_id": str(source_preset_id or "").strip() or None,
+        "entities": normalized,
+    }
+
+
+def import_preset_snapshot(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate imported preset file and return preview payload.
+    Does not write to SQLite — caller applies to UI; user Save persists.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("Preset file must be a JSON object")
+    fmt = str(raw.get("format") or "")
+    if fmt == PRESET_FILE_FORMAT:
+        raise ValueError(
+            "This is a multi-preset library file. Use Export preset for the current selection."
+        )
+    if fmt and fmt != PRESET_SNAPSHOT_FORMAT:
+        raise ValueError(f"Unsupported preset file format: {fmt}")
+    entities = _normalize_preset_entities(raw.get("entities"))
+    if not any(any(v for v in (entities.get(lay) or {}).values()) for lay in ("less", "more")):
+        raise ValueError("Preset file has no entity selections")
+    label = str(raw.get("label") or "Imported preset").strip()[:64]
+    description = str(raw.get("description") or "").strip()[:512]
+    remote = str(raw.get("remote") or "").strip()[:32] or None
+    control_layout = normalize_layout(str(raw.get("control_layout") or "both"))
+    less_count = sum(1 for v in (entities.get("less") or {}).values() if v)
+    more_count = sum(1 for v in (entities.get("more") or {}).values() if v)
+    return {
+        "label": label,
+        "description": description,
+        "remote": remote,
+        "control_layout": control_layout,
+        "source_preset_id": str(raw.get("source_preset_id") or "").strip() or None,
+        "enabled_entities": entities,
+        "enabled_counts": {"less": less_count, "more": more_count, "total": less_count + more_count},
+    }
 
 
 def export_presets_bundle(include_builtin: bool = False) -> Dict[str, Any]:
