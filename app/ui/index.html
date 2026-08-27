@@ -380,6 +380,7 @@
                     <select id="mqtt-control-layout" name="control_layout">
                       <option value="less">Less controls (merged toggles)</option>
                       <option value="more">More controls (full discrete)</option>
+                      <option value="both">Both (hybrid — dashboard style)</option>
                     </select>
                   </td>
                 </tr>
@@ -459,8 +460,9 @@
                 </div>
                 <div class="mqtt-toolbar-row mqtt-toolbar-bulk">
                   <div class="mqtt-layout-switch" role="group" aria-label="MQTT control layout">
-                    <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less controls</button>
-                    <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More controls</button>
+                    <button type="button" id="mqtt-layout-less" class="btn-ghost active" data-layout="less">Less</button>
+                    <button type="button" id="mqtt-layout-more" class="btn-ghost" data-layout="more">More</button>
+                    <button type="button" id="mqtt-layout-both" class="btn-ghost" data-layout="both">Both</button>
                   </div>
                   <button type="button" id="mqtt-entities-featured" class="btn-ghost">Enable featured</button>
                   <button type="button" id="mqtt-entities-all" class="btn-ghost">Enable all</button>
@@ -493,6 +495,11 @@
                 <div class="mqtt-preset-form-actions">
                   <button type="submit" id="mqtt-preset-form-save" class="btn-primary">Save preset</button>
                   <button type="button" id="mqtt-preset-form-cancel" class="btn-ghost">Cancel</button>
+                  <button type="button" id="mqtt-preset-export-file" class="btn-ghost">Export presets file</button>
+                  <label class="btn-ghost mqtt-preset-import-label">
+                    Import presets
+                    <input type="file" id="mqtt-preset-import-file" accept=".json,application/json" hidden />
+                  </label>
                 </div>
               </form>
               <ul id="mqtt-custom-preset-list" class="mqtt-custom-preset-list"></ul>
@@ -515,6 +522,9 @@
                 </div>
                 <select id="mqtt-lovelace-style" class="mqtt-lovelace-style" aria-label="Lovelace layout style" hidden>
                   <option value="rc1189">RC-1189 remote (responsive)</option>
+                  <option value="theater">Theater mode (hero + sections)</option>
+                  <option value="sections">Section cards (grouped tiles)</option>
+                  <option value="compact">Compact control bar</option>
                   <option value="grid">Enabled entities grid</option>
                 </select>
                 <button type="button" id="mqtt-ha-format-json" class="btn-ghost active mqtt-mqtt-only">JSON</button>

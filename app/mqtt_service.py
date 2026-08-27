@@ -8,7 +8,7 @@ import ssl
 import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import paho.mqtt.client as mqtt
 
@@ -24,15 +24,18 @@ from .denon_power import read_main_zone_power
 from .mqtt_ha_naming import (
     build_ha_entity_id_map,
     discovery_topic_id,
+    slugify,
     unique_id,
 )
 from .mqtt_settings import (
     cert_path,
     entity_enabled,
     load_mqtt_settings,
+    load_published_discovery,
     mqtt_control_layout,
+    save_published_discovery,
 )
-from .protocol_loader import normalize_layout, load_telnet_commands
+from .protocol_loader import CONTROL_LAYOUT_BOTH, CONTROL_LAYOUT_MORE, normalize_layout, load_telnet_commands
 
 log = logging.getLogger("denon.mqtt")
 
@@ -59,9 +62,13 @@ class MqttBridge:
         self._last_states: Dict[str, str] = {}
         self._poll_stop = threading.Event()
         self._poll_thread: Optional[threading.Thread] = None
-        self._device_id = f"denon_avr_{uuid.uuid4().hex[:8]}"
+        self._device_id: Optional[str] = None
         self._subscribed = False
         self._control_index: Dict[str, Dict[str, Any]] = {}
+
+    def _device_identifier(self) -> str:
+        topic = str(self._settings.get("topic") or "denon_avr")
+        return f"denon_avr_manager_{slugify(topic.replace('/', '_'))}"
 
     def _load_catalog(self) -> Dict[str, Any]:
         app = self._app
@@ -153,6 +160,11 @@ class MqttBridge:
         self._poll_stop.clear()
         with self._lock:
             client = self._client
+            if client is not None and self._connected:
+                try:
+                    self._publish_availability("offline")
+                except Exception:
+                    pass
             self._client = None
             self._connected = False
             self._subscribed = False
@@ -162,6 +174,27 @@ class MqttBridge:
                 client.disconnect()
             except Exception:
                 pass
+
+    def refresh_discovery(self) -> None:
+        """Re-sync HA discovery without full MQTT reconnect."""
+        with self._lock:
+            if not self._connected or self._client is None:
+                return
+            self._refresh_control_index()
+            self._sync_discovery()
+            try:
+                self._refresh_and_publish()
+            except Exception as e:
+                log.warning("MQTT state refresh after discovery sync failed: %s", e)
+
+    def apply_settings(self, settings: Dict[str, Any]) -> None:
+        """Apply saved settings and sync discovery when already connected."""
+        with self._lock:
+            self._settings = settings
+        if self._connected and self._client is not None:
+            self.refresh_discovery()
+        else:
+            self.restart()
 
     def notify_entities(self, entities: Dict[str, Any]) -> None:
         if not self._settings.get("enabled") or not self._connected:
@@ -210,11 +243,12 @@ class MqttBridge:
             power = None
         model = str(load_settings().get("avr_model") or "AVR-X1200W")
         layout = mqtt_control_layout(self._settings)
+        snap_layout = CONTROL_LAYOUT_MORE if layout == CONTROL_LAYOUT_BOTH else layout
         snap = ctrl.status_snapshot(
             refresh=False,
             power=power,
             model=model,
-            layout=layout,
+            layout=snap_layout,
         )
         self._publish_entities(snap.get("entities") or {})
 
@@ -380,7 +414,7 @@ class MqttBridge:
         if app is not None:
             host = str(getattr(app.state, "default_host", "") or "")
         block: Dict[str, Any] = {
-            "identifiers": [self._device_id],
+            "identifiers": [self._device_identifier()],
             "name": str(settings.get("device_name") or "Denon AVR"),
             "manufacturer": "Denon",
             "model": avr_model,
@@ -398,10 +432,79 @@ class MqttBridge:
             kind = c.get("kind")
             if not cid or kind not in _HA_COMPONENT:
                 continue
-            if not entity_enabled(self._settings, cid):
+            src = c.get("source_layout")
+            if not entity_enabled(self._settings, cid, source_layout=src):
                 continue
             out.append(c)
         return out
+
+    def _discovery_entry(self, control: Dict[str, Any], entity_id_map: Dict[str, str]) -> Optional[Dict[str, str]]:
+        built = self._discovery_config(control, entity_id_map)
+        if not built:
+            return None
+        component, cfg = built
+        cid = str(control.get("id") or "")
+        prefix = str(self._settings.get("discovery_prefix") or "homeassistant")
+        discovery_topic = f"{prefix}/{component}/{discovery_topic_id(self._settings, cid)}/config"
+        return {
+            "discovery_topic": discovery_topic,
+            "state_topic": str(cfg.get("state_topic") or ""),
+            "control_id": cid,
+            "component": component,
+            "payload": json.dumps(cfg),
+        }
+
+    def _unpublish_discovery_entry(self, entry: Dict[str, str]) -> None:
+        client = self._client
+        if client is None:
+            return
+        dtopic = str(entry.get("discovery_topic") or "")
+        if dtopic:
+            client.publish(dtopic, "", retain=True)
+        stopic = str(entry.get("state_topic") or "")
+        if stopic:
+            client.publish(stopic, "", retain=True)
+        cid = str(entry.get("control_id") or "")
+        if cid and cid in self._last_states:
+            del self._last_states[cid]
+
+    def _sync_discovery(self) -> None:
+        if not self._settings.get("ha_discovery"):
+            for old in load_published_discovery():
+                self._unpublish_discovery_entry(old)
+            save_published_discovery([])
+            return
+        client = self._client
+        if client is None:
+            return
+        entity_id_map = self._entity_id_map()
+        new_entries: List[Dict[str, str]] = []
+        new_topics: Set[str] = set()
+        for control in self._controls_for_publish():
+            row = self._discovery_entry(control, entity_id_map)
+            if not row:
+                continue
+            new_entries.append(
+                {
+                    "discovery_topic": row["discovery_topic"],
+                    "state_topic": row["state_topic"],
+                    "control_id": row["control_id"],
+                }
+            )
+            new_topics.add(row["discovery_topic"])
+            client.publish(row["discovery_topic"], row["payload"], retain=True)
+
+        old_entries = load_published_discovery()
+        for old in old_entries:
+            if old.get("discovery_topic") not in new_topics:
+                self._unpublish_discovery_entry(old)
+
+        save_published_discovery(new_entries)
+        log.info(
+            "MQTT discovery synced: %d active, %d removed",
+            len(new_entries),
+            sum(1 for o in old_entries if o.get("discovery_topic") not in new_topics),
+        )
 
     def _object_id(self, control_id: str) -> str:
         """Legacy alias — stable unique_id for MQTT topics."""
@@ -509,21 +612,7 @@ class MqttBridge:
         return component, cfg
 
     def _publish_discovery(self) -> None:
-        if not self._settings.get("ha_discovery"):
-            return
-        client = self._client
-        if client is None:
-            return
-        prefix = str(self._settings.get("discovery_prefix") or "homeassistant")
-        entity_id_map = self._entity_id_map()
-        for control in self._controls_for_publish():
-            built = self._discovery_config(control, entity_id_map)
-            if not built:
-                continue
-            component, cfg = built
-            cid = str(control.get("id") or "")
-            topic = f"{prefix}/{component}/{discovery_topic_id(self._settings, cid)}/config"
-            client.publish(topic, json.dumps(cfg), retain=True)
+        self._sync_discovery()
 
     def _entity_state_payload(self, control: Dict[str, Any], entity: Dict[str, Any]) -> Optional[str]:
         kind = control.get("kind")
@@ -642,6 +731,10 @@ def notify_entities(entities: Dict[str, Any]) -> None:
 
 def restart_mqtt_bridge() -> None:
     _bridge.restart()
+
+
+def refresh_mqtt_discovery() -> None:
+    _bridge.refresh_discovery()
 
 
 def stop_mqtt_bridge() -> None:

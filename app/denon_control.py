@@ -19,6 +19,7 @@ from .protocol_loader import (
     load_telnet_commands,
     load_telnet_protocol,
     normalize_layout,
+    CONTROL_LAYOUT_BOTH,
 )
 
 SUPPORTED_MODELS = (
@@ -1016,6 +1017,53 @@ class DenonControl:
         layout: str = CONTROL_LAYOUT_LESS,
     ) -> Dict[str, Any]:
         layout = normalize_layout(layout)
+        if layout == CONTROL_LAYOUT_BOTH:
+            less_cat = self.catalog(
+                model,
+                show_zone2=show_zone2,
+                show_zone3=show_zone3,
+                layout=CONTROL_LAYOUT_LESS,
+            )
+            more_cat = self.catalog(
+                model,
+                show_zone2=True,
+                show_zone3=True,
+                layout=CONTROL_LAYOUT_MORE,
+            )
+            controls: List[Dict[str, Any]] = []
+            for c in less_cat.get("controls") or []:
+                row = dict(c)
+                row["source_layout"] = CONTROL_LAYOUT_LESS
+                controls.append(row)
+            less_ids = {str(c.get("id") or "") for c in controls}
+            for c in more_cat.get("controls") or []:
+                cid = str(c.get("id") or "")
+                if not cid or cid in less_ids:
+                    continue
+                row = dict(c)
+                row["source_layout"] = CONTROL_LAYOUT_MORE
+                controls.append(row)
+            section_ids = {c.get("section") for c in controls}
+            sections = []
+            seen_sec: Set[str] = set()
+            for cat in (less_cat, more_cat):
+                for s in cat.get("sections") or []:
+                    sid = str(s.get("id") or "")
+                    if sid in section_ids and sid not in seen_sec:
+                        sections.append(s)
+                        seen_sec.add(sid)
+            return {
+                "model": less_cat.get("model"),
+                "models": list(SUPPORTED_MODELS),
+                "layout": CONTROL_LAYOUT_BOTH,
+                "layouts": list(CONTROL_LAYOUTS),
+                "protocol_version": less_cat.get("protocol_version"),
+                "sections": sections,
+                "controls": controls,
+                "show_zone2": bool(show_zone2),
+                "show_zone3": bool(show_zone3),
+                "telnet_note": less_cat.get("telnet_note"),
+            }
         protocol = load_telnet_protocol(layout)
         model_name = model or "AVR-X1200W"
         raw_controls = filter_controls_for_model(

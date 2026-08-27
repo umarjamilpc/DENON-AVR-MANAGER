@@ -25,7 +25,9 @@ from ..mqtt_presets import (
     create_custom_preset,
     delete_custom_preset,
     duplicate_preset,
+    export_presets_bundle,
     get_preset,
+    import_presets_bundle,
     list_mqtt_presets,
     preset_detail,
     update_custom_preset,
@@ -33,14 +35,14 @@ from ..mqtt_presets import (
 from ..mqtt_settings import (
     enabled_entities_for_layout,
     load_mqtt_settings,
-    mqtt_certs_dir,
     mqtt_control_layout,
+    mqtt_certs_dir,
     normalize_mqtt_settings,
     reset_mqtt_settings,
     save_mqtt_settings,
     settings_response,
 )
-from ..protocol_loader import normalize_layout
+from ..protocol_loader import CONTROL_LAYOUT_BOTH, normalize_layout, control_source_layout
 
 router = APIRouter(tags=["mqtt"])
 
@@ -113,7 +115,7 @@ def _control_catalog(layout: str) -> Dict[str, Any]:
 def _catalog_response(settings: Dict[str, Any], layout: str) -> Dict[str, Any]:
     lay = normalize_layout(layout)
     cat = _control_catalog(lay)
-    enabled = enabled_entities_for_layout(settings, lay)
+    mode = mqtt_control_layout(settings)
     sections_meta = list(cat.get("sections") or [])
     entities: List[Dict[str, Any]] = []
     sections: Dict[str, List[Dict[str, Any]]] = {}
@@ -142,6 +144,13 @@ def _catalog_response(settings: Dict[str, Any], layout: str) -> Dict[str, Any]:
             continue
         cid = str(c.get("id") or "")
         sec = str(c.get("section") or "other")
+        src = str(c.get("source_layout") or control_source_layout(cid))
+        if mode == CONTROL_LAYOUT_BOTH:
+            enabled_map = enabled_entities_for_layout(settings, src)
+            is_on = bool(enabled_map.get(cid))
+        else:
+            enabled_map = enabled_entities_for_layout(settings, lay)
+            is_on = bool(enabled_map.get(cid))
         ent = {
             "id": cid,
             "label": c.get("label"),
@@ -152,7 +161,8 @@ def _catalog_response(settings: Dict[str, Any], layout: str) -> Dict[str, Any]:
             "ha_entity_id": ha_entity_ids.get(cid),
             "featured": bool(c.get("featured")),
             "layout": lay,
-            "enabled": bool(enabled.get(cid)),
+            "source_layout": src,
+            "enabled": is_on,
             "command": c.get("command"),
             "query": c.get("query"),
         }
@@ -189,6 +199,46 @@ def mqtt_list_presets() -> Dict[str, Any]:
     return {"presets": list_mqtt_presets()}
 
 
+@router.get("/mqtt/presets/export/file")
+def mqtt_export_presets_file(
+    include_builtin: bool = Query(False, description="Include built-in preset definitions"),
+) -> Dict[str, Any]:
+    return export_presets_bundle(include_builtin=include_builtin)
+
+
+class MqttPresetImportBody(BaseModel):
+    merge: bool = True
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/mqtt/presets/import/file")
+def mqtt_import_presets_file(body: MqttPresetImportBody) -> Dict[str, Any]:
+    try:
+        result = import_presets_bundle(body.data, merge=body.merge)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, **result}
+
+
+@router.post("/mqtt/presets/import/upload")
+async def mqtt_import_presets_upload(
+    file: UploadFile = File(...),
+    merge: bool = Query(True),
+) -> Dict[str, Any]:
+    import json
+
+    raw_bytes = await file.read()
+    try:
+        data = json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise HTTPException(400, f"Invalid preset JSON file: {e}") from e
+    try:
+        result = import_presets_bundle(data, merge=merge)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, **result}
+
+
 def _preset_summary(preset_id: str) -> Dict[str, Any] | None:
     preset = get_preset(preset_id)
     if preset is None:
@@ -209,14 +259,31 @@ def _preview_preset_response(
     cat = _catalog_response(settings, lay)
     entities = list(cat.get("entities") or [])
     try:
-        enabled_map = build_preset_enabled_map(preset_id, lay, entities)
-        detail = preset_detail(preset_id, lay)
+        if lay == CONTROL_LAYOUT_BOTH:
+            cat_more = _catalog_response(settings, "more")
+            entities_more = list(cat_more.get("entities") or [])
+            enabled_map = {
+                **build_preset_enabled_map(preset_id, "less", entities),
+                **build_preset_enabled_map(preset_id, "more", entities_more),
+            }
+            detail = preset_detail(preset_id, "less")
+            merged = apply_mqtt_preset(
+                preset_id,
+                lay,
+                entities,
+                settings.get("enabled_entities"),
+                catalog_entities_more=entities_more,
+            )
+            preview_catalog = catalog_with_enabled_map(cat, enabled_map)
+        else:
+            enabled_map = build_preset_enabled_map(preset_id, lay, entities)
+            detail = preset_detail(preset_id, lay)
+            merged = apply_mqtt_preset(
+                preset_id, lay, entities, settings.get("enabled_entities")
+            )
+            preview_catalog = catalog_with_enabled_map(cat, enabled_map)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    merged = apply_mqtt_preset(
-        preset_id, lay, entities, settings.get("enabled_entities")
-    )
-    preview_catalog = catalog_with_enabled_map(cat, enabled_map)
     preset = _preset_summary(preset_id)
     return {
         "ok": True,
@@ -342,7 +409,8 @@ def mqtt_put_settings(body: MqttSettingsBody) -> Dict[str, Any]:
         saved = save_mqtt_settings(body.settings)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    restart_mqtt_bridge()
+    bridge = get_mqtt_bridge()
+    bridge.apply_settings(saved)
     data = settings_response()
     data["settings"] = saved
     data["status"] = get_mqtt_bridge().status()
@@ -420,13 +488,17 @@ def _mqtt_ha_config_response(settings: Dict[str, Any], format: str) -> Any:
     return payload
 
 
+LOVELACE_STYLES = frozenset({"rc1189", "grid", "sections", "compact", "theater"})
+
+
 @router.get("/mqtt/lovelace")
 def mqtt_lovelace_card(
-    style: str = Query("rc1189", pattern="^(rc1189|grid)$"),
-    layout: str | None = Query(None, description="less | more"),
+    style: str = Query("rc1189"),
+    layout: str | None = Query(None, description="less | more | both"),
 ) -> Dict[str, Any]:
     settings = load_mqtt_settings()
     lay = normalize_layout(layout or settings.get("control_layout") or "less")
+    style = style if style in LOVELACE_STYLES else "rc1189"
     cat = _catalog_response(settings, lay)
     return build_lovelace_card(
         settings,
@@ -439,7 +511,7 @@ def mqtt_lovelace_card(
 def mqtt_lovelace_card_post(body: MqttExportBody) -> Dict[str, Any]:
     settings = _settings_for_export(body.enabled_entities)
     lay = normalize_layout(body.layout or settings.get("control_layout") or "less")
-    style = body.style if body.style in {"rc1189", "grid"} else "rc1189"
+    style = body.style if body.style in LOVELACE_STYLES else "rc1189"
     cat = _catalog_response(settings, lay)
     return build_lovelace_card(
         settings,

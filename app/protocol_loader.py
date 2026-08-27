@@ -13,7 +13,8 @@ PROTOCOL_DIR = Path(__file__).resolve().parents[1] / "protocol"
 # Canonical layouts: less = collapse on/off into toggles; more = full discrete
 CONTROL_LAYOUT_LESS = "less"
 CONTROL_LAYOUT_MORE = "more"
-CONTROL_LAYOUTS = (CONTROL_LAYOUT_LESS, CONTROL_LAYOUT_MORE)
+CONTROL_LAYOUT_BOTH = "both"
+CONTROL_LAYOUTS = (CONTROL_LAYOUT_LESS, CONTROL_LAYOUT_MORE, CONTROL_LAYOUT_BOTH)
 # Back-compat aliases used by older settings / clients
 CONTROL_LAYOUT_GROUPED = CONTROL_LAYOUT_LESS
 CONTROL_LAYOUT_UNGROUPED = CONTROL_LAYOUT_MORE
@@ -131,7 +132,39 @@ def normalize_layout(layout: Optional[str]) -> str:
         "compact",
     }:
         return CONTROL_LAYOUT_LESS
+    if s in {
+        "both",
+        "hybrid",
+        "less + more",
+        "less and more",
+        "combined",
+        "all controls",
+    }:
+        return CONTROL_LAYOUT_BOTH
     return CONTROL_LAYOUT_LESS
+
+
+@lru_cache
+def control_source_layout_map() -> Dict[str, str]:
+    """Map control_id → less|more bucket for hybrid MQTT / dashboard."""
+    less_ids = {
+        str(c.get("id") or "")
+        for c in (load_telnet_protocol(CONTROL_LAYOUT_LESS).get("controls") or [])
+        if c.get("id")
+    }
+    more_ids = {
+        str(c.get("id") or "")
+        for c in (load_telnet_protocol(CONTROL_LAYOUT_MORE).get("controls") or [])
+        if c.get("id")
+    }
+    out: Dict[str, str] = {cid: CONTROL_LAYOUT_LESS for cid in less_ids}
+    for cid in more_ids - less_ids:
+        out[cid] = CONTROL_LAYOUT_MORE
+    return out
+
+
+def control_source_layout(control_id: str) -> str:
+    return control_source_layout_map().get(str(control_id or ""), CONTROL_LAYOUT_MORE)
 
 
 @lru_cache
@@ -307,14 +340,39 @@ def _build_less_protocol(more: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @lru_cache
+@lru_cache
 def load_telnet_protocol(
     layout: str = CONTROL_LAYOUT_LESS,
 ) -> Dict[str, Any]:
-    """AVR telnet command catalog for Control Panel (less or more controls)."""
+    """AVR telnet command catalog for Control Panel (less, more, or both)."""
     layout = normalize_layout(layout)
     more = _build_more_protocol()
     if layout == CONTROL_LAYOUT_MORE:
         return more
+    if layout == CONTROL_LAYOUT_BOTH:
+        less = _build_less_protocol(more)
+        seen: Set[str] = set()
+        controls: List[Dict[str, Any]] = []
+        for c in less.get("controls") or []:
+            cid = str(c.get("id") or "")
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            row = copy.deepcopy(c)
+            row["source_layout"] = CONTROL_LAYOUT_LESS
+            controls.append(row)
+        for c in more.get("controls") or []:
+            cid = str(c.get("id") or "")
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            row = copy.deepcopy(c)
+            row["source_layout"] = CONTROL_LAYOUT_MORE
+            controls.append(row)
+        out = copy.deepcopy(more)
+        out["controls"] = controls
+        out["layout"] = CONTROL_LAYOUT_BOTH
+        return out
     return _build_less_protocol(more)
 
 

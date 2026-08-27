@@ -1263,7 +1263,15 @@
   /* ---------- MQTT page ---------- */
 
   function mqttLayoutKey() {
-    return state.mqttLayout === "more" ? "more" : "less";
+    const lay = state.mqttLayout || state.mqttSettings?.control_layout || "less";
+    if (lay === "more" || lay === "both") return lay;
+    return "less";
+  }
+
+  function mqttPublishLayout() {
+    const lay = state.mqttSettings?.control_layout || "both";
+    if (lay === "more" || lay === "both") return lay;
+    return "less";
   }
 
   function ensureMqttEnabledEntities() {
@@ -1284,13 +1292,26 @@
 
   function mqttEnabledMap() {
     const all = ensureMqttEnabledEntities();
-    return all[mqttLayoutKey()] || {};
+    const view = mqttLayoutKey();
+    if (view === "both") {
+      return { ...(all.less || {}), ...(all.more || {}) };
+    }
+    return all[view] || {};
+  }
+
+  function entityEnabledInBucket(ent) {
+    const all = ensureMqttEnabledEntities();
+    const bucket = ent?.source_layout === "more" ? "more" : "less";
+    return Boolean((all[bucket] || {})[ent.id]);
   }
 
   function syncMqttEntityChecksToState() {
-    const map = mqttEnabledMap();
+    const all = ensureMqttEnabledEntities();
     for (const cb of document.querySelectorAll("#mqtt-entities-list input[data-entity-id]")) {
-      map[cb.dataset.entityId] = cb.checked;
+      const id = cb.dataset.entityId;
+      const bucket = cb.dataset.sourceLayout === "more" ? "more" : "less";
+      if (!all[bucket]) all[bucket] = {};
+      all[bucket][id] = cb.checked;
     }
   }
 
@@ -1335,8 +1356,9 @@
     const haDiscovery = mqttField("ha_discovery");
     if (haDiscovery) haDiscovery.checked = s.ha_discovery !== false;
     const layoutEl = mqttField("control_layout");
-    if (layoutEl) layoutEl.value = s.control_layout === "more" ? "more" : "less";
-    state.mqttLayout = s.control_layout === "more" ? "more" : "less";
+    const savedLayout = s.control_layout || "both";
+    if (layoutEl) layoutEl.value = savedLayout;
+    state.mqttLayout = savedLayout;
     syncMqttLayoutButtons();
     $("mqtt-ca-name").textContent = s.ca_cert_file || "—";
     $("mqtt-cert-name").textContent = s.client_cert_file || "—";
@@ -1362,7 +1384,7 @@
       json_style: Boolean(mqttField("json_style")?.checked),
       ha_discovery: Boolean(mqttField("ha_discovery")?.checked),
       tls_mode: mqttField("tls_mode")?.value || "none",
-      control_layout: mqttField("control_layout")?.value === "more" ? "more" : "less",
+      control_layout: mqttField("control_layout")?.value || "both",
       enabled_entities: ensureMqttEnabledEntities(),
     };
   }
@@ -1371,11 +1393,17 @@
     const lay = mqttLayoutKey();
     $("mqtt-layout-less")?.classList.toggle("active", lay === "less");
     $("mqtt-layout-more")?.classList.toggle("active", lay === "more");
+    $("mqtt-layout-both")?.classList.toggle("active", lay === "both");
   }
 
   async function loadMqttCatalog(layout) {
-    const lay = layout === "more" ? "more" : "less";
-    state.mqttCatalog = await api(`/api/mqtt/catalog?layout=${lay}`);
+    const lay =
+      layout === "more" || layout === "both"
+        ? layout
+        : layout === "less"
+          ? "less"
+          : mqttLayoutKey();
+    state.mqttCatalog = await api(`/api/mqtt/catalog?layout=${encodeURIComponent(lay)}`);
     state.mqttLayout = lay;
     syncMqttLayoutButtons();
     if (!state.mqttSectionId && state.mqttCatalog?.sections?.length) {
@@ -1386,10 +1414,11 @@
 
   async function setMqttLayout(layout) {
     syncMqttEntityChecksToState();
-    const lay = layout === "more" ? "more" : "less";
+    const lay = layout === "more" || layout === "both" ? layout : "less";
     state.mqttLayout = lay;
     const layoutEl = mqttField("control_layout");
     if (layoutEl) layoutEl.value = lay;
+    syncMqttLayoutButtons();
     await loadMqttCatalog(lay);
     await refreshMqttExportOutput();
   }
@@ -1428,7 +1457,9 @@
       btn.type = "button";
       btn.className = "tab" + (sec.id === state.mqttSectionId ? " active" : "");
       const items = catalog?.sections_map?.[sec.id] || [];
-      const onCount = items.filter((e) => enabled[e.id]).length;
+      const onCount = items.filter((e) =>
+        catalog?.layout === "both" ? entityEnabledInBucket(e) : enabled[e.id]
+      ).length;
       const label = sec.label || sec.id;
       btn.textContent = onCount > 0 ? `${label} (${onCount})` : label;
       btn.dataset.sectionId = sec.id;
@@ -1451,16 +1482,27 @@
     const sections = catalog?.sections || [];
     const sectionId = state.mqttSectionId || sections[0]?.id;
     const navSec = sections.find((s) => s.id === sectionId);
-    const items = (catalog?.sections_map?.[sectionId] || []).slice();
+    let items = (catalog?.sections_map?.[sectionId] || []).slice();
+    if (catalog?.layout === "both" && mqttLayoutKey() !== "both") {
+      items = items.filter((e) => (e.source_layout || "less") === mqttLayoutKey());
+    }
     const enabled = mqttEnabledMap();
-    const totalOn = Object.values(enabled).filter(Boolean).length;
+    const totalOn =
+      catalog?.layout === "both"
+        ? (catalog.entities || []).filter((e) => entityEnabledInBucket(e)).length
+        : Object.values(enabled).filter(Boolean).length;
     if (meta) {
       const model = catalog?.model || state.appSettings?.avr_model || "AVR";
-      const lay = state.mqttLayout === "more" ? "more controls" : "less controls";
+      const layLabel =
+        mqttLayoutKey() === "both"
+          ? "both (hybrid)"
+          : mqttLayoutKey() === "more"
+            ? "more controls"
+            : "less controls";
       const preview = state.mqttPresetPreviewId
         ? " · preset preview (Save to persist)"
         : "";
-      meta.textContent = `${navSec?.label || sectionId || "—"} · ${items.length} in section · ${totalOn} enabled total · ${model} · ${lay}${preview}`;
+      meta.textContent = `${navSec?.label || sectionId || "—"} · ${items.length} in section · ${totalOn} enabled total · ${model} · ${layLabel}${preview}`;
     }
     if (!items.length) {
       root.innerHTML = "<p class=\"meta\">No MQTT entities in this section for the current layout.</p>";
@@ -1471,15 +1513,16 @@
     for (const ent of items) {
       const label = document.createElement("label");
       label.className = "mqtt-entity-item";
-      const isOn = Boolean(enabled[ent.id]);
+      const isOn =
+        catalog?.layout === "both" ? entityEnabledInBucket(ent) : Boolean(enabled[ent.id]);
       label.classList.toggle("mqtt-entity-enabled", isOn);
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.dataset.entityId = ent.id;
+      cb.dataset.sourceLayout = ent.source_layout || "less";
       cb.checked = isOn;
       cb.addEventListener("change", () => {
-        const map = mqttEnabledMap();
-        map[ent.id] = cb.checked;
+        syncMqttEntityChecksToState();
         label.classList.toggle("mqtt-entity-enabled", cb.checked);
         state.mqttPresetPreviewId = null;
         state.mqttPresetEntityLabels = {};
@@ -1490,6 +1533,13 @@
       const text = document.createElement("span");
       text.textContent = ent.label || ent.id;
       label.appendChild(text);
+      if (catalog?.layout === "both" && ent.source_layout) {
+        const srcBadge = document.createElement("span");
+        srcBadge.className = "mqtt-source-badge";
+        srcBadge.textContent = ent.source_layout;
+        srcBadge.title = "Entity bucket (less = merged toggles, more = discrete)";
+        label.appendChild(srcBadge);
+      }
       const remoteLabel = state.mqttPresetEntityLabels?.[ent.id];
       if (remoteLabel) {
         const badge = document.createElement("span");
@@ -1766,6 +1816,46 @@
     }
   }
 
+  async function exportMqttPresetsFile() {
+    try {
+      const data = await api("/api/mqtt/presets/export/file");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `denon-mqtt-presets-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus("Presets exported", "ok");
+    } catch (err) {
+      setStatus(err.message, "err");
+    }
+  }
+
+  async function importMqttPresetsFile(file) {
+    if (!file) return;
+    const text = await file.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      setStatus("Invalid preset JSON file", "err");
+      return;
+    }
+    try {
+      const result = await api("/api/mqtt/presets/import/file", {
+        method: "POST",
+        body: JSON.stringify({ merge: true, data }),
+      });
+      state.mqttPresets = result.presets || state.mqttPresets;
+      renderMqttPresetSelect();
+      renderMqttCustomPresetList();
+      setStatus(`Imported ${result.imported ?? 0} preset(s)`, "ok");
+    } catch (err) {
+      setStatus(err.message, "err");
+    }
+  }
+
   async function applyMqttPreset() {
     const sel = $("mqtt-preset-select");
     const presetId = sel?.value?.trim();
@@ -1780,11 +1870,13 @@
     const catalog = state.mqttCatalog;
     if (!catalog?.entities?.length) return;
     if (!state.mqttSettings) state.mqttSettings = {};
-    const map = mqttEnabledMap();
+    const all = ensureMqttEnabledEntities();
     for (const ent of catalog.entities) {
-      if (mode === "all") map[ent.id] = true;
-      else if (mode === "none") map[ent.id] = false;
-      else if (mode === "featured") map[ent.id] = Boolean(ent.featured);
+      const bucket = ent.source_layout === "more" ? "more" : "less";
+      if (!all[bucket]) all[bucket] = {};
+      if (mode === "all") all[bucket][ent.id] = true;
+      else if (mode === "none") all[bucket][ent.id] = false;
+      else if (mode === "featured") all[bucket][ent.id] = Boolean(ent.featured);
     }
     state.mqttPresetPreviewId = null;
     state.mqttPresetEntityLabels = {};
@@ -1803,7 +1895,7 @@
     const desc = $("mqtt-export-desc");
     if (desc) {
       desc.textContent = isLovelace
-        ? "Responsive Lovelace dashboard YAML — RC-1189 remote layout for phone, tablet, and desktop."
+        ? "Lovelace YAML — RC-1189 remote, theater mode, section cards, compact bar, or entity grid."
         : "MQTT entity config JSON/YAML for manual setup (when HA Discovery is off).";
     }
   }
@@ -1865,7 +1957,11 @@
       ensureMqttEnabledEntities();
       renderMqttPresetSelect();
       state.mqttLayout =
-        state.mqttSettings.control_layout === "more" ? "more" : "less";
+        state.mqttSettings.control_layout === "more"
+          ? "more"
+          : state.mqttSettings.control_layout === "both"
+            ? "both"
+            : "less";
       applyMqttForm(state.mqttSettings);
       renderMqttStatus(settingsData.status);
       await loadMqttCatalog(state.mqttLayout);
@@ -2009,6 +2105,14 @@
       resetMqttPresetForm();
       toggleMqttPresetManager(false);
     });
+    $("mqtt-preset-export-file")?.addEventListener("click", () =>
+      exportMqttPresetsFile().catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-preset-import-file")?.addEventListener("change", (ev) => {
+      const file = ev.target?.files?.[0];
+      importMqttPresetsFile(file).catch((err) => setStatus(err.message, "err"));
+      ev.target.value = "";
+    });
     $("mqtt-preset-select")?.addEventListener("change", (ev) => {
       const id = ev.target?.value?.trim();
       if (id) void previewMqttPreset(id);
@@ -2031,6 +2135,9 @@
     );
     $("mqtt-layout-more")?.addEventListener("click", () =>
       setMqttLayout("more").catch((err) => setStatus(err.message, "err"))
+    );
+    $("mqtt-layout-both")?.addEventListener("click", () =>
+      setMqttLayout("both").catch((err) => setStatus(err.message, "err"))
     );
     mqttField("control_layout")?.addEventListener("change", (ev) => {
       setMqttLayout(ev.target.value).catch((err) => setStatus(err.message, "err"));

@@ -332,6 +332,107 @@ def _generic_grid(refs: Dict[str, str], catalog_entities: List[Dict[str, Any]]) 
     }
 
 
+def _sections_card(
+    refs: Dict[str, str], catalog_entities: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Section-grouped tile grids — modern dashboard sections."""
+    sections: Dict[str, List[Dict[str, Any]]] = {}
+    labels: Dict[str, str] = {}
+    for ent in catalog_entities:
+        if not ent.get("enabled"):
+            continue
+        cid = str(ent.get("id") or "")
+        entity = refs.get(cid)
+        if not entity:
+            continue
+        sec = str(ent.get("section") or "other")
+        labels[sec] = str(ent.get("section_label") or sec)
+        sections.setdefault(sec, []).append(
+            {"type": "tile", "entity": entity, "name": str(ent.get("label") or cid)}
+        )
+    cards: List[Dict[str, Any]] = []
+    for sec, tiles in sections.items():
+        if not tiles:
+            continue
+        cards.append(
+            {
+                "type": "grid",
+                "title": labels.get(sec, sec),
+                "columns": min(4, max(2, len(tiles))),
+                "square": False,
+                "cards": tiles,
+            }
+        )
+    if not cards:
+        cards.append({"type": "markdown", "content": "_No entities enabled._"})
+    return {"type": "vertical-stack", "cards": cards}
+
+
+def _compact_card(refs: Dict[str, str]) -> Dict[str, Any]:
+    """Compact top bar: power, mute, volume, source + media row."""
+    power = _pick(refs, "pw_power", "pw_on")
+    mute = _pick(refs, "mu_mute", "mu_on")
+    volume = _pick(refs, "mv_master")
+    source = _pick(refs, "si_select")
+    sound = _pick(refs, "ms_select")
+    play = _pick(refs, "ns_ns9a")
+    pause = _pick(refs, "ns_ns9b")
+    top = _compact_cards(
+        [
+            _tile(power, "Power", "mdi:power"),
+            _tile(mute, "Mute", "mdi:volume-mute"),
+            *_vol_buttons(volume),
+            _tile(source, "Source", "mdi:audio-input-rca"),
+        ]
+    )
+    media = _compact_cards(
+        [
+            _service_button(play, "Play", "button.press", "mdi:play"),
+            _service_button(pause, "Pause", "button.press", "mdi:pause"),
+            _select(sound, "Sound"),
+        ]
+    )
+    cards: List[Dict[str, Any]] = []
+    if top:
+        cards.append({"type": "horizontal-stack", "cards": top})
+    if volume:
+        cards.append(_entity_row(volume, "Volume"))
+    if media:
+        cards.append({"type": "horizontal-stack", "cards": media})
+    return {"type": "vertical-stack", "cards": cards or [{"type": "markdown", "content": "_No entities._"}]}
+
+
+def _theater_card(refs: Dict[str, str], catalog_entities: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Theater mode — hero controls + section cards below."""
+    power = _pick(refs, "pw_power", "pw_on")
+    mute = _pick(refs, "mu_mute", "mu_on")
+    volume = _pick(refs, "mv_master")
+    source = _pick(refs, "si_select")
+    hero = _compact_cards(
+        [
+            _tile(power, "Power", "mdi:power"),
+            _tile(mute, "Mute", "mdi:volume-mute"),
+            _entity_row(volume, "Volume"),
+            _select(source, "Input source"),
+        ]
+    )
+    cards: List[Dict[str, Any]] = [_section_title("Now playing")]
+    if hero:
+        cards.append({"type": "grid", "columns": 2, "square": False, "cards": hero})
+    sections_body = _sections_card(refs, catalog_entities)
+    cards.extend(sections_body.get("cards") or [])
+    return {"type": "vertical-stack", "cards": cards}
+
+
+LOVELACE_STYLE_META = {
+    "rc1189": {"label": "RC-1189 remote", "path": "denon-rc1189"},
+    "grid": {"label": "Entity grid", "path": "denon-grid"},
+    "sections": {"label": "Section cards", "path": "denon-sections"},
+    "compact": {"label": "Compact bar", "path": "denon-compact"},
+    "theater": {"label": "Theater mode", "path": "denon-theater"},
+}
+
+
 def build_lovelace_card(
     settings: Dict[str, Any],
     catalog_entities: List[Dict[str, Any]],
@@ -339,16 +440,22 @@ def build_lovelace_card(
 ) -> Dict[str, Any]:
     refs = build_entity_refs(settings, catalog_entities)
     device = str(settings.get("device_name") or "Denon AVR")
+    meta = LOVELACE_STYLE_META.get(style) or LOVELACE_STYLE_META["rc1189"]
     if style == "grid":
         card = _generic_grid(refs, catalog_entities)
-        title = f"{device} — enabled entities"
+    elif style == "sections":
+        card = _sections_card(refs, catalog_entities)
+    elif style == "compact":
+        card = _compact_card(refs)
+    elif style == "theater":
+        card = _theater_card(refs, catalog_entities)
     else:
         card = _responsive_remote(refs)
-        title = f"{device} — RC-1189 remote"
+    title = f"{device} — {meta['label']}"
 
     view = {
         "title": title,
-        "path": "denon-rc1189",
+        "path": meta["path"],
         "type": "panel",
         "cards": [card],
     }

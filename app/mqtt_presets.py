@@ -7,7 +7,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Set
 
 from .db import get_setting, upsert_setting
-from .protocol_loader import normalize_layout
+from .protocol_loader import CONTROL_LAYOUT_BOTH, normalize_layout
 
 CUSTOM_PRESETS_KEY = "mqtt_custom_presets"
 _PRESET_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
@@ -548,9 +548,9 @@ def apply_mqtt_preset(
     layout: Optional[str],
     catalog_entities: List[Dict[str, Any]],
     current_enabled: Optional[Dict[str, Dict[str, bool]]] = None,
+    catalog_entities_more: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Dict[str, bool]]:
     lay = normalize_layout(layout or "less")
-    other = "more" if lay == "less" else "less"
     base: Dict[str, Dict[str, bool]] = {"less": {}, "more": {}}
     if isinstance(current_enabled, dict):
         for key in ("less", "more"):
@@ -558,6 +558,15 @@ def apply_mqtt_preset(
             if isinstance(ent, dict):
                 base[key] = {str(k): bool(v) for k, v in ent.items()}
 
+    if lay == CONTROL_LAYOUT_BOTH:
+        base["less"] = build_preset_enabled_map(
+            preset_id, "less", catalog_entities
+        )
+        more_ents = catalog_entities_more if catalog_entities_more is not None else catalog_entities
+        base["more"] = build_preset_enabled_map(preset_id, "more", more_ents)
+        return base
+
+    other = "more" if lay == "less" else "less"
     base[lay] = build_preset_enabled_map(preset_id, lay, catalog_entities)
     if other not in base:
         base[other] = {}
@@ -568,3 +577,59 @@ def remote_label_for_entity(control_id: str, preset: Optional[Dict[str, Any]] = 
     if preset and preset.get("remote") == "RC-1189":
         return RC1189_ENTITY_LABELS.get(str(control_id))
     return None
+
+
+PRESET_FILE_FORMAT = "denon-avr-manager-mqtt-presets"
+PRESET_FILE_VERSION = 1
+
+
+def export_presets_bundle(include_builtin: bool = False) -> Dict[str, Any]:
+    from datetime import datetime, timezone
+
+    custom = load_custom_presets()
+    payload: Dict[str, Any] = {
+        "format": PRESET_FILE_FORMAT,
+        "version": PRESET_FILE_VERSION,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "custom_presets": custom,
+    }
+    if include_builtin:
+        payload["builtin_presets"] = [
+            {
+                "id": p["id"],
+                "label": p.get("label"),
+                "description": p.get("description") or "",
+                "remote": p.get("remote"),
+                "entities": p.get("entities"),
+                "sections": p.get("sections"),
+                "mode": p.get("mode"),
+            }
+            for p in BUILTIN_PRESETS
+        ]
+    return payload
+
+
+def import_presets_bundle(raw: Dict[str, Any], merge: bool = True) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise ValueError("Preset file must be a JSON object")
+    fmt = str(raw.get("format") or "")
+    if fmt and fmt != PRESET_FILE_FORMAT:
+        raise ValueError(f"Unsupported preset file format: {fmt}")
+    incoming = raw.get("custom_presets")
+    if not isinstance(incoming, list):
+        raise ValueError("Preset file missing custom_presets array")
+    existing = load_custom_presets() if merge else []
+    by_id = {p["id"]: p for p in existing}
+    imported = 0
+    for item in incoming:
+        if not isinstance(item, dict):
+            continue
+        preset = normalize_custom_preset(item)
+        if preset["id"] in by_id and not merge:
+            preset = normalize_custom_preset(
+                {**preset, "id": _slug_id(str(preset.get("label") or "imported"))}
+            )
+        by_id[preset["id"]] = preset
+        imported += 1
+    merged = save_custom_presets(list(by_id.values()))
+    return {"imported": imported, "total_custom": len(merged), "presets": list_mqtt_presets()}

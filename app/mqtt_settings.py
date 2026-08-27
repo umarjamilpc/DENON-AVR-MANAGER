@@ -8,9 +8,10 @@ from typing import Any, Dict, List, Optional
 
 from .mqtt_presets import list_mqtt_presets
 from .db import data_dir, get_setting, upsert_setting
-from .protocol_loader import normalize_layout
+from .protocol_loader import normalize_layout, CONTROL_LAYOUT_BOTH, control_source_layout
 
 SETTINGS_KEY = "mqtt_settings"
+PUBLISHED_DISCOVERY_KEY = "mqtt_published_discovery"
 
 TLS_MODES = (
     "none",
@@ -36,7 +37,7 @@ DEFAULTS: Dict[str, Any] = {
     "ca_cert_file": "",
     "client_cert_file": "",
     "client_key_file": "",
-    "control_layout": "less",
+    "control_layout": "both",
     "enabled_entities": {"less": {}, "more": {}},
 }
 
@@ -200,6 +201,15 @@ def settings_response() -> Dict[str, Any]:
                     "Matches Control Panel “more controls” mode."
                 ),
             },
+            {
+                "id": "both",
+                "label": "Both (hybrid)",
+                "description": (
+                    "Publish less and more entities together — same as the dashboard "
+                    "(merged toggles plus discrete/query controls). Each entity uses "
+                    "its own less/more enable bucket."
+                ),
+            },
         ],
         "certs_dir": str(mqtt_certs_dir()),
         "storage": "sqlite",
@@ -212,9 +222,43 @@ def settings_response() -> Dict[str, Any]:
 
 
 def entity_enabled(
-    settings: Dict[str, Any], control_id: str, layout: Optional[str] = None
+    settings: Dict[str, Any],
+    control_id: str,
+    layout: Optional[str] = None,
+    source_layout: Optional[str] = None,
 ) -> bool:
-    enabled = enabled_entities_for_layout(settings, layout)
+    mode = mqtt_control_layout(settings)
+    cid = str(control_id or "")
+    if mode == CONTROL_LAYOUT_BOTH:
+        bucket = str(source_layout or control_source_layout(cid) or "less")
+        enabled = enabled_entities_for_layout(settings, bucket)
+    else:
+        enabled = enabled_entities_for_layout(settings, layout or mode)
     if not enabled:
         return False
-    return bool(enabled.get(control_id))
+    return bool(enabled.get(cid))
+
+
+def load_published_discovery() -> List[Dict[str, str]]:
+    raw = get_setting(PUBLISHED_DISCOVERY_KEY)
+    if not isinstance(raw, list):
+        return []
+    out: List[Dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        dtopic = str(item.get("discovery_topic") or "").strip()
+        if not dtopic:
+            continue
+        out.append(
+            {
+                "discovery_topic": dtopic,
+                "state_topic": str(item.get("state_topic") or "").strip(),
+                "control_id": str(item.get("control_id") or "").strip(),
+            }
+        )
+    return out
+
+
+def save_published_discovery(entries: List[Dict[str, str]]) -> None:
+    upsert_setting(PUBLISHED_DISCOVERY_KEY, entries)
