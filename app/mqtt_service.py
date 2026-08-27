@@ -24,12 +24,20 @@ from .denon_power import read_main_zone_power
 from .mqtt_ha_naming import (
     build_ha_entity_id_map,
     discovery_topic_id,
+    legacy_discovery_object_ids,
     slugify,
     unique_id,
+)
+from .mqtt_volume import (
+    db_to_absolute,
+    discovery_db_range,
+    entity_to_db,
+    volume_uses_db,
 )
 from .mqtt_settings import (
     cert_path,
     entity_enabled,
+    load_discovery_topic_history,
     load_mqtt_settings,
     load_published_discovery,
     mqtt_control_layout,
@@ -371,6 +379,14 @@ class MqttBridge:
                 pass
         self._execute_control(control_id, value)
 
+    def _normalize_mqtt_command_value(self, control_id: str, value: Any) -> Any:
+        if not self._control_index:
+            self._refresh_control_index()
+        control = self._control_index.get(control_id)
+        if control and volume_uses_db(control):
+            return db_to_absolute(control, value)
+        return value
+
     def _execute_control(self, control_id: str, value: Any) -> None:
         app = self._app
         if app is None:
@@ -379,6 +395,7 @@ class MqttBridge:
         if not host:
             return
         try:
+            value = self._normalize_mqtt_command_value(control_id, value)
             cmd, allow_raw = self._resolve_mqtt_command(control_id, value)
             ctrl: Optional[DenonControl] = getattr(app.state, "denon_control", None)
             if ctrl is None:
@@ -454,19 +471,77 @@ class MqttBridge:
             "payload": json.dumps(cfg),
         }
 
-    def _unpublish_discovery_entry(self, entry: Dict[str, str]) -> None:
+    def _unpublish_discovery_topic(self, discovery_topic: str) -> None:
+        client = self._client
+        if client is None or not discovery_topic:
+            return
+        client.publish(discovery_topic, "", retain=True)
+
+    def _unpublish_state_topic(self, state_topic: str) -> None:
+        client = self._client
+        if client is None or not state_topic:
+            return
+        client.publish(state_topic, "", retain=True)
+
+    def _purge_legacy_discovery(self, control_ids: Set[str]) -> None:
+        """Remove retained discovery/state from older topic layouts and object_id formats."""
+        if not self._settings.get("ha_discovery"):
+            return
         client = self._client
         if client is None:
             return
-        dtopic = str(entry.get("discovery_topic") or "")
-        if dtopic:
-            client.publish(dtopic, "", retain=True)
-        stopic = str(entry.get("state_topic") or "")
-        if stopic:
-            client.publish(stopic, "", retain=True)
+        prefix = str(self._settings.get("discovery_prefix") or "homeassistant")
+        current_topic = str(self._settings.get("topic") or "denon_avr")
+        history = load_discovery_topic_history()
+        components = sorted(set(_HA_COMPONENT.values()))
+        purged = 0
+        for cid in control_ids:
+            for comp in components:
+                for obj_id in legacy_discovery_object_ids(
+                    self._settings, cid, extra_topics=history
+                ):
+                    if obj_id == discovery_topic_id(self._settings, cid):
+                        continue
+                    dtopic = f"{prefix}/{comp}/{obj_id}/config"
+                    self._unpublish_discovery_topic(dtopic)
+                    purged += 1
+            for hist_topic in history:
+                if hist_topic == current_topic:
+                    continue
+                self._unpublish_state_topic(f"{hist_topic}/{cid}/state")
+        if purged:
+            log.info("MQTT purged %d legacy discovery topic(s)", purged)
+
+    def _notify_ha_discovery_update(self) -> None:
+        """Ask Home Assistant to rescan MQTT discovery (avoids manual integration reload)."""
+        client = self._client
+        if client is None:
+            return
+        prefix = str(self._settings.get("discovery_prefix") or "homeassistant")
+        client.publish(f"{prefix}/status", "online", retain=True)
+
+    def _unpublish_discovery_entry(self, entry: Dict[str, str]) -> None:
+        self._unpublish_discovery_topic(str(entry.get("discovery_topic") or ""))
+        self._unpublish_state_topic(str(entry.get("state_topic") or ""))
         cid = str(entry.get("control_id") or "")
         if cid and cid in self._last_states:
             del self._last_states[cid]
+
+    def _control_ids_for_purge(self) -> Set[str]:
+        ids: Set[str] = set()
+        for c in self._load_catalog().get("controls") or []:
+            cid = str(c.get("id") or "")
+            if cid:
+                ids.add(cid)
+        for row in load_published_discovery():
+            cid = str(row.get("control_id") or "")
+            if cid:
+                ids.add(cid)
+        for c in self._controls_for_publish():
+            cid = str(c.get("id") or "")
+            if cid:
+                ids.add(cid)
+        return ids
 
     def _sync_discovery(self) -> None:
         if not self._settings.get("ha_discovery"):
@@ -477,6 +552,7 @@ class MqttBridge:
         client = self._client
         if client is None:
             return
+        self._purge_legacy_discovery(self._control_ids_for_purge())
         entity_id_map = self._entity_id_map()
         new_entries: List[Dict[str, str]] = []
         new_topics: Set[str] = set()
@@ -500,6 +576,7 @@ class MqttBridge:
                 self._unpublish_discovery_entry(old)
 
         save_published_discovery(new_entries)
+        self._notify_ha_discovery_update()
         log.info(
             "MQTT discovery synced: %d active, %d removed",
             len(new_entries),
@@ -587,15 +664,18 @@ class MqttBridge:
                 return None
             cfg["options"] = options
         elif kind in {"slider", "stepper"}:
-            lo = control.get("min")
-            hi = control.get("max")
-            if lo is not None:
-                cfg["min"] = float(lo)
-            if hi is not None:
-                cfg["max"] = float(hi)
-            cfg["step"] = 1.0
-            if control.get("unit"):
-                cfg["unit_of_measurement"] = str(control["unit"])
+            if volume_uses_db(control):
+                cfg.update(discovery_db_range(control))
+            else:
+                lo = control.get("min")
+                hi = control.get("max")
+                if lo is not None:
+                    cfg["min"] = float(lo)
+                if hi is not None:
+                    cfg["max"] = float(hi)
+                cfg["step"] = 1.0
+                if control.get("unit"):
+                    cfg["unit_of_measurement"] = str(control["unit"])
         elif kind == "action":
             cmd = str(control.get("command") or "")
             if cmd:
@@ -623,6 +703,13 @@ class MqttBridge:
         if kind == "enum":
             return str(entity.get("label") or entity.get("display") or "")
         if kind in {"slider", "stepper"}:
+            if volume_uses_db(control):
+                db = entity_to_db(control, entity)
+                if db is not None:
+                    text = f"{db:g}"
+                    if "." in text:
+                        return text.rstrip("0").rstrip(".")
+                    return text
             val = entity.get("value")
             if val is None:
                 return str(entity.get("display") or "")

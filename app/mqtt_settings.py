@@ -12,6 +12,8 @@ from .protocol_loader import normalize_layout, CONTROL_LAYOUT_BOTH, control_sour
 
 SETTINGS_KEY = "mqtt_settings"
 PUBLISHED_DISCOVERY_KEY = "mqtt_published_discovery"
+DISCOVERY_TOPIC_HISTORY_KEY = "mqtt_discovery_topic_history"
+_MAX_TOPIC_HISTORY = 8
 
 TLS_MODES = (
     "none",
@@ -153,9 +155,42 @@ def load_mqtt_settings() -> Dict[str, Any]:
 def save_mqtt_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(partial, dict):
         raise ValueError("settings must be an object")
-    merged = normalize_mqtt_settings({**load_mqtt_settings(), **partial})
+    prior = load_mqtt_settings()
+    merged = normalize_mqtt_settings({**prior, **partial})
     upsert_setting(SETTINGS_KEY, merged)
+    new_topic = str(merged.get("topic") or "")
+    old_topic = str(prior.get("topic") or "")
+    if new_topic:
+        append_discovery_topic_history(new_topic)
+    if old_topic and old_topic != new_topic:
+        append_discovery_topic_history(old_topic)
     return merged
+
+
+def append_discovery_topic_history(topic: str) -> None:
+    t = _norm_topic(topic)
+    raw = get_setting(DISCOVERY_TOPIC_HISTORY_KEY)
+    hist: List[str] = []
+    if isinstance(raw, list):
+        hist = [str(x).strip() for x in raw if str(x).strip()]
+    if t in hist:
+        hist.remove(t)
+    hist.insert(0, t)
+    upsert_setting(DISCOVERY_TOPIC_HISTORY_KEY, hist[:_MAX_TOPIC_HISTORY])
+
+
+def load_discovery_topic_history() -> List[str]:
+    raw = get_setting(DISCOVERY_TOPIC_HISTORY_KEY)
+    if not isinstance(raw, list):
+        return []
+    out: List[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        t = _norm_topic(str(item or ""))
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
 
 
 def reset_mqtt_settings() -> Dict[str, Any]:

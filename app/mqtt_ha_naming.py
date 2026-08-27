@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 _HA_COMPONENT = {
     "toggle": "switch",
@@ -43,6 +43,36 @@ def unique_id(settings: Dict[str, Any], control_id: str) -> str:
 def discovery_topic_id(settings: Dict[str, Any], control_id: str) -> str:
     """Discovery topic object_id segment (ASCII slug of unique_id)."""
     return slugify(unique_id(settings, control_id)) or slugify(control_id) or "entity"
+
+
+def legacy_discovery_object_ids(
+    settings: Dict[str, Any],
+    control_id: str,
+    *,
+    extra_topics: Optional[List[str]] = None,
+) -> List[str]:
+    """Discovery object_id slugs that older builds may have retained on the broker."""
+    cid = str(control_id or "").strip()
+    if not cid:
+        return []
+    out: List[str] = []
+    seen: set[str] = set()
+
+    def add(raw: str) -> None:
+        slug = slugify(raw)
+        if slug and slug not in seen:
+            seen.add(slug)
+            out.append(slug)
+
+    add(cid)
+    add(unique_id(settings, cid))
+    topic = str(settings.get("topic") or "denon_avr").replace("/", "_")
+    add(f"{topic}-{cid}")
+    for hist in extra_topics or []:
+        tnorm = str(hist or "").replace("/", "_")
+        add(f"{tnorm}_{cid}")
+        add(f"{tnorm}-{cid}")
+    return out
 
 
 def entity_id_slug(settings: Dict[str, Any], label: str) -> str:
