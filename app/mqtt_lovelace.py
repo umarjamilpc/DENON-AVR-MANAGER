@@ -191,6 +191,20 @@ _RC1189_SOUND_SHORTCUTS: Tuple[Tuple[str, str, str], ...] = (
 )
 
 
+def _remote_heading(title: str) -> Dict[str, Any]:
+    """Section label like the physical RC-1189 face plate."""
+    return {
+        "type": "markdown",
+        "content": f"<center>—— **{title}** ——</center>",
+    }
+
+
+def _section_block(heading: str, card: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not card:
+        return []
+    return [_remote_heading(heading), card]
+
+
 def _btn_grid(cards: List[Dict[str, Any]], columns: int, *, square: bool = True) -> Dict[str, Any]:
     return {
         "type": "grid",
@@ -280,23 +294,72 @@ def _icon_btn(
     return card
 
 
-def _input_faceplate(source_entity: Optional[str]) -> Optional[Dict[str, Any]]:
+def _input_faceplate_grid(
+    source_entity: Optional[str],
+    ch_up: Optional[str],
+    ch_down: Optional[str],
+    page_up: Optional[str],
+    page_down: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """3×4 inputs with CHANNEL / PAGE rail — single 4-column grid (fixes 50/50 split)."""
     if not source_entity:
         return None
-    buttons = _compact_cards(
-        [
-            _icon_btn(
-                source_entity,
-                icon,
-                name=short,
-                option=option,
-            )
-            for short, option, icon in _RC1189_INPUT_GRID
-        ]
-    )
-    if not buttons:
+    side = [
+        _icon_btn(ch_up, "mdi:plus", name="CH+"),
+        _icon_btn(ch_down, "mdi:minus", name="CH−"),
+        _icon_btn(page_up, "mdi:chevron-up", name="PG▲"),
+        _icon_btn(page_down, "mdi:chevron-down", name="PG▼"),
+    ]
+    cards: List[Optional[Dict[str, Any]]] = []
+    for row in range(4):
+        for short, option, icon in _RC1189_INPUT_GRID[row * 3 : row * 3 + 3]:
+            cards.append(_icon_btn(source_entity, icon, name=short, option=option))
+        cards.append(side[row] if row < len(side) else None)
+    compact = _compact_cards(cards)
+    if not compact:
         return None
-    return _btn_grid(buttons, 3, square=True)
+    return _btn_grid(compact, 4, square=True)
+
+
+def _nav_volume_grid(
+    *,
+    info: Optional[str],
+    up: Optional[str],
+    option: Optional[str],
+    left: Optional[str],
+    enter: Optional[str],
+    right: Optional[str],
+    back: Optional[str],
+    down: Optional[str],
+    setup: Optional[str],
+    vol_btns: List[Dict[str, Any]],
+    mute: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """3×3 D-pad with volume rocker in a 4th column — single grid."""
+    vol_up = vol_btns[0] if len(vol_btns) > 0 else None
+    vol_down = vol_btns[1] if len(vol_btns) > 1 else None
+    mute_btn = _entity_icon_btn(mute, "mdi:volume-mute", name="MUTE", toggle=True)
+    for btn in (vol_up, vol_down, mute_btn):
+        if btn:
+            btn["show_name"] = False
+    cells: List[Optional[Dict[str, Any]]] = [
+        _icon_btn(info, "mdi:information-outline", name="INFO"),
+        _icon_btn(up, "mdi:chevron-up"),
+        _icon_btn(option, "mdi:tune-variant", name="OPT"),
+        vol_up,
+        _icon_btn(left, "mdi:chevron-left"),
+        _icon_btn(enter, "mdi:circle-outline", name="OK"),
+        _icon_btn(right, "mdi:chevron-right"),
+        vol_down,
+        _icon_btn(back, "mdi:arrow-left", name="BACK"),
+        _icon_btn(down, "mdi:chevron-down"),
+        _icon_btn(setup, "mdi:cog", name="SETUP"),
+        mute_btn,
+    ]
+    compact = _compact_cards(cells)
+    if not compact:
+        return None
+    return _btn_grid(compact, 4, square=True)
 
 
 def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
@@ -338,52 +401,45 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
     cards: List[Dict[str, Any]] = [
         {
             "type": "markdown",
-            "content": "<center>RC-1189</center>",
+            "content": "<center><strong>RC-1189</strong></center>",
         }
     ]
 
-    # --- 1. Top: Zone 2 + ECO + Power (physical top row) ---
-    top = _compact_cards(
+    # --- ZONE 2 · ECO · POWER (physical top band) ---
+    zone_row = _compact_cards(
         [
-            _entity_icon_btn(z2pwr, "mdi:home-sound-in", name="Z2", toggle=True),
+            _entity_icon_btn(z2pwr, "mdi:power", name="Z2", toggle=True),
             _icon_btn(z2vol, "mdi:chevron-up", increment=True),
             _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
-            _entity_icon_btn(z2src, "mdi:export-variant", name="Z2"),
+            _entity_icon_btn(z2src, "mdi:import", name="SRC"),
             _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
             _entity_icon_btn(power, "mdi:power", name="PWR", toggle=True),
         ]
     )
-    if top:
-        cards.append(_btn_grid(top, 6, square=True))
+    if zone_row:
+        cards.extend(_section_block("ZONE 2", _btn_grid(zone_row, 6, square=True)))
 
-    # --- 2. Source + Sleep row ---
+    # --- SOURCE · VOLUME · SLEEP (compact row — not half-screen tiles) ---
+    vol_btns_main = _vol_buttons_from_actions(volume, vol_up, vol_down)
+    for btn in vol_btns_main:
+        btn["show_name"] = False
     src_row = _compact_cards(
         [
             _entity_icon_btn(source, "mdi:audio-input-hdmi", name="SOURCE"),
+            vol_btns_main[0] if len(vol_btns_main) > 0 else None,
+            vol_btns_main[1] if len(vol_btns_main) > 1 else None,
             _entity_icon_btn(sleep, "mdi:sleep", name="SLEEP"),
         ]
     )
     if src_row:
-        cards.append(_btn_grid(src_row, 2, square=False))
+        cards.append(_btn_grid(src_row, 4, square=True))
 
-    # --- 3. Input grid (3×4) + Channel / Page rail on the right ---
-    input_grid = _input_faceplate(source)
-    side_rail = _vstack(
-        [
-            _icon_btn(ch_up, "mdi:plus", name="CH"),
-            _icon_btn(ch_down, "mdi:minus"),
-            _icon_btn(page_up, "mdi:chevron-up-box", name="PG"),
-            _icon_btn(page_down, "mdi:chevron-down-box"),
-        ]
-    )
-    if input_grid and side_rail:
-        cards.append(
-            _hstack([input_grid, side_rail]) or input_grid
-        )
-    elif input_grid:
-        cards.append(input_grid)
+    # --- INPUT SELECT + CHANNEL / PAGE ---
+    input_grid = _input_faceplate_grid(source, ch_up, ch_down, page_up, page_down)
+    if input_grid:
+        cards.extend(_section_block("INPUT SELECT", input_grid))
 
-    # --- 4. Sound mode: MOVIE · MUSIC · GAME · PURE ---
+    # --- SOUND MODE ---
     sound_btns = _compact_cards(
         [
             _icon_btn(sound, icon, name=label, option=option)
@@ -391,52 +447,39 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         ]
     )
     if sound_btns:
-        cards.append(_btn_grid(sound_btns, 4, square=True))
+        cards.extend(_section_block("SOUND MODE", _btn_grid(sound_btns, 4, square=True)))
 
-    # --- 5. Navigation (3×3) + main volume rocker on the right ---
-    nav = _btn_grid(
-        _compact_cards(
-            [
-                _icon_btn(info, "mdi:information-outline", name="INFO"),
-                _icon_btn(up, "mdi:chevron-up"),
-                _icon_btn(option, "mdi:tune-variant", name="OPT"),
-                _icon_btn(left, "mdi:chevron-left"),
-                _icon_btn(enter, "mdi:circle-outline", name="OK"),
-                _icon_btn(right, "mdi:chevron-right"),
-                _icon_btn(back, "mdi:arrow-left", name="BACK"),
-                _icon_btn(down, "mdi:chevron-down"),
-                _icon_btn(setup, "mdi:cog", name="SETUP"),
-            ]
-        ),
-        3,
-        square=True,
+    # --- MENU + VOLUME (single 4×3 grid) ---
+    vol_rocker = _vol_buttons_from_actions(volume, vol_up, vol_down)
+    nav_vol = _nav_volume_grid(
+        info=info,
+        up=up,
+        option=option,
+        left=left,
+        enter=enter,
+        right=right,
+        back=back,
+        down=down,
+        setup=setup,
+        vol_btns=vol_rocker,
+        mute=mute,
     )
-    vol_btns = _vol_buttons_from_actions(volume, vol_up, vol_down)
-    for btn in vol_btns:
-        btn["show_name"] = False
-    vol_rocker = _vstack(
-        [
-            *vol_btns,
-            _entity_icon_btn(mute, "mdi:volume-mute", toggle=True),
-        ]
-    )
-    nav_vol = _hstack([nav, vol_rocker])
     if nav_vol:
-        cards.append(nav_vol)
+        cards.extend(_section_block("MENU", nav_vol))
 
-    # --- 6. Transport: TUNE− · Play · Pause · TUNE+ · Mute ---
+    # --- PLAYBACK ---
     transport = _compact_cards(
         [
-            _icon_btn(skip_minus, "mdi:skip-previous"),
+            _icon_btn(skip_minus, "mdi:skip-previous", name="TUNE−"),
             _icon_btn(play, "mdi:play"),
             _icon_btn(pause, "mdi:pause"),
-            _icon_btn(skip_plus, "mdi:skip-next"),
+            _icon_btn(skip_plus, "mdi:skip-next", name="TUNE+"),
         ]
     )
     if transport:
-        cards.append(_btn_grid(transport, 4, square=True))
+        cards.extend(_section_block("PLAYBACK", _btn_grid(transport, 4, square=True)))
 
-    # --- 7. Quick Select 1–4 ---
+    # --- QUICK SELECT ---
     quick = _compact_cards(
         [
             _icon_btn(quick1, "mdi:numeric-1-circle-outline", name="1"),
@@ -446,7 +489,7 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         ]
     )
     if quick:
-        cards.append(_btn_grid(quick, 4, square=True))
+        cards.extend(_section_block("QUICK SELECT", _btn_grid(quick, 4, square=True)))
 
     return {"type": "vertical-stack", "cards": cards}
 
@@ -458,8 +501,20 @@ def _rc1189_stack(refs: Dict[str, str], columns: int = 3) -> Dict[str, Any]:
 
 
 def _responsive_remote(refs: Dict[str, str]) -> Dict[str, Any]:
-    """Centered compact remote on tablet/desktop; full-width on phone."""
+    """Phone: full width. Tablet/desktop: centered narrow remote column (~33% width)."""
     body = _rc1189_compact(refs)
+    narrow = {
+        "type": "grid",
+        "columns": 5,
+        "square": False,
+        "cards": [
+            {"type": "markdown", "content": " "},
+            {"type": "markdown", "content": " "},
+            body,
+            {"type": "markdown", "content": " "},
+            {"type": "markdown", "content": " "},
+        ],
+    }
     return {
         "type": "vertical-stack",
         "cards": [
@@ -471,16 +526,7 @@ def _responsive_remote(refs: Dict[str, str]) -> Dict[str, Any]:
             {
                 "type": "conditional",
                 "conditions": [{"condition": "screen", "media_query": "(min-width: 601px)"}],
-                "card": {
-                    "type": "grid",
-                    "columns": 3,
-                    "square": False,
-                    "cards": [
-                        {"type": "markdown", "content": " "},
-                        body,
-                        {"type": "markdown", "content": " "},
-                    ],
-                },
+                "card": narrow,
             },
         ],
     }
