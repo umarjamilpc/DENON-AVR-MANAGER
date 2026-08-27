@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -76,6 +76,36 @@ def _select(entity: Optional[str], name: str) -> Optional[Dict[str, Any]]:
     return {"type": "entities", "entities": [entity], "title": name, "show_header_toggle": False}
 
 
+def _section_title(title: str) -> Dict[str, Any]:
+    return {
+        "type": "markdown",
+        "content": f"**{title}**",
+    }
+
+
+def _compact_cards(cards: List[Optional[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    return [c for c in cards if c]
+
+
+def _service_button(
+    entity: Optional[str], name: str, service: str, icon: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    if not entity:
+        return None
+    card: Dict[str, Any] = {
+        "type": "button",
+        "name": name,
+        "tap_action": {
+            "action": "call-service",
+            "service": service,
+            "target": {"entity_id": entity},
+        },
+    }
+    if icon:
+        card["icon"] = icon
+    return card
+
+
 def _vol_buttons(volume_entity: Optional[str]) -> List[Dict[str, Any]]:
     if not volume_entity:
         return []
@@ -103,20 +133,22 @@ def _vol_buttons(volume_entity: Optional[str]) -> List[Dict[str, Any]]:
     ]
 
 
-def _section_title(title: str) -> Dict[str, Any]:
-    return {
-        "type": "markdown",
-        "content": f"**{title}**",
-    }
+def _vol_buttons_from_actions(
+    volume_set: Optional[str], volume_up: Optional[str], volume_down: Optional[str]
+) -> List[Dict[str, Any]]:
+    """Prefer discrete vol up/down buttons; fall back to number increment/decrement."""
+    if volume_up and volume_down:
+        return _compact_cards(
+            [
+                _service_button(volume_down, "Vol −", "button.press", "mdi:volume-minus"),
+                _service_button(volume_up, "Vol +", "button.press", "mdi:volume-plus"),
+            ]
+        )
+    return _vol_buttons(volume_set)
 
 
-def _compact_cards(cards: List[Optional[Dict[str, Any]]]) -> List[Dict[str, Any]]:
-    return [c for c in cards if c]
-
-
-
-def _service_button(
-    entity: Optional[str], name: str, service: str, icon: Optional[str] = None
+def _select_option_button(
+    entity: Optional[str], name: str, option: str, icon: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     if not entity:
         return None
@@ -125,8 +157,9 @@ def _service_button(
         "name": name,
         "tap_action": {
             "action": "call-service",
-            "service": service,
+            "service": "select.select_option",
             "target": {"entity_id": entity},
+            "data": {"option": option},
         },
     }
     if icon:
@@ -134,24 +167,114 @@ def _service_button(
     return card
 
 
+# Common RC-1189 face-plate input shortcuts (si_select options).
+_RC1189_INPUT_SHORTCUTS: Tuple[Tuple[str, str, Optional[str]], ...] = (
+    ("CBL/SAT", "CBL/SAT", "mdi:satellite-variant"),
+    ("DVD", "DVD", "mdi:disc"),
+    ("Blu-ray", "Blu-ray", "mdi:disc-player"),
+    ("Game", "Game", "mdi:gamepad-variant"),
+    ("Media Player", "Media Player", "mdi:play-network"),
+    ("Tuner", "Tuner", "mdi:radio"),
+    ("Bluetooth", "Bluetooth", "mdi:bluetooth"),
+    ("TV Audio", "TV Audio", "mdi:television"),
+    ("CD", "CD", "mdi:album"),
+)
+
+_RC1189_SOUND_SHORTCUTS: Tuple[Tuple[str, str, Optional[str]], ...] = (
+    ("Movie", "Movie", "mdi:movie-open"),
+    ("Music", "Music", "mdi:music"),
+    ("Game", "Game", "mdi:gamepad-variant"),
+    ("Pure", "Pure Direct", "mdi:headphones"),
+)
+
+
+def _input_shortcut_grid(source_entity: Optional[str], columns: int) -> Optional[Dict[str, Any]]:
+    if not source_entity:
+        return None
+    buttons = _compact_cards(
+        [
+            _select_option_button(source_entity, label, option, icon)
+            for label, option, icon in _RC1189_INPUT_SHORTCUTS
+        ]
+    )
+    if not buttons:
+        return None
+    return {
+        "type": "grid",
+        "columns": min(columns, 3),
+        "square": False,
+        "cards": buttons,
+    }
+
+
+def _sound_shortcut_row(sound_entity: Optional[str], columns: int) -> Optional[Dict[str, Any]]:
+    if not sound_entity:
+        return None
+    buttons = _compact_cards(
+        [
+            _select_option_button(sound_entity, label, option, icon)
+            for label, option, icon in _RC1189_SOUND_SHORTCUTS
+        ]
+    )
+    if not buttons:
+        return None
+    return {
+        "type": "grid",
+        "columns": min(columns, 4),
+        "square": False,
+        "cards": buttons,
+    }
+
+
+def _dpad_grid(
+    up: Optional[str],
+    down: Optional[str],
+    left: Optional[str],
+    right: Optional[str],
+    enter: Optional[str],
+    back: Optional[str],
+) -> List[Dict[str, Any]]:
+    """3×3 D-pad like the physical RC-1189."""
+    cards: List[Dict[str, Any]] = []
+    dpad = [
+        [None, _service_button(up, "▲", "button.press", "mdi:chevron-up"), None],
+        [
+            _service_button(left, "◀", "button.press", "mdi:chevron-left"),
+            _service_button(enter, "OK", "button.press", "mdi:circle-outline"),
+            _service_button(right, "▶", "button.press", "mdi:chevron-right"),
+        ],
+        [None, _service_button(down, "▼", "button.press", "mdi:chevron-down"), None],
+    ]
+    flat = _compact_cards([cell for row in dpad for cell in row])
+    if flat:
+        cards.append({"type": "grid", "columns": 3, "square": False, "cards": flat})
+    back_btn = _service_button(back, "Back", "button.press", "mdi:arrow-left")
+    if back_btn:
+        cards.append({"type": "horizontal-stack", "cards": [back_btn]})
+    return cards
+
+
 def _rc1189_stack(refs: Dict[str, str], columns: int) -> Dict[str, Any]:
-    """Build RC-1189 remote layout (top → bottom like the physical remote)."""
+    """Build RC-1189 remote layout (top → bottom per Denon manual)."""
     z2pwr = _pick(refs, "z2_power", "z2_on")
     z2vol = _pick(refs, "z2_vol")
     z2src = _pick(refs, "z2_input")
-    eco = _pick(refs, "eco_mode", "eco")
-    power = _pick(refs, "pw_power", "pw_on")
+    z2mute = _pick(refs, "z2_mute", "z2_mu_on")
     source = _pick(refs, "si_select")
-    sleep = _pick(refs, "slp_timer", "slp_set")
     sound = _pick(refs, "ms_select")
-    quick = _pick(refs, "ms_quick")
-    volume = _pick(refs, "mv_master")
+    eco = _pick(refs, "eco", "eco_mode")
+    power = _pick(refs, "pw_power", "pw_on")
+    sleep = _pick(refs, "slp_set", "slp_timer")
+    sleep_off = _pick(refs, "slp_off")
+    volume = _pick(refs, "mv_set", "mv_master")
+    vol_up = _pick(refs, "mv_up")
+    vol_down = _pick(refs, "mv_down")
     mute = _pick(refs, "mu_mute", "mu_on")
-    up = _pick(refs, "mn_mncup", "ns_ns90")
-    down = _pick(refs, "mn_mncdn", "ns_ns91")
-    left = _pick(refs, "mn_mnclt", "ns_ns92")
-    right = _pick(refs, "mn_mncrt", "ns_ns93")
-    enter = _pick(refs, "mn_mnent", "ns_ns94")
+    up = _pick(refs, "mn_mncup")
+    down = _pick(refs, "mn_mncdn")
+    left = _pick(refs, "mn_mnclt")
+    right = _pick(refs, "mn_mncrt")
+    enter = _pick(refs, "mn_mnent")
     back = _pick(refs, "mn_mnrtn")
     setup = _pick(refs, "mn_menu")
     info = _pick(refs, "mn_mninf")
@@ -160,123 +283,184 @@ def _rc1189_stack(refs: Dict[str, str], columns: int) -> Dict[str, Any]:
     page_down = _pick(refs, "ns_ns9y")
     play = _pick(refs, "ns_ns9a")
     pause = _pick(refs, "ns_ns9b")
+    stop = _pick(refs, "ns_ns9c")
     skip_minus = _pick(refs, "ns_ns9e")
     skip_plus = _pick(refs, "ns_ns9d")
     tuner_band = _pick(refs, "tm_band")
-    tune = _pick(refs, "tf_tune")
-    preset = _pick(refs, "tp_preset")
+    tune_up = _pick(refs, "tf_up")
+    tune_down = _pick(refs, "tf_down")
+    ch_up = _pick(refs, "tp_up", "tp_preset")
+    ch_down = _pick(refs, "tp_down")
+    quick1 = _pick(refs, "quick_1")
+    quick2 = _pick(refs, "quick_2")
+    quick3 = _pick(refs, "quick_3")
+    quick4 = _pick(refs, "quick_4")
+    dimmer = _pick(refs, "dim", "dimmer")
 
-    cards: List[Dict[str, Any]] = [_section_title("Denon RC-1189")]
+    cards: List[Dict[str, Any]] = [
+        {
+            "type": "markdown",
+            "content": "**Denon RC-1189** — virtual remote ([manual layout](https://manuals.denon.com/avrx1100w/na/en/IEDGSYlqpoeuve.php))",
+        }
+    ]
 
+    # --- Top: Zone 2 (manual fig. RC1189) ---
     z2_row = _compact_cards(
         [
             _tile(z2pwr, "Zone 2", "mdi:home-sound-in"),
-            _entity_row(z2vol, "Z2 vol"),
+            _entity_row(z2vol, "Z2 volume"),
             _select(z2src, "Z2 source"),
+            _tile(z2mute, "Z2 mute", "mdi:volume-mute"),
         ]
     )
     if z2_row:
+        cards.append(_section_title("Zone 2"))
         cards.append(
-            {"type": "grid", "columns": min(columns, 3), "square": False, "cards": z2_row}
+            {"type": "grid", "columns": min(columns, 2), "square": False, "cards": z2_row}
         )
 
-    top = _compact_cards(
-        [
-            _tile(eco, "ECO", "mdi:leaf"),
-            _tile(power, "Power", "mdi:power"),
-            _select(source, "Source"),
-            _entity_row(sleep, "Sleep"),
-        ]
-    )
-    if top:
-        cards.append({"type": "grid", "columns": min(columns, 2), "square": False, "cards": top})
+    # --- Input source grid (face-plate buttons) ---
+    input_grid = _input_shortcut_grid(source, columns)
+    if input_grid:
+        cards.append(_section_title("Input sources"))
+        cards.append(input_grid)
+    if source:
+        cards.append(_select(source, "All inputs"))
 
-    if sound:
-        cards.append(_select(sound, "Sound mode (Movie / Music / Game / Pure)"))
+    # --- Sound mode shortcuts: MOVIE / MUSIC / GAME / PURE ---
+    sound_row = _sound_shortcut_row(sound, columns)
+    if sound_row:
+        cards.append(_section_title("Sound mode"))
+        cards.append(sound_row)
+    elif sound:
+        cards.append(_select(sound, "Sound mode"))
 
-    osd = _compact_cards(
+    # --- INFO + OPTION (above D-pad on remote) ---
+    osd_top = _compact_cards(
         [
             _service_button(info, "Info", "button.press", "mdi:information-outline"),
             _service_button(option, "Option", "button.press", "mdi:tune-variant"),
-            _service_button(back, "Back", "button.press", "mdi:arrow-left"),
-            _service_button(setup, "Setup", "button.press", "mdi:cog"),
         ]
     )
-    dpad = _compact_cards(
-        [
-            _service_button(up, "▲", "button.press", "mdi:chevron-up"),
-            _service_button(down, "▼", "button.press", "mdi:chevron-down"),
-            _service_button(left, "◀", "button.press", "mdi:chevron-left"),
-            _service_button(right, "▶", "button.press", "mdi:chevron-right"),
-            _service_button(enter, "Enter", "button.press", "mdi:checkbox-blank-circle-outline"),
-        ]
-    )
-    if osd or dpad:
-        cards.append(_section_title("Navigation"))
-        if osd:
-            cards.append(
-                {"type": "grid", "columns": min(columns, 4), "square": False, "cards": osd}
-            )
-        if dpad:
-            cards.append(
-                {"type": "grid", "columns": min(columns, 3), "square": False, "cards": dpad}
-            )
+    if osd_top:
+        cards.append(_section_title("On-screen"))
+        cards.append(
+            {"type": "horizontal-stack", "cards": osd_top}
+        )
 
-    vol_row = _compact_cards([*_vol_buttons(volume), _tile(mute, "Mute", "mdi:volume-mute")])
-    if vol_row:
-        cards.append(_section_title("Volume"))
-        cards.append({"type": "horizontal-stack", "cards": vol_row})
-        if volume:
-            cards.append(_entity_row(volume, "Master volume"))
+    # --- D-pad + BACK ---
+    dpad_cards = _dpad_grid(up, down, left, right, enter, back)
+    if dpad_cards:
+        cards.append(_section_title("Menu navigation"))
+        cards.extend(dpad_cards)
 
+    # --- Media transport |◀ ▶⏸ ▶| ---
     transport = _compact_cards(
         [
             _service_button(skip_minus, "TUNE −", "button.press", "mdi:skip-previous"),
             _service_button(play, "Play", "button.press", "mdi:play"),
             _service_button(pause, "Pause", "button.press", "mdi:pause"),
+            _service_button(stop, "Stop", "button.press", "mdi:stop"),
             _service_button(skip_plus, "TUNE +", "button.press", "mdi:skip-next"),
         ]
     )
     if transport:
-        cards.append(_section_title("Media / Tuner"))
+        cards.append(_section_title("Media / tuner transport"))
         cards.append(
-            {"type": "grid", "columns": min(columns, 4), "square": False, "cards": transport}
+            {"type": "grid", "columns": min(columns, 5), "square": False, "cards": transport}
         )
 
+    # --- Quick Select 1–4 ---
+    quick_row = _compact_cards(
+        [
+            _service_button(quick1, "Quick 1", "button.press", "mdi:numeric-1-box"),
+            _service_button(quick2, "Quick 2", "button.press", "mdi:numeric-2-box"),
+            _service_button(quick3, "Quick 3", "button.press", "mdi:numeric-3-box"),
+            _service_button(quick4, "Quick 4", "button.press", "mdi:numeric-4-box"),
+        ]
+    )
+    if quick_row:
+        cards.append(_section_title("Quick select"))
+        cards.append(
+            {"type": "grid", "columns": min(columns, 4), "square": False, "cards": quick_row}
+        )
+
+    # --- ECO · POWER · SLEEP · CHANNEL · PAGE (middle band) ---
+    mid_band = _compact_cards(
+        [
+            _tile(eco, "ECO", "mdi:leaf"),
+            _tile(power, "Power", "mdi:power"),
+            _entity_row(sleep, "Sleep"),
+            _service_button(sleep_off, "Sleep off", "button.press", "mdi:sleep-off"),
+            _service_button(ch_up, "Ch +", "button.press", "mdi:chevron-up"),
+            _service_button(ch_down, "Ch −", "button.press", "mdi:chevron-down"),
+            _service_button(page_up, "Page ▲", "button.press", "mdi:chevron-up-box"),
+            _service_button(page_down, "Page ▼", "button.press", "mdi:chevron-down-box"),
+        ]
+    )
+    if mid_band:
+        cards.append(_section_title("Power & presets"))
+        cards.append(
+            {"type": "grid", "columns": min(columns, 4), "square": False, "cards": mid_band}
+        )
+
+    # --- Tuner detail row ---
     tuner = _compact_cards(
         [
-            _select(tuner_band, "Band"),
-            _entity_row(tune, "Tune"),
-            _entity_row(preset, "Preset / Channel"),
+            _select(tuner_band, "Band AM/FM"),
+            _service_button(tune_up, "Tune +", "button.press", "mdi:chevron-up"),
+            _service_button(tune_down, "Tune −", "button.press", "mdi:chevron-down"),
         ]
     )
     if tuner:
+        cards.append(_section_title("Tuner"))
         cards.append({"type": "horizontal-stack", "cards": tuner})
 
-    page_row = _compact_cards(
+    # --- Bottom: VOLUME + SETUP + MUTE (manual fig. RC1189b) ---
+    vol_row = _vol_buttons_from_actions(volume, vol_up, vol_down)
+    bottom = _compact_cards(
         [
-            _service_button(page_up, "Page ▲", "button.press", "mdi:chevron-up"),
-            _service_button(page_down, "Page ▼", "button.press", "mdi:chevron-down"),
+            *vol_row,
+            _service_button(setup, "Setup", "button.press", "mdi:cog"),
+            _tile(mute, "Mute", "mdi:volume-mute"),
+            _entity_row(dimmer, "Dimmer"),
         ]
     )
-    if page_row:
-        cards.append({"type": "horizontal-stack", "cards": page_row})
-
-    if quick:
-        cards.append(_select(quick, "Quick select 1–4"))
+    if bottom:
+        cards.append(_section_title("Volume & setup"))
+        cards.append({"type": "grid", "columns": min(columns, 3), "square": False, "cards": bottom})
+        if volume:
+            cards.append(_entity_row(volume, "Master volume"))
 
     return {"type": "vertical-stack", "cards": cards}
 
 
+def _remote_panel(card: Dict[str, Any]) -> Dict[str, Any]:
+    """Centered remote-shaped panel for tablet/desktop."""
+    return {
+        "type": "vertical-stack",
+        "cards": [
+            {
+                "type": "markdown",
+                "content": "<center> </center>",
+            },
+            card,
+        ],
+    }
+
+
 def _responsive_remote(refs: Dict[str, str]) -> Dict[str, Any]:
-    """Phone / tablet / desktop breakpoints using HA screen conditions."""
+    """Phone / tablet / desktop — single remote column on mobile, centered panel on wide screens."""
+    mobile = _rc1189_stack(refs, columns=2)
+    tablet = _rc1189_stack(refs, columns=3)
+    desktop = _remote_panel(_rc1189_stack(refs, columns=3))
     return {
         "type": "vertical-stack",
         "cards": [
             {
                 "type": "conditional",
                 "conditions": [{"condition": "screen", "media_query": "(max-width: 600px)"}],
-                "card": _rc1189_stack(refs, columns=1),
+                "card": mobile,
             },
             {
                 "type": "conditional",
@@ -286,20 +470,19 @@ def _responsive_remote(refs: Dict[str, str]) -> Dict[str, Any]:
                         "media_query": "(min-width: 601px) and (max-width: 1024px)",
                     }
                 ],
-                "card": _rc1189_stack(refs, columns=2),
+                "card": tablet,
             },
             {
                 "type": "conditional",
                 "conditions": [{"condition": "screen", "media_query": "(min-width: 1025px)"}],
                 "card": {
-                    "type": "horizontal-stack",
+                    "type": "grid",
+                    "columns": 3,
+                    "square": False,
                     "cards": [
-                        {"type": "markdown", "content": "&nbsp;"},
-                        {
-                            "type": "vertical-stack",
-                            "cards": [_rc1189_stack(refs, columns=2)],
-                        },
-                        {"type": "markdown", "content": "&nbsp;"},
+                        {"type": "markdown", "content": " "},
+                        desktop,
+                        {"type": "markdown", "content": " "},
                     ],
                 },
             },
@@ -372,7 +555,7 @@ def _compact_card(refs: Dict[str, str]) -> Dict[str, Any]:
     """Compact top bar: power, mute, volume, source + media row."""
     power = _pick(refs, "pw_power", "pw_on")
     mute = _pick(refs, "mu_mute", "mu_on")
-    volume = _pick(refs, "mv_master")
+    volume = _pick(refs, "mv_set", "mv_master")
     source = _pick(refs, "si_select")
     sound = _pick(refs, "ms_select")
     play = _pick(refs, "ns_ns9a")
@@ -406,7 +589,7 @@ def _theater_card(refs: Dict[str, str], catalog_entities: List[Dict[str, Any]]) 
     """Theater mode — hero controls + section cards below."""
     power = _pick(refs, "pw_power", "pw_on")
     mute = _pick(refs, "mu_mute", "mu_on")
-    volume = _pick(refs, "mv_master")
+    volume = _pick(refs, "mv_set", "mv_master")
     source = _pick(refs, "si_select")
     hero = _compact_cards(
         [
@@ -475,8 +658,10 @@ def build_lovelace_card(
         "note": (
             "Paste into a new dashboard YAML file (Settings → Dashboards → Add dashboard → "
             "New from YAML) or merge the views: entry into an existing lovelace YAML. "
-            "Entity IDs match Home Assistant MQTT discovery (topic slug + control label, "
-            "e.g. switch.denon_avr_x1200w_power). Responsive layout uses HA screen conditions."
+            "RC-1189 style follows the official Denon remote layout (top: Zone 2 & inputs, "
+            "middle: D-pad & transport, bottom: volume & setup). "
+            "Entity IDs match Home Assistant MQTT discovery (topic slug + control label). "
+            "Responsive layout uses HA screen conditions: 1-col phone, 3-col tablet, centered desktop."
         ),
     }
 
