@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-from .mqtt_ha_naming import build_ha_entity_id_map
+from .mqtt_ha_naming import build_publish_entity_id_map
 
 _HA_COMPONENT = {
     "toggle": "switch",
@@ -35,14 +35,14 @@ def ha_entity_id(settings: Dict[str, Any], control_id: str, component: str) -> s
 def build_entity_refs(
     settings: Dict[str, Any], catalog_entities: List[Dict[str, Any]]
 ) -> Dict[str, str]:
-    # Use full catalog order for collision suffixes (_2, _3) matching HA discovery.
-    id_map = build_ha_entity_id_map(settings, catalog_entities)
+    # Match MQTT discovery: enabled controls only (same order as publish).
+    id_map = build_publish_entity_id_map(settings, catalog_entities)
     refs: Dict[str, str] = {}
     for ent in catalog_entities:
         if not ent.get("enabled"):
             continue
         cid = str(ent.get("id") or "")
-        eid = id_map.get(cid)
+        eid = str(ent.get("ha_entity_id") or id_map.get(cid) or "")
         if cid and eid:
             refs[cid] = eid
     return refs
@@ -94,6 +94,7 @@ def _service_button(
         return None
     card: Dict[str, Any] = {
         "type": "button",
+        "entity": entity,
         "name": name,
         "tap_action": {
             "action": "call-service",
@@ -291,6 +292,13 @@ def _icon_btn(
         "show_name": bool(name),
         "tap_action": tap,
     }
+    if (
+        service == "button.press"
+        and option is None
+        and not increment
+        and not decrement
+    ):
+        card["entity"] = entity
     return card
 
 

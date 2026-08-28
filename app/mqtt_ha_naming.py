@@ -102,6 +102,13 @@ def default_entity_id(
     return f"{component}.{candidate}"
 
 
+def _control_component(control: Dict[str, Any]) -> str:
+    return str(
+        control.get("ha_component")
+        or _HA_COMPONENT.get(str(control.get("kind") or ""), "")
+    )
+
+
 def build_ha_entity_id_map(
     settings: Dict[str, Any],
     controls: Iterable[Dict[str, Any]],
@@ -118,10 +125,7 @@ def build_ha_entity_id_map(
         cid = str(control.get("id") or "")
         if not cid:
             continue
-        component = str(
-            control.get("ha_component")
-            or _HA_COMPONENT.get(str(control.get("kind") or ""), "")
-        )
+        component = _control_component(control)
         if not component:
             continue
         label = str(control.get("label") or cid)
@@ -129,6 +133,34 @@ def build_ha_entity_id_map(
             settings, component=component, label=label, used=used
         )
     return out
+
+
+def build_publish_entity_id_map(
+    settings: Dict[str, Any],
+    catalog_entities: Iterable[Dict[str, Any]],
+) -> Dict[str, str]:
+    """
+    Entity IDs for MQTT discovery / Lovelace — enabled controls only, catalog order.
+
+    Duplicate labels among disabled controls (e.g. network vs menu cursor) must not
+    shift IDs for enabled entities.
+    """
+    publish_controls: List[Dict[str, Any]] = []
+    for ent in catalog_entities:
+        if not ent.get("enabled"):
+            continue
+        cid = str(ent.get("id") or "")
+        component = _control_component(ent)
+        if not cid or not component:
+            continue
+        publish_controls.append(
+            {
+                "id": cid,
+                "label": str(ent.get("label") or cid),
+                "ha_component": component,
+            }
+        )
+    return build_ha_entity_id_map(settings, publish_controls)
 
 
 def ha_entity_id_for_control(
