@@ -137,15 +137,18 @@ def _vol_buttons(volume_entity: Optional[str]) -> List[Dict[str, Any]]:
 def _vol_buttons_from_actions(
     volume_set: Optional[str], volume_up: Optional[str], volume_down: Optional[str]
 ) -> List[Dict[str, Any]]:
-    """Prefer discrete vol up/down buttons; fall back to number increment/decrement."""
+    """Rocker order: up then down (physical VOLUME rocker, + on top)."""
     if volume_up and volume_down:
         return _compact_cards(
             [
-                _service_button(volume_down, "Vol −", "button.press", "mdi:volume-minus"),
                 _service_button(volume_up, "Vol +", "button.press", "mdi:volume-plus"),
+                _service_button(volume_down, "Vol −", "button.press", "mdi:volume-minus"),
             ]
         )
-    return _vol_buttons(volume_set)
+    up_down = _vol_buttons(volume_set)
+    if len(up_down) == 2:
+        return [up_down[1], up_down[0]]
+    return up_down
 
 
 def _select_option_button(
@@ -262,6 +265,7 @@ def _icon_btn(
     increment: bool = False,
     decrement: bool = False,
     toggle_entity: bool = False,
+    cycle: bool = False,
 ) -> Optional[Dict[str, Any]]:
     if not entity:
         return None
@@ -276,7 +280,10 @@ def _icon_btn(
             "tap_action": {"action": "toggle"},
         }
     tap: Dict[str, Any] = {"action": "call-service", "target": {"entity_id": entity}}
-    if option is not None:
+    if cycle:
+        tap["service"] = "select.select_next"
+        tap["data"] = {"cycle": True}
+    elif option is not None:
         tap["service"] = "select.select_option"
         tap["data"] = {"option": option}
     elif increment:
@@ -287,18 +294,12 @@ def _icon_btn(
         tap["service"] = service
     card: Dict[str, Any] = {
         "type": "button",
+        "entity": entity,
         "icon": icon,
         "name": name,
         "show_name": bool(name),
         "tap_action": tap,
     }
-    if (
-        service == "button.press"
-        and option is None
-        and not increment
-        and not decrement
-    ):
-        card["entity"] = entity
     return card
 
 
@@ -317,12 +318,16 @@ def _press_or_toggle_btn(
 
 
 def _setup_menu_btn(entity: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Setup Menu is a select entity — open menu with option On."""
+    """Setup Menu is a select (On/Off) — cycle so a second press closes it."""
     if not entity:
         return None
     if entity.startswith("select."):
-        return _icon_btn(entity, "mdi:cog", name="SETUP", option="On")
+        return _icon_btn(entity, "mdi:cog", name="SETUP", cycle=True)
     return _icon_btn(entity, "mdi:cog", name="SETUP")
+
+
+def _spacer() -> Dict[str, Any]:
+    return {"type": "markdown", "content": "&nbsp;"}
 
 
 def _input_faceplate_grid(
@@ -397,6 +402,7 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
     """Compact RC-1189 layout matching the physical remote (top → bottom)."""
     z2pwr = _pick(refs, "z2_power", "z2_on")
     z2vol = _pick(refs, "z2_vol")
+    z2src = _pick(refs, "z2_input")
     source = _pick(refs, "si_select")
     sound = _pick(refs, "ms_select")
     eco = _pick(refs, "eco", "eco_mode")
@@ -435,36 +441,26 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         }
     ]
 
-    # --- ZONE 2 — power + volume only (RC-1189 top-left; no Z2 source button) ---
-    zone2 = _compact_cards(
-        [
-            _press_or_toggle_btn(z2pwr, "mdi:power", name="Z2"),
-            _icon_btn(z2vol, "mdi:chevron-up", increment=True),
-            _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
-        ]
-    )
-    if zone2:
-        cards.extend(_section_block("ZONE 2", _btn_grid(zone2, 3, square=True)))
-
-    # --- ECO + MAIN POWER (RC-1189 top-right) ---
-    power_band = _compact_cards(
-        [
-            _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
-            _press_or_toggle_btn(power, "mdi:power", name="PWR"),
-        ]
-    )
-    if power_band:
-        cards.extend(_section_block("POWER", _btn_grid(power_band, 2, square=True)))
-
-    # --- SOURCE + SLEEP (main zone — volume only on MENU rocker, not duplicated here) ---
-    main_row = _compact_cards(
-        [
-            _entity_icon_btn(source, "mdi:audio-input-hdmi", name="SOURCE"),
-            _entity_icon_btn(sleep, "mdi:sleep", name="SLEEP"),
-        ]
-    )
-    if main_row:
-        cards.append(_btn_grid(main_row, 2, square=True))
+    # --- ZONE 2 | POWER (side-by-side like physical RC-1189 top) ---
+    # Row 1: Z2 ⏻ · Z2 vol ▲ · ECO · PWR
+    # Row 2: Z2 SOURCE · Z2 vol ▼ · (spacer) · SLEEP
+    top_cells = [
+        _press_or_toggle_btn(z2pwr, "mdi:power", name="Z2"),
+        _icon_btn(z2vol, "mdi:chevron-up", increment=True),
+        _icon_btn(eco, "mdi:leaf", name="ECO", cycle=True)
+        if eco and eco.startswith("select.")
+        else _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
+        _press_or_toggle_btn(power, "mdi:power", name="PWR"),
+        _icon_btn(z2src, "mdi:import", name="SOURCE", cycle=True)
+        if z2src and z2src.startswith("select.")
+        else _entity_icon_btn(z2src, "mdi:import", name="SOURCE"),
+        _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
+        None,
+        _entity_icon_btn(sleep, "mdi:sleep", name="SLEEP"),
+    ]
+    if any(top_cells):
+        filled = [c if c else _spacer() for c in top_cells]
+        cards.extend(_section_block("ZONE 2 · POWER", _btn_grid(filled, 4, square=True)))
 
     # --- INPUT SELECT + CHANNEL / PAGE ---
     input_grid = _input_faceplate_grid(source, ch_up, ch_down, page_up, page_down)
@@ -682,11 +678,29 @@ def _theater_card(refs: Dict[str, str], catalog_entities: List[Dict[str, Any]]) 
 
 
 LOVELACE_STYLE_META = {
-    "rc1189": {"label": "RC-1189 remote", "path": "denon-rc1189"},
-    "grid": {"label": "Entity grid", "path": "denon-grid"},
-    "sections": {"label": "Section cards", "path": "denon-sections"},
-    "compact": {"label": "Compact bar", "path": "denon-compact"},
-    "theater": {"label": "Theater mode", "path": "denon-theater"},
+    "rc1189": {
+        "label": "RC-1189 remote",
+        "path": "denon-rc1189",
+        "view_type": "panel",
+        "note": (
+            "Panel dashboard: phone full-width, desktop centered. "
+            "SOURCE under ZONE 2 cycles Zone 2 input. SETUP cycles On/Off. "
+            "Skip buttons use skip_next / skip_previous (re-sync MQTT if HA still has skip_2)."
+        ),
+    },
+    "rc1189_card": {
+        "label": "RC-1189 card (masonry)",
+        "path": "denon-rc1189-card",
+        "view_type": "masonry",
+        "note": (
+            "Masonry / card dashboard — paste as a single view or drop the card into an existing "
+            "dashboard. Same physical layout as RC-1189 panel, without the centered desktop wrapper."
+        ),
+    },
+    "grid": {"label": "Entity grid", "path": "denon-grid", "view_type": "panel"},
+    "sections": {"label": "Section cards", "path": "denon-sections", "view_type": "panel"},
+    "compact": {"label": "Compact bar", "path": "denon-compact", "view_type": "panel"},
+    "theater": {"label": "Theater mode", "path": "denon-theater", "view_type": "panel"},
 }
 
 
@@ -706,14 +720,17 @@ def build_lovelace_card(
         card = _compact_card(refs)
     elif style == "theater":
         card = _theater_card(refs, catalog_entities)
+    elif style == "rc1189_card":
+        card = _rc1189_compact(refs)
     else:
         card = _responsive_remote(refs)
     title = f"{device} — {meta['label']}"
+    view_type = str(meta.get("view_type") or "panel")
 
     view = {
         "title": title,
         "path": meta["path"],
-        "type": "panel",
+        "type": view_type,
         "cards": [card],
     }
     entities_used = sorted(refs.values())
@@ -723,20 +740,20 @@ def build_lovelace_card(
         allow_unicode=True,
         default_flow_style=False,
     )
+    default_note = (
+        "Paste into a new dashboard YAML file (Settings → Dashboards → Add dashboard → "
+        "New from YAML) or merge the views: entry into an existing lovelace YAML. "
+        "RC-1189 style mirrors the physical remote: Zone 2 and Power side by side, "
+        "3×4 input grid, D-pad with volume rocker, transport, and quick-select. "
+        "Entity IDs match Home Assistant MQTT discovery (topic slug + control label)."
+    )
     return {
         "title": title,
         "style": style,
         "entities_used": entities_used,
         "entity_count": len(entities_used),
         "yaml": yaml_text,
-        "note": (
-            "Paste into a new dashboard YAML file (Settings → Dashboards → Add dashboard → "
-            "New from YAML) or merge the views: entry into an existing lovelace YAML. "
-            "RC-1189 style mirrors the physical remote: compact icon buttons, 3×4 input grid, "
-            "3×3 D-pad with volume rocker, transport, and quick-select row. "
-            "Entity IDs match Home Assistant MQTT discovery (topic slug + control label). "
-            "Wide screens center the remote in a narrow column."
-        ),
+        "note": str(meta.get("note") or default_note),
     }
 
 

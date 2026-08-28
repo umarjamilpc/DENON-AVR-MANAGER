@@ -103,13 +103,14 @@ def default_entity_id(
 
 
 # Distinct MQTT discovery names when catalog labels slug to the same entity_id.
+# Skip + / Skip − both become "skip" after slugify (punctuation is stripped).
 _DISCOVERY_LABEL_OVERRIDES: Dict[str, str] = {
     "ns_ns90": "Network Cursor Up",
     "ns_ns91": "Network Cursor Down",
     "ns_ns92": "Network Cursor Left",
     "ns_ns93": "Network Cursor Right",
-    "ns_ns9d": "Media Skip +",
-    "ns_ns9e": "Media Skip -",
+    "ns_ns9d": "Skip Next",
+    "ns_ns9e": "Skip Previous",
 }
 
 

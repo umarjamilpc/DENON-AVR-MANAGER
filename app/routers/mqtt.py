@@ -514,7 +514,9 @@ def _mqtt_ha_config_response(settings: Dict[str, Any], format: str) -> Any:
     return payload
 
 
-LOVELACE_STYLES = frozenset({"rc1189", "grid", "sections", "compact", "theater"})
+LOVELACE_STYLES = frozenset(
+    {"rc1189", "rc1189_card", "grid", "sections", "compact", "theater"}
+)
 
 
 @router.get("/mqtt/lovelace")
