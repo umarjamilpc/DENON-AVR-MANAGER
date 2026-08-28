@@ -330,6 +330,92 @@ def _spacer() -> Dict[str, Any]:
     return {"type": "markdown", "content": "&nbsp;"}
 
 
+def _play_pause_btn(
+    play_entity: Optional[str], pause_entity: Optional[str]
+) -> Optional[Dict[str, Any]]:
+    """Single play/pause face button — tap play, hold pause (RC-1189)."""
+    if not play_entity:
+        return None
+    card: Dict[str, Any] = {
+        "type": "button",
+        "entity": play_entity,
+        "icon": "mdi:play-pause",
+        "name": "",
+        "show_name": False,
+        "tap_action": {
+            "action": "call-service",
+            "service": "button.press",
+            "target": {"entity_id": play_entity},
+        },
+    }
+    if pause_entity:
+        card["hold_action"] = {
+            "action": "call-service",
+            "service": "button.press",
+            "target": {"entity_id": pause_entity},
+        }
+    return card
+
+
+def _top_band(
+    *,
+    z2pwr: Optional[str],
+    z2vol: Optional[str],
+    z2src: Optional[str],
+    eco: Optional[str],
+    power: Optional[str],
+    sleep: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """ZONE 2 (left) and POWER (right) columns side-by-side per RC-1189 diagram."""
+    zone2 = _vstack(
+        [
+            _remote_heading("ZONE 2"),
+            _btn_grid(_compact_cards([_press_or_toggle_btn(z2pwr, "mdi:power", name="Z2")]), 1),
+            _btn_grid(
+                _compact_cards(
+                    [
+                        _icon_btn(z2vol, "mdi:chevron-up", increment=True),
+                        _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
+                    ]
+                ),
+                2,
+            ),
+            _btn_grid(
+                _compact_cards(
+                    [
+                        _icon_btn(z2src, "mdi:import", name="SOURCE", cycle=True)
+                        if z2src and z2src.startswith("select.")
+                        else _entity_icon_btn(z2src, "mdi:import", name="SOURCE"),
+                    ]
+                ),
+                1,
+            ),
+        ]
+    )
+    power_col = _vstack(
+        [
+            _remote_heading("POWER"),
+            _btn_grid(
+                _compact_cards(
+                    [
+                        _icon_btn(eco, "mdi:leaf", name="ECO", cycle=True)
+                        if eco and eco.startswith("select.")
+                        else _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
+                        _press_or_toggle_btn(power, "mdi:power", name="PWR"),
+                    ]
+                ),
+                2,
+            ),
+            _btn_grid(
+                _compact_cards([_entity_icon_btn(sleep, "mdi:sleep", name="SLEEP")]),
+                1,
+            ),
+        ]
+    )
+    band = _hstack([zone2, power_col])
+    return band
+
+
 def _input_faceplate_grid(
     source_entity: Optional[str],
     ch_up: Optional[str],
@@ -369,13 +455,11 @@ def _nav_volume_grid(
     down: Optional[str],
     setup: Optional[str],
     vol_btns: List[Dict[str, Any]],
-    mute: Optional[str],
 ) -> Optional[Dict[str, Any]]:
-    """3×3 D-pad with volume rocker in a 4th column — single grid."""
+    """3×3 D-pad with volume rocker in a 4th column (mute on PLAYBACK row)."""
     vol_up = vol_btns[0] if len(vol_btns) > 0 else None
     vol_down = vol_btns[1] if len(vol_btns) > 1 else None
-    mute_btn = _entity_icon_btn(mute, "mdi:volume-mute", name="MUTE", toggle=True)
-    for btn in (vol_up, vol_down, mute_btn):
+    for btn in (vol_up, vol_down):
         if btn:
             btn["show_name"] = False
     cells: List[Optional[Dict[str, Any]]] = [
@@ -390,7 +474,7 @@ def _nav_volume_grid(
         _icon_btn(back, "mdi:arrow-left", name="BACK"),
         _icon_btn(down, "mdi:chevron-down"),
         _setup_menu_btn(setup),
-        mute_btn,
+        _spacer(),
     ]
     compact = _compact_cards(cells)
     if not compact:
@@ -441,26 +525,17 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         }
     ]
 
-    # --- ZONE 2 | POWER (side-by-side like physical RC-1189 top) ---
-    # Row 1: Z2 ⏻ · Z2 vol ▲ · ECO · PWR
-    # Row 2: Z2 SOURCE · Z2 vol ▼ · (spacer) · SLEEP
-    top_cells = [
-        _press_or_toggle_btn(z2pwr, "mdi:power", name="Z2"),
-        _icon_btn(z2vol, "mdi:chevron-up", increment=True),
-        _icon_btn(eco, "mdi:leaf", name="ECO", cycle=True)
-        if eco and eco.startswith("select.")
-        else _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
-        _press_or_toggle_btn(power, "mdi:power", name="PWR"),
-        _icon_btn(z2src, "mdi:import", name="SOURCE", cycle=True)
-        if z2src and z2src.startswith("select.")
-        else _entity_icon_btn(z2src, "mdi:import", name="SOURCE"),
-        _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
-        None,
-        _entity_icon_btn(sleep, "mdi:sleep", name="SLEEP"),
-    ]
-    if any(top_cells):
-        filled = [c if c else _spacer() for c in top_cells]
-        cards.extend(_section_block("ZONE 2 · POWER", _btn_grid(filled, 4, square=True)))
+    # --- ZONE 2 (left) | POWER (right) — physical RC-1189 top band ---
+    top_band = _top_band(
+        z2pwr=z2pwr,
+        z2vol=z2vol,
+        z2src=z2src,
+        eco=eco,
+        power=power,
+        sleep=sleep,
+    )
+    if top_band:
+        cards.append(top_band)
 
     # --- INPUT SELECT + CHANNEL / PAGE ---
     input_grid = _input_faceplate_grid(source, ch_up, ch_down, page_up, page_down)
@@ -490,18 +565,17 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         down=down,
         setup=setup,
         vol_btns=vol_rocker,
-        mute=mute,
     )
     if nav_vol:
         cards.extend(_section_block("MENU", nav_vol))
 
-    # --- PLAYBACK ---
+    # --- PLAYBACK: TUNE− · Play/Pause · TUNE+ · MUTE ---
     transport = _compact_cards(
         [
             _icon_btn(skip_minus, "mdi:skip-previous", name="TUNE−"),
-            _icon_btn(play, "mdi:play"),
-            _icon_btn(pause, "mdi:pause"),
+            _play_pause_btn(play, pause),
             _icon_btn(skip_plus, "mdi:skip-next", name="TUNE+"),
+            _entity_icon_btn(mute, "mdi:volume-mute", name="MUTE", toggle=True),
         ]
     )
     if transport:
@@ -685,7 +759,8 @@ LOVELACE_STYLE_META = {
         "note": (
             "Panel dashboard: phone full-width, desktop centered. "
             "SOURCE under ZONE 2 cycles Zone 2 input. SETUP cycles On/Off. "
-            "Skip buttons use skip_next / skip_previous (re-sync MQTT if HA still has skip_2)."
+            "Skip buttons map to skip / skip_2 entity IDs (catalog collision order). "
+            "Play/Pause: tap = play, hold = pause."
         ),
     },
     "rc1189_card": {
