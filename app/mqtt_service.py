@@ -631,7 +631,7 @@ class MqttBridge:
         component = _HA_COMPONENT.get(kind)
         if not component:
             return None
-        name = str(control.get("label") or cid)
+        name = discovery_label(cid, str(control.get("label") or cid))
         default_eid = entity_id_map.get(cid)
         cfg: Dict[str, Any] = {
             "name": name,

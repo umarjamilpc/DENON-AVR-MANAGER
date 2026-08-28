@@ -302,6 +302,29 @@ def _icon_btn(
     return card
 
 
+def _press_or_toggle_btn(
+    entity: Optional[str],
+    icon: str,
+    *,
+    name: str = "",
+) -> Optional[Dict[str, Any]]:
+    """Switch → toggle; button → press (matches HA entity domain)."""
+    if not entity:
+        return None
+    if entity.startswith("switch."):
+        return _entity_icon_btn(entity, icon, name=name, toggle=True)
+    return _icon_btn(entity, icon, name=name)
+
+
+def _setup_menu_btn(entity: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Setup Menu is a select entity — open menu with option On."""
+    if not entity:
+        return None
+    if entity.startswith("select."):
+        return _icon_btn(entity, "mdi:cog", name="SETUP", option="On")
+    return _icon_btn(entity, "mdi:cog", name="SETUP")
+
+
 def _input_faceplate_grid(
     source_entity: Optional[str],
     ch_up: Optional[str],
@@ -361,7 +384,7 @@ def _nav_volume_grid(
         vol_down,
         _icon_btn(back, "mdi:arrow-left", name="BACK"),
         _icon_btn(down, "mdi:chevron-down"),
-        _icon_btn(setup, "mdi:cog", name="SETUP"),
+        _setup_menu_btn(setup),
         mute_btn,
     ]
     compact = _compact_cards(cells)
@@ -374,7 +397,6 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
     """Compact RC-1189 layout matching the physical remote (top → bottom)."""
     z2pwr = _pick(refs, "z2_power", "z2_on")
     z2vol = _pick(refs, "z2_vol")
-    z2src = _pick(refs, "z2_input")
     source = _pick(refs, "si_select")
     sound = _pick(refs, "ms_select")
     eco = _pick(refs, "eco", "eco_mode")
@@ -413,34 +435,36 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         }
     ]
 
-    # --- ZONE 2 · ECO · POWER (physical top band) ---
-    zone_row = _compact_cards(
+    # --- ZONE 2 — power + volume only (RC-1189 top-left; no Z2 source button) ---
+    zone2 = _compact_cards(
         [
-            _entity_icon_btn(z2pwr, "mdi:power", name="Z2", toggle=True),
+            _press_or_toggle_btn(z2pwr, "mdi:power", name="Z2"),
             _icon_btn(z2vol, "mdi:chevron-up", increment=True),
             _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
-            _entity_icon_btn(z2src, "mdi:import", name="SRC"),
-            _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
-            _entity_icon_btn(power, "mdi:power", name="PWR", toggle=True),
         ]
     )
-    if zone_row:
-        cards.extend(_section_block("ZONE 2", _btn_grid(zone_row, 6, square=True)))
+    if zone2:
+        cards.extend(_section_block("ZONE 2", _btn_grid(zone2, 3, square=True)))
 
-    # --- SOURCE · VOLUME · SLEEP (compact row — not half-screen tiles) ---
-    vol_btns_main = _vol_buttons_from_actions(volume, vol_up, vol_down)
-    for btn in vol_btns_main:
-        btn["show_name"] = False
-    src_row = _compact_cards(
+    # --- ECO + MAIN POWER (RC-1189 top-right) ---
+    power_band = _compact_cards(
+        [
+            _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
+            _press_or_toggle_btn(power, "mdi:power", name="PWR"),
+        ]
+    )
+    if power_band:
+        cards.extend(_section_block("POWER", _btn_grid(power_band, 2, square=True)))
+
+    # --- SOURCE + SLEEP (main zone — volume only on MENU rocker, not duplicated here) ---
+    main_row = _compact_cards(
         [
             _entity_icon_btn(source, "mdi:audio-input-hdmi", name="SOURCE"),
-            vol_btns_main[0] if len(vol_btns_main) > 0 else None,
-            vol_btns_main[1] if len(vol_btns_main) > 1 else None,
             _entity_icon_btn(sleep, "mdi:sleep", name="SLEEP"),
         ]
     )
-    if src_row:
-        cards.append(_btn_grid(src_row, 4, square=True))
+    if main_row:
+        cards.append(_btn_grid(main_row, 2, square=True))
 
     # --- INPUT SELECT + CHANNEL / PAGE ---
     input_grid = _input_faceplate_grid(source, ch_up, ch_down, page_up, page_down)

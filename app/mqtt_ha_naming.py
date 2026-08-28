@@ -102,6 +102,22 @@ def default_entity_id(
     return f"{component}.{candidate}"
 
 
+# Distinct MQTT discovery names when catalog labels slug to the same entity_id.
+_DISCOVERY_LABEL_OVERRIDES: Dict[str, str] = {
+    "ns_ns90": "Network Cursor Up",
+    "ns_ns91": "Network Cursor Down",
+    "ns_ns92": "Network Cursor Left",
+    "ns_ns93": "Network Cursor Right",
+    "ns_ns9d": "Media Skip +",
+    "ns_ns9e": "Media Skip -",
+}
+
+
+def discovery_label(control_id: str, label: str) -> str:
+    """HA entity_id slug source — override known duplicate labels."""
+    return _DISCOVERY_LABEL_OVERRIDES.get(str(control_id or ""), str(label or control_id))
+
+
 def _control_component(control: Dict[str, Any]) -> str:
     return str(
         control.get("ha_component")
@@ -128,7 +144,7 @@ def build_ha_entity_id_map(
         component = _control_component(control)
         if not component:
             continue
-        label = str(control.get("label") or cid)
+        label = discovery_label(cid, str(control.get("label") or cid))
         out[cid] = default_entity_id(
             settings, component=component, label=label, used=used
         )
@@ -156,7 +172,7 @@ def build_publish_entity_id_map(
         publish_controls.append(
             {
                 "id": cid,
-                "label": str(ent.get("label") or cid),
+                "label": discovery_label(cid, str(ent.get("label") or cid)),
                 "ha_component": component,
             }
         )

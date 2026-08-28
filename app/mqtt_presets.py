@@ -80,7 +80,6 @@ RC1189_ENTITY_LABELS: Dict[str, str] = {
 RC1189_LESS: List[str] = [
     "z2_power",
     "z2_vol",
-    "z2_input",
     "z2_mute",
     "si_select",
     "ms_select",
@@ -123,7 +122,6 @@ RC1189_MORE: List[str] = [
     "z2_on",
     "z2_off",
     "z2_vol",
-    "z2_input",
     "z2_mu_on",
     "z2_mu_off",
     "z2_slp",
@@ -172,7 +170,6 @@ RC1189_MORE: List[str] = [
 RC1189_REMOTE_REGIONS: List[Dict[str, Any]] = [
     {"region": "zone2", "label": "ZONE2 ⏻", "less": ["z2_power"], "more": ["z2_on", "z2_off"]},
     {"region": "zone2_vol", "label": "ZONE2 ▲▼", "less": ["z2_vol"], "more": ["z2_vol"]},
-    {"region": "zone2_source", "label": "ZONE2 SOURCE", "less": ["z2_input"], "more": ["z2_input"]},
     {"region": "zone2_mute", "label": "ZONE2 Mute", "less": ["z2_mute"], "more": ["z2_mu_on", "z2_mu_off"]},
     {"region": "inputs", "label": "Input grid (CBL/SAT, DVD, GAME, BT…)", "less": ["si_select"], "more": ["si_select"]},
     {
