@@ -23,6 +23,7 @@ from .denon_control import (
 from .denon_power import read_main_zone_power
 from .mqtt_ha_naming import (
     build_ha_entity_id_map,
+    discovery_label,
     discovery_topic_id,
     legacy_discovery_object_ids,
     slugify,
