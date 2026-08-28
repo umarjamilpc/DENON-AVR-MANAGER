@@ -357,7 +357,7 @@ def _play_pause_btn(
     return card
 
 
-def _top_band(
+def _top_faceplate_grid(
     *,
     z2pwr: Optional[str],
     z2vol: Optional[str],
@@ -366,54 +366,29 @@ def _top_band(
     power: Optional[str],
     sleep: Optional[str],
 ) -> Optional[Dict[str, Any]]:
-    """ZONE 2 (left) and POWER (right) columns side-by-side per RC-1189 diagram."""
-    zone2 = _vstack(
-        [
-            _remote_heading("ZONE 2"),
-            _btn_grid(_compact_cards([_press_or_toggle_btn(z2pwr, "mdi:power", name="Z2")]), 1),
-            _btn_grid(
-                _compact_cards(
-                    [
-                        _icon_btn(z2vol, "mdi:chevron-up", increment=True),
-                        _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
-                    ]
-                ),
-                2,
-            ),
-            _btn_grid(
-                _compact_cards(
-                    [
-                        _icon_btn(z2src, "mdi:import", name="SOURCE", cycle=True)
-                        if z2src and z2src.startswith("select.")
-                        else _entity_icon_btn(z2src, "mdi:import", name="SOURCE"),
-                    ]
-                ),
-                1,
-            ),
-        ]
-    )
-    power_col = _vstack(
-        [
-            _remote_heading("POWER"),
-            _btn_grid(
-                _compact_cards(
-                    [
-                        _icon_btn(eco, "mdi:leaf", name="ECO", cycle=True)
-                        if eco and eco.startswith("select.")
-                        else _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
-                        _press_or_toggle_btn(power, "mdi:power", name="PWR"),
-                    ]
-                ),
-                2,
-            ),
-            _btn_grid(
-                _compact_cards([_entity_icon_btn(sleep, "mdi:sleep", name="SLEEP")]),
-                1,
-            ),
-        ]
-    )
-    band = _hstack([zone2, power_col])
-    return band
+    """RC-1189 top face — 4×2 grid matching physical remote.
+
+    Row 1: Z2 ⏻ · Z2 vol ▲ · ECO · PWR
+    Row 2: Z2 SOURCE · Z2 vol ▼ · (spacer) · SLEEP
+    """
+    cells: List[Optional[Dict[str, Any]]] = [
+        _press_or_toggle_btn(z2pwr, "mdi:power", name="Z2"),
+        _icon_btn(z2vol, "mdi:chevron-up", increment=True),
+        _icon_btn(eco, "mdi:leaf", name="ECO", cycle=True)
+        if eco and eco.startswith("select.")
+        else _entity_icon_btn(eco, "mdi:leaf", name="ECO"),
+        _press_or_toggle_btn(power, "mdi:power", name="PWR"),
+        _icon_btn(z2src, "mdi:import", name="SOURCE", cycle=True)
+        if z2src and z2src.startswith("select.")
+        else _entity_icon_btn(z2src, "mdi:import", name="SOURCE"),
+        _icon_btn(z2vol, "mdi:chevron-down", decrement=True),
+        None,
+        _entity_icon_btn(sleep, "mdi:sleep", name="SLEEP"),
+    ]
+    if not any(cells):
+        return None
+    filled = [c if c else _spacer() for c in cells]
+    return _btn_grid(filled, 4, square=True)
 
 
 def _input_faceplate_grid(
@@ -525,8 +500,8 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         }
     ]
 
-    # --- ZONE 2 (left) | POWER (right) — physical RC-1189 top band ---
-    top_band = _top_band(
+    # --- ZONE 2 · POWER — 4×2 face plate (matches physical RC-1189 top) ---
+    top_grid = _top_faceplate_grid(
         z2pwr=z2pwr,
         z2vol=z2vol,
         z2src=z2src,
@@ -534,8 +509,8 @@ def _rc1189_compact(refs: Dict[str, str]) -> Dict[str, Any]:
         power=power,
         sleep=sleep,
     )
-    if top_band:
-        cards.append(top_band)
+    if top_grid:
+        cards.extend(_section_block("ZONE 2 · POWER", top_grid))
 
     # --- INPUT SELECT + CHANNEL / PAGE ---
     input_grid = _input_faceplate_grid(source, ch_up, ch_down, page_up, page_down)
@@ -759,8 +734,8 @@ LOVELACE_STYLE_META = {
         "note": (
             "Panel dashboard: phone full-width, desktop centered. "
             "SOURCE under ZONE 2 cycles Zone 2 input. SETUP cycles On/Off. "
-            "Skip buttons map to skip / skip_2 entity IDs (catalog collision order). "
-            "Play/Pause: tap = play, hold = pause."
+            "Skip buttons use skip_next / skip_previous entity IDs. "
+            "Play/Pause: tap = play, hold = pause. Re-sync MQTT after entity renames."
         ),
     },
     "rc1189_card": {

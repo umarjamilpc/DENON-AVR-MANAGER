@@ -103,12 +103,18 @@ def default_entity_id(
 
 
 # Distinct MQTT discovery names when catalog labels slug to the same entity_id.
-# Skip + / Skip − both slug to "skip"; publish order assigns skip then skip_2 (matches HA).
+# Punctuation stripped by slugify causes pairs like Skip +/− → both "skip".
+# Menu cursors (mn_mnc*) vs network cursors (ns_ns90–93) share "cursor_*" slugs when both enabled.
 _DISCOVERY_LABEL_OVERRIDES: Dict[str, str] = {
     "ns_ns90": "Network Cursor Up",
     "ns_ns91": "Network Cursor Down",
     "ns_ns92": "Network Cursor Left",
     "ns_ns93": "Network Cursor Right",
+    "ns_ns94": "Network Enter",
+    "ns_ns9d": "Skip Next",
+    "ns_ns9e": "Skip Previous",
+    "ns_ns9f": "Search Next",
+    "ns_ns9g": "Search Previous",
 }
 
 
